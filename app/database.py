@@ -333,6 +333,7 @@ async def init_db() -> None:
         MlflowModelBuild,
     )
     from app.models.deploy_registry_settings import DeployRegistrySettings  # noqa: F401
+    from app.models.bamboo_settings import BambooSettings  # noqa: F401
     from app.models.kubernetes import (  # noqa: F401
         K8sApplication,
         K8sProject,

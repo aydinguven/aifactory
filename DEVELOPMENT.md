@@ -13,6 +13,7 @@
 
 | Owner | Status | Branch | Task | Next step |
 |---|---|---|---|---|
+| Kiro | In review | `feat/bamboo-retag-trigger` | Bamboo `AIMLOPS-RETAG` trigger after each published Kubernetes image release (migration 34) | Aydin reviews and merges; after the update, fill Admin > Kubernetes > Bamboo Retag Planı (`https://atlas.tcmb.gov.tr/bamboo`, `AIMLOPS-RETAG`, the token, which should be rotated since it was shared in chat), publish a test version and check the Bamboo build link in Kubernetes Yayınları |
 | Kiro | In review | `feat/kilo-code` (PR #75) | 3.24.0: upstream Kilo Code replaces TCMB Code; full rename to `vscode-kilo` / `kilo_code_settings` (migration 33), catalog MCP servers (`LocalMCP.sh`) and skills URLs in Admin | Aydin reviews and merges; tag `v3.24.0`; then update IDMVAIFACT1 and the workers and follow `INSTALL.md` "Rolling out Kilo Code (3.24.0)": import `vscode-kilo-3.24.0` and `vscode-cuda-3.24.0`, check the Kilo Code card (catalog URL `http://10.255.10.52:8000`, skills `http://10.255.10.54:8788/`) |
 | Aydin | Pending | `main` | 3.23.0 rollout: Kubernetes applications are created from the MLflow deploy modal; Admin > Kubernetes keeps only the registry and the RFS codes (PR #73, no schema change). It also contains the 3.22.0 and 3.21.1 changes | Update IDMVAIFACT1 and the workers; the 3.21.1 steps below still apply. In Admin > Kubernetes, enter `btgvalmbxp1:8525` / `aimldeployer` / the password, untick TLS verification if the certificate is not trusted, and press Test. Add RFS code `mbnllmd` (namespace defaults to it; change it if the platform team agreed another). Then open `PayguardAnomalyUnified` v3 → Dağıt → Kubernetes, pick `mbnllmd`, type `mbnllmdml-swiftanomaly` and publish the agreed X.Y.Z; if Nexus rejects the manifest, choose v2s2 and retry. Ask the platform team to enable "Disable redeploy" on the hosted repo. Phase 2 (workflow trigger) waits on them |
 | Aydin | Superseded | `main` | 3.22.0 rollout: Kubernetes target, which publishes MLflow model images to the deploy registry (Nexus) (migration 32, PR #71) | Included in 3.23.0; the application is no longer added in Admin > Kubernetes but by the first publish from the deploy modal |
@@ -28,6 +29,12 @@
 | Aydin | Pending | `main` | 3.12.0 rollout | Update IDMVAIFACT1 and workers, set `TCMB_Standard_User` + priority in Admin > GenAI, then create a workspace as a GenAI user and check the key in LiteLLM |
 
 ## Decisions
+
+- 2026-11-03 (migration 34, branch `feat/bamboo-retag-trigger`): phase 2 of the Kubernetes target. Each published image release queues the Bamboo plan `AIMLOPS-RETAG` (re-tag + Jira tasks). Aydin chose:
+  - `pkg.img.name` is `rfs_code/app_name:X.Y.Z` in lower case, without the registry host; `pkg.groupid` and `pkg.name` are the RFS code and app name in upper case.
+  - Retry is manual only (`POST /api/mlflow/image-releases/{id}/bamboo-retry`, same permission as the release retry). No CA file field; only a TLS verification switch. The plan allows concurrent builds, so no queuing on our side.
+  - `_mark_published` sets `bamboo_status=pending` in the PUBLISHED commit when the integration is enabled; `trigger_pending_bamboo_builds` in the release worker claims it (`triggering`) and records `queued` (with `buildResultKey`) or `failed`. A claim older than 120 s is marked failed, not resent, to avoid duplicate Jira tasks.
+  - The request also sends `X-Atlassian-Token: no-check`, since Atlassian XSRF protection can reject form posts to REST without it.
 
 - 2026-10-23 (3.24.0, migration 33, PR #75): upstream Kilo Code (`kilocode.kilo-code` 7.8.17, linux-x64 VSIX from Open VSX, SHA-256 pinned) replaces TCMB Code. Aydin chose:
   - **Full rename**: `app/kilo_code.py`, `KiloCodeSettings` (`kilo_code_settings`), `/api/admin/kilo-code-settings`, template `vscode-kilo` (image `localhost/devcloud-vscode-kilo:latest`, `containers/vscode-kilo`), `ai_assistant="kilo-code"`, worker payload `kilo_code_config`, env `DEVCLOUD_KILO_CONFIG_*`, config file `~/.config/kilo/kilo.jsonc`. `MIN_AGENT_VERSION` is 3.24.0 and the digest salt is new, so every Kilo Code container is rebuilt once.

@@ -26,6 +26,16 @@ class ImageReleaseStatus:
     TERMINAL = frozenset({PUBLISHED, FAILED})
 
 
+class BambooTriggerStatus:
+    """Bamboo retag trigger of a published release; "" when the integration was off."""
+
+    NONE = ""
+    PENDING = "pending"
+    TRIGGERING = "triggering"
+    QUEUED = "queued"
+    FAILED = "failed"
+
+
 class K8sProject(Base):
     """An RFS project: one Kubernetes namespace with one or more ML services."""
 
@@ -102,6 +112,16 @@ class MlflowImageRelease(Base):
     source_ref: Mapped[str] = mapped_column(String(1024), default="", nullable=False)
     digest: Mapped[str] = mapped_column(String(128), default="", nullable=False)
     mlflow_tagged: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Bamboo retag plan queued after publishing; see BambooTriggerStatus.
+    bamboo_status: Mapped[str] = mapped_column(
+        String(16), default="", nullable=False, index=True
+    )
+    bamboo_result_key: Mapped[str] = mapped_column(String(128), default="", nullable=False)
+    bamboo_result_url: Mapped[str] = mapped_column(String(512), default="", nullable=False)
+    bamboo_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    bamboo_attempted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     status: Mapped[str] = mapped_column(
         String(32), default=ImageReleaseStatus.QUEUED, nullable=False, index=True
     )

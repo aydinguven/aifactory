@@ -370,26 +370,41 @@
     const imageCell = item => item.status === "published"
       ? `<code>${esc(item.image_ref)}</code><br><span class="text-muted" title="${esc(item.digest)}">${esc(item.digest.slice(0, 19))}…</span>`
       : `<code>${esc(item.image_ref || `${item.rfs_code}/${item.app_name}:${item.version}`)}</code>`;
+    const bambooLabels = {pending: "bekliyor", triggering: "tetikleniyor", queued: "kuyrukta", failed: "başarısız"};
+    const bambooLine = item => {
+      if (!item.bamboo_status) return "";
+      const label = `Bamboo: ${bambooLabels[item.bamboo_status] || item.bamboo_status}`;
+      const key = item.bamboo_result_key
+        ? (item.bamboo_result_url
+          ? ` <a href="${esc(item.bamboo_result_url)}" target="_blank" rel="noopener noreferrer">${esc(item.bamboo_result_key)}</a>`
+          : ` ${esc(item.bamboo_result_key)}`)
+        : "";
+      const kind = item.bamboo_status === "failed" ? "text-destructive" : "text-muted";
+      return `<br><span class="${kind}" title="${esc(item.bamboo_error || "")}">${esc(label)}${key}</span>`;
+    };
     async function load() {
       const data = await fetchJson("/api/mlflow/image-releases");
       body.innerHTML = (data.releases || []).map(item => `<tr>
         <td><strong>${esc(item.rfs_code)}/${esc(item.app_name)}</strong><br><span class="text-muted">${esc(item.model_name)} v${esc(item.model_version)}</span></td>
         <td><span class="badge badge-neutral">Kubernetes</span><br><span class="text-muted">${esc(item.namespace)}</span></td>
         <td><strong>${esc(item.version)}</strong></td>
-        <td><span class="badge ${statusBadge(item.status)}">${esc(item.status)}</span><br><span class="text-muted" title="${esc(item.error_message || "")}">${esc(item.status_message || "")}</span></td>
+        <td><span class="badge ${statusBadge(item.status)}">${esc(item.status)}</span><br><span class="text-muted" title="${esc(item.error_message || "")}">${esc(item.status_message || "")}</span>${bambooLine(item)}</td>
         <td class="data-value">${imageCell(item)}</td>
         <td>${esc(item.username)}<br><span class="text-muted">${esc(new Date(item.created_at).toLocaleString("tr-TR"))}</span></td>
-        <td style="white-space:nowrap;">${item.status === "failed" ? `<button class="btn btn-primary btn-sm" data-release-retry="${esc(item.id)}">Yeniden Dene</button>` : ""}</td>
+        <td style="white-space:nowrap;">${item.status === "failed" ? `<button class="btn btn-primary btn-sm" data-release-retry="${esc(item.id)}">Yeniden Dene</button>` : ""}${item.bamboo_status === "failed" ? `<button class="btn btn-secondary btn-sm" data-bamboo-retry="${esc(item.id)}">Bamboo'yu Yeniden Tetikle</button>` : ""}</td>
       </tr>`).join("") || '<tr><td colspan="7" class="text-muted">Henüz Kubernetes yayını yapılmadı.</td></tr>';
       status.textContent = "";
       status.className = "";
     }
     root.addEventListener("click", async event => {
-      const button = event.target.closest("[data-release-retry]");
+      const button = event.target.closest("[data-release-retry], [data-bamboo-retry]");
       if (!button) return;
+      const bamboo = button.hasAttribute("data-bamboo-retry");
+      if (bamboo && !confirm("Bamboo planı yeniden tetiklensin mi? Önceki tetikleme Bamboo'ya ulaştıysa Jira görevleri tekrar açılabilir.")) return;
       button.disabled = true;
       try {
-        await fetchJson(`/api/mlflow/image-releases/${encodeURIComponent(button.dataset.releaseRetry)}/retry`, {method: "POST"});
+        const releaseId = bamboo ? button.dataset.bambooRetry : button.dataset.releaseRetry;
+        await fetchJson(`/api/mlflow/image-releases/${encodeURIComponent(releaseId)}/${bamboo ? "bamboo-retry" : "retry"}`, {method: "POST"});
         await load();
       } catch (value) {
         status.textContent = value.message;
