@@ -9,6 +9,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_admin_user
+from app.bamboo import (
+    BambooConfig,
+    BambooConfigurationError,
+    bamboo_settings_out,
+    effective_bamboo_config,
+)
+from app.bamboo import config_from_record as bamboo_config_from_record
+from app.bamboo import config_from_update as bamboo_config_from_update
 from app.database import get_db
 from app.deploy_registry import (
     DeployRegistryConfig,
@@ -25,6 +33,7 @@ from app.kubernetes_publish import (
     highest_version,
     image_repository,
 )
+from app.models.bamboo_settings import BambooSettings
 from app.models.deploy_registry_settings import DeployRegistrySettings
 from app.models.kubernetes import (
     ImageReleaseStatus,
@@ -35,6 +44,8 @@ from app.models.kubernetes import (
 from app.models.user import User
 from app.orchestrator.admission import admission_transaction
 from app.schemas.kubernetes import (
+    BambooSettingsOut,
+    BambooSettingsUpdate,
     DeployRegistrySettingsOut,
     DeployRegistrySettingsUpdate,
     DeployRegistryTestRequest,
@@ -139,6 +150,56 @@ async def test_deploy_registry_settings(
     except DeployRegistryConfigurationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return DeployRegistryTestResult(registry_url=candidate.registry_url, **result)
+
+
+@router.get("/bamboo-settings", response_model=BambooSettingsOut)
+async def get_bamboo_settings(
+    _admin: Annotated[User, Depends(get_current_admin_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    record = await db.get(BambooSettings, 1)
+    try:
+        config = await effective_bamboo_config(db)
+    except BambooConfigurationError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return bamboo_settings_out(config, record)
+
+
+@router.put("/bamboo-settings", response_model=BambooSettingsOut)
+async def update_bamboo_settings(
+    update: BambooSettingsUpdate,
+    _admin: Annotated[User, Depends(get_current_admin_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Encrypt and store the Bamboo plan queued after each published release."""
+    try:
+        async with admission_transaction(db):
+            record = await db.get(BambooSettings, 1)
+            try:
+                current = await effective_bamboo_config(db)
+            except BambooConfigurationError:
+                # An undecryptable stored token can be replaced, not kept.
+                if update.token is None:
+                    raise
+                current = BambooConfig(
+                    managed=True, enabled=False, base_url="", plan_key="", token=""
+                )
+            candidate = bamboo_config_from_update(update, current)
+            if record is None:
+                record = BambooSettings(id=1)
+                record.encrypted_token = encrypt_secret(candidate.token)
+            elif update.token is not None:
+                record.encrypted_token = encrypt_secret(candidate.token)
+            record.enabled = candidate.enabled
+            record.base_url = candidate.base_url
+            record.plan_key = candidate.plan_key
+            record.tls_verify = candidate.tls_verify
+            record.updated_at = datetime.now(timezone.utc)
+            db.add(record)
+    except BambooConfigurationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    await db.refresh(record)
+    return bamboo_settings_out(bamboo_config_from_record(record), record)
 
 
 async def _release_stats(db: AsyncSession) -> tuple[dict[str, int], dict[str, list[str]]]:

@@ -23,6 +23,12 @@ from app.models.model_container_registry_settings import (
 )
 from app.models.download_settings import DownloadSettings
 from app.models.deploy_registry_settings import DeployRegistrySettings
+from app.models.bamboo_settings import BambooSettings
+from app.bamboo import (
+    BambooConfigurationError,
+    bamboo_settings_out,
+    effective_bamboo_config,
+)
 from app.deploy_registry import (
     DeployRegistryConfigurationError,
     deploy_registry_settings_out,
@@ -747,6 +753,15 @@ async def admin_page(
         except DeployRegistryConfigurationError as exc:
             context["deploy_registry_settings"] = None
             context["deploy_registry_error"] = str(exc)
+        bamboo_record = await db.get(BambooSettings, 1)
+        try:
+            context["bamboo_settings"] = bamboo_settings_out(
+                await effective_bamboo_config(db), bamboo_record
+            )
+            context["bamboo_error"] = ""
+        except BambooConfigurationError as exc:
+            context["bamboo_settings"] = None
+            context["bamboo_error"] = str(exc)
     elif section == "system":
         context["session_timeout_minutes"] = await session_timeout_minutes(db)
         context["onboarding_settings"] = await db.get(OnboardingSettings, 1)

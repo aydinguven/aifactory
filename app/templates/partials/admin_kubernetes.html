@@ -54,6 +54,48 @@
   </form>
 </section>
 
+{% set bamboo = bamboo_settings %}
+<section class="card admin-integration-card" id="bamboo-integration" style="margin-bottom: 2rem; border-top: 3px solid #0052cc;">
+  <div class="card-header">
+    <div>
+      <h2 class="card-title">Bamboo Retag Planı (Jira)</h2>
+      <p class="admin-section-description">Her imaj yayını tamamlandığında bu Bamboo planı kuyruğa alınır; plan imajı yeniden etiketler ve Jira görevlerini açar. Gönderilen değişkenler: <code>pkg.groupid</code> (RFS kodu, büyük harf), <code>pkg.name</code> (uygulama adı, büyük harf), <code>pkg.vers</code> ve <code>pkg.img.name</code> (<code>rfskodu/uygulama-adı:X.Y.Z</code>, küçük harf).</p>
+    </div>
+    <span id="bamboo-status-badge" class="badge {% if bamboo and bamboo.enabled %}badge-running{% else %}badge-stopped{% endif %}">{% if bamboo and bamboo.enabled %}Etkin{% else %}Devre Dışı{% endif %}</span>
+  </div>
+  <form id="bamboo-settings-form" autocomplete="off">
+    <label style="display:flex;gap:.5rem;align-items:center;margin-bottom:1rem;">
+      <input type="checkbox" name="enabled" {% if bamboo and bamboo.enabled %}checked{% endif %}>
+      <span>Yayından sonra Bamboo planını tetikle</span>
+    </label>
+    <div class="grid grid-cols-2" style="gap:.75rem;margin-bottom:.75rem;">
+      <label class="form-group" style="margin:0;">
+        <span class="form-label">Bamboo adresi</span>
+        <input class="form-input" name="base_url" value="{{ bamboo.base_url if bamboo else '' }}" placeholder="https://atlas.tcmb.gov.tr/bamboo">
+        <small class="form-help"><code>/rest/api/...</code> eklemeyin; istek <code>{adres}/rest/api/latest/queue/{plan}</code> adresine gider.</small>
+      </label>
+      <label class="form-group" style="margin:0;">
+        <span class="form-label">Plan anahtarı</span>
+        <input class="form-input" name="plan_key" value="{{ bamboo.plan_key if bamboo else 'AIMLOPS-RETAG' }}" placeholder="AIMLOPS-RETAG">
+      </label>
+      <label class="form-group" style="margin:0;">
+        <span class="form-label">Bearer token</span>
+        <input class="form-input" name="token" type="password" autocomplete="new-password" placeholder="{% if bamboo and bamboo.has_token %}Kayıtlı tokenı korumak için boş bırakın{% else %}Bamboo erişim tokenını girin{% endif %}">
+      </label>
+      <label style="display:flex;gap:.5rem;align-items:center;align-self:end;min-height:2.75rem;">
+        <input type="checkbox" name="tls_verify" {% if not bamboo or bamboo.tls_verify %}checked{% endif %}>
+        <span>TLS sertifikasını doğrula</span>
+      </label>
+    </div>
+    <p class="text-muted">Token şifreli saklanır ve yalnızca controller kullanır. Tetikleme başarısız olursa yayın geçerli kalır; yayın listesinden yeniden denenebilir.</p>
+    {% if bamboo_error %}<p class="text-destructive">{{ bamboo_error }}</p>{% endif %}
+    <div class="table-actions">
+      <button id="btn-save-bamboo" type="submit" class="btn btn-primary">Bamboo Ayarlarını Kaydet</button>
+      <span id="bamboo-form-status" class="quota-form-status" role="status" aria-live="polite"></span>
+    </div>
+  </form>
+</section>
+
 <section class="card" id="k8s-projects" style="margin-bottom: 2rem;">
   <div class="card-header">
     <div>

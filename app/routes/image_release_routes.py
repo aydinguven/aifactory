@@ -3,7 +3,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
@@ -28,6 +28,7 @@ from app.model_container_registry import (
     validate_model_container_registry_config,
 )
 from app.models.kubernetes import (
+    BambooTriggerStatus,
     ImageReleaseStatus,
     K8sApplication,
     K8sProject,
@@ -86,6 +87,10 @@ def _release_out(
         error_message=release.error_message,
         build_status=build.status.value if build else None,
         build_error_message=build.error_message if build else None,
+        bamboo_status=release.bamboo_status or "",
+        bamboo_result_key=release.bamboo_result_key or "",
+        bamboo_result_url=release.bamboo_result_url or "",
+        bamboo_error=release.bamboo_error,
         created_at=release.created_at,
         updated_at=release.updated_at,
         completed_at=release.completed_at,
@@ -447,5 +452,39 @@ async def retry_image_release(
         await append_release_event(db, release, release.status_message)
     if failed_build_id:
         await garbage_collect_model_build(db, failed_build_id)
+    await db.refresh(release)
+    return await _detailed_release_out(db, release)
+
+
+@image_release_router.post(
+    "/image-releases/{release_id}/bamboo-retry", response_model=ImageReleaseOut, status_code=202
+)
+async def retry_bamboo_trigger(
+    release_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Queue the Bamboo retag plan again for a published release whose trigger failed."""
+    release = await _visible_release(db, release_id, current_user)
+    if not can_publish_images(current_user):
+        raise HTTPException(status_code=403, detail="Kubernetes imaj yayını için yetkiniz yok.")
+    claimed = await db.execute(
+        update(MlflowImageRelease)
+        .where(
+            MlflowImageRelease.id == release.id,
+            MlflowImageRelease.status == ImageReleaseStatus.PUBLISHED,
+            MlflowImageRelease.bamboo_status == BambooTriggerStatus.FAILED,
+        )
+        .values(bamboo_status=BambooTriggerStatus.PENDING, bamboo_error=None)
+        .execution_options(synchronize_session=False)
+    )
+    if claimed.rowcount != 1:
+        await db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Yalnızca Bamboo tetiklemesi başarısız olan yayınlar yeniden denenebilir.",
+        )
+    await append_release_event(db, release, "Bamboo retag planı yeniden tetiklenecek.")
+    await db.commit()
     await db.refresh(release)
     return await _detailed_release_out(db, release)

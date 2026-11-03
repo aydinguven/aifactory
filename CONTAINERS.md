@@ -201,6 +201,19 @@ Secrets and `envFrom`, never through DevCloud or the image.
   behind a failed release.
 - Progress and failures are on the Deployments page (Kubernetes Yayınları);
   a failed release can be retried with the same version.
+- When **Bamboo Retag Planı** is enabled in Admin > Kubernetes (Bamboo root
+  URL, plan key `AIMLOPS-RETAG`, Bearer token stored encrypted), each
+  published release queues that plan, which re-tags the image and opens the
+  Jira tasks. The controller sends `POST {url}/rest/api/latest/queue/{plan}`
+  (form-urlencoded) with `bamboo.variable.pkg.groupid` (RFS code, upper
+  case), `pkg.name` (app name, upper case), `pkg.vers` (`X.Y.Z`) and
+  `pkg.img.name` (`rfs_code/app_name:X.Y.Z`, lower case, no registry host).
+  The trigger is recorded with the PUBLISHED state and sent by the release
+  worker, so a restart does not lose it. A Bamboo failure never fails the
+  release: the list shows `Bamboo: başarısız` and **Bamboo'yu Yeniden
+  Tetikle**. A request cut off by a controller restart is marked failed
+  rather than resent, because sending it twice would open duplicate Jira
+  tasks; check Bamboo before retrying it.
 
 For one-file transfer into an air gap, a connected builder can produce a
 separate checksummed image pack:

@@ -229,6 +229,44 @@
     load().catch(error => { list.innerHTML = `<p class="text-destructive">${esc(error.message)}</p>`; });
   }
 
+  function initBamboo() {
+    const form = document.getElementById("bamboo-settings-form");
+    if (!form) return;
+    const status = document.getElementById("bamboo-form-status");
+    const badge = document.getElementById("bamboo-status-badge");
+    const saveButton = document.getElementById("btn-save-bamboo");
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+      saveButton.disabled = true;
+      setStatus(status, "Kaydediliyor...");
+      const token = String(form.elements.token.value || "").trim();
+      try {
+        const saved = await request("/api/admin/bamboo-settings", {
+          method: "PUT",
+          body: JSON.stringify({
+            enabled: form.elements.enabled.checked,
+            base_url: String(form.elements.base_url.value || "").trim(),
+            plan_key: String(form.elements.plan_key.value || "").trim(),
+            token: token || null,
+            tls_verify: form.elements.tls_verify.checked,
+          }),
+        });
+        form.elements.token.value = "";
+        form.elements.token.placeholder = saved.has_token ? "Kayıtlı tokenı korumak için boş bırakın" : "Bamboo erişim tokenını girin";
+        form.elements.plan_key.value = saved.plan_key;
+        form.elements.base_url.value = saved.base_url;
+        badge.className = `badge ${saved.enabled ? "badge-running" : "badge-stopped"}`;
+        badge.textContent = saved.enabled ? "Etkin" : "Devre Dışı";
+        setStatus(status, "Bamboo ayarları şifreli olarak kaydedildi.", "success");
+      } catch (error) {
+        setStatus(status, error.message, "error");
+      } finally {
+        saveButton.disabled = false;
+      }
+    });
+  }
+
   initDeployRegistry();
+  initBamboo();
   initProjects();
 })();

@@ -19,7 +19,7 @@ from app.config import settings
 from app.database import engine, init_db
 
 
-CURRENT_SCHEMA_VERSION = 33
+CURRENT_SCHEMA_VERSION = 34
 # ai_config_digest of the workspaces migration 33 moved off TCMB Code.
 TCMB_CODE_MIGRATED_DIGEST = "tcmb-code-migrated"
 
@@ -1023,6 +1023,34 @@ async def _enforce_mlflow_image_references(conn) -> None:
             )
 
 
+async def _add_image_release_bamboo_columns(conn) -> None:
+    """Track the Bamboo retag plan queued after each published release."""
+    wanted = {
+        "bamboo_status": "VARCHAR(16) NOT NULL DEFAULT ''",
+        "bamboo_result_key": "VARCHAR(128) NOT NULL DEFAULT ''",
+        "bamboo_result_url": "VARCHAR(512) NOT NULL DEFAULT ''",
+        "bamboo_error": "TEXT",
+        "bamboo_attempted_at": "TIMESTAMP WITH TIME ZONE",
+    }
+    existing = await conn.run_sync(
+        lambda sync_conn: {
+            column["name"]
+            for column in inspect(sync_conn).get_columns("mlflow_image_releases")
+        }
+    )
+    for name, definition in wanted.items():
+        if name not in existing:
+            await conn.execute(
+                text(f"ALTER TABLE mlflow_image_releases ADD COLUMN {name} {definition}")
+            )
+    await conn.execute(
+        text(
+            "CREATE INDEX IF NOT EXISTS ix_mlflow_image_releases_bamboo_status "
+            "ON mlflow_image_releases (bamboo_status)"
+        )
+    )
+
+
 async def upgrade() -> None:
     # The legacy initializer remains the compatibility migration for all
     # pre-versioned installations.
@@ -1136,6 +1164,10 @@ async def upgrade() -> None:
             # init_db creates the portable kilo_code_settings table.
             await _replace_tcmb_code_with_kilo_code(conn)
             await _record_version(conn, 33, "Kilo Code replaces TCMB Code")
+        if 34 not in applied:
+            # init_db creates the portable bamboo_settings table.
+            await _add_image_release_bamboo_columns(conn)
+            await _record_version(conn, 34, "Bamboo retag trigger after image releases")
 
 
 async def current_version() -> int:

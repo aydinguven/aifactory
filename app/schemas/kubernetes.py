@@ -106,6 +106,66 @@ class DeployRegistryTestResult(BaseModel):
     message: str
 
 
+BAMBOO_PLAN_KEY_PATTERN = re.compile(r"^[A-Z][A-Z0-9]*-[A-Z][A-Z0-9]*$")
+
+
+def normalize_bamboo_base_url(value: str) -> str:
+    """The Bamboo root URL, e.g. https://atlas.example/bamboo, without a trailing slash."""
+    value = value.strip().rstrip("/")
+    if not value:
+        return ""
+    if not re.fullmatch(r"https?://[^\s/?#@]+(/[^\s?#]*)?", value):
+        raise ValueError(
+            "Bamboo adresi http:// veya https:// ile başlamalı; kimlik bilgisi veya query içermemelidir."
+        )
+    return value
+
+
+def _plan_key(value: str) -> str:
+    value = value.strip().upper()
+    if not BAMBOO_PLAN_KEY_PATTERN.fullmatch(value):
+        raise ValueError("Plan anahtarı PROJE-PLAN biçiminde olmalıdır (örn. AIMLOPS-RETAG).")
+    return value
+
+
+class BambooSettingsUpdate(BaseModel):
+    enabled: bool = False
+    base_url: str = Field(default="", max_length=255)
+    plan_key: str = Field(default="AIMLOPS-RETAG", max_length=64)
+    token: str | None = Field(default=None, max_length=4096)
+    tls_verify: bool = True
+
+    @field_validator("base_url", mode="after")
+    @classmethod
+    def validate_base_url(cls, value: str) -> str:
+        return normalize_bamboo_base_url(value)
+
+    @field_validator("plan_key", mode="after")
+    @classmethod
+    def validate_plan_key(cls, value: str) -> str:
+        return _plan_key(value)
+
+    @field_validator("token", mode="after")
+    @classmethod
+    def validate_token(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        if any(ord(character) < 33 for character in value):
+            raise ValueError("Bamboo tokenı boşluk veya kontrol karakteri içeremez.")
+        return value
+
+
+class BambooSettingsOut(BaseModel):
+    managed: bool
+    enabled: bool
+    base_url: str
+    plan_key: str
+    has_token: bool
+    tls_verify: bool
+    updated_at: datetime | None = None
+
+
 class K8sProjectWrite(BaseModel):
     rfs_code: str = Field(min_length=2, max_length=32)
     name: str = Field(min_length=1, max_length=120)
@@ -283,6 +343,10 @@ class ImageReleaseOut(BaseModel):
     error_message: str | None = None
     build_status: str | None = None
     build_error_message: str | None = None
+    bamboo_status: str = ""
+    bamboo_result_key: str = ""
+    bamboo_result_url: str = ""
+    bamboo_error: str | None = None
     created_at: datetime
     updated_at: datetime
     completed_at: datetime | None = None

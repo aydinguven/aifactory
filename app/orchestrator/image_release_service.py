@@ -15,6 +15,13 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, or_, select, update
 
+from app.bamboo import (
+    BambooConfigurationError,
+    BambooTriggerError,
+    effective_bamboo_config,
+    queue_retag_build,
+    retag_variables,
+)
 from app.database import AsyncSessionLocal
 from app.deploy_registry import (
     DeployRegistryConfig,
@@ -24,7 +31,9 @@ from app.deploy_registry import (
 from app.integrations.mlflow import MlflowClient
 from app.kubernetes_publish import image_reference
 from app.model_container_registry import effective_model_container_registry_config
+from app.models.bamboo_settings import BambooSettings
 from app.models.kubernetes import (
+    BambooTriggerStatus,
     ImageReleaseStatus,
     K8sApplication,
     K8sProject,
@@ -290,6 +299,11 @@ async def _mark_published(
                 "warning",
             )
     release.mlflow_tagged = bool(client) and await _tag_mlflow_version(db, release, client)
+    # Committed together with PUBLISHED, so a restart cannot lose the trigger;
+    # the worker queues the Bamboo plan afterwards (trigger_pending_bamboo_builds).
+    bamboo = await db.get(BambooSettings, 1)
+    if bamboo is not None and bamboo.enabled:
+        release.bamboo_status = BambooTriggerStatus.PENDING
     await set_release_stage(db, release, ImageReleaseStatus.PUBLISHED, message, level=level)
 
 
@@ -561,6 +575,151 @@ async def recover_interrupted_image_releases() -> None:
             await _recover_stale_release(db, release)
 
 
+# Longer than the Bamboo request timeout: a TRIGGERING claim older than this
+# belongs to a controller that stopped mid-request.
+_BAMBOO_CLAIM_SECONDS = 120
+
+
+async def _finish_bamboo_trigger(
+    db,
+    release: MlflowImageRelease,
+    status: str,
+    message: str,
+    level: str,
+    *,
+    error: str | None = None,
+    result_key: str = "",
+    result_url: str = "",
+) -> None:
+    release.bamboo_status = status
+    release.bamboo_error = error
+    release.bamboo_result_key = result_key
+    release.bamboo_result_url = result_url
+    release.bamboo_attempted_at = datetime.now(timezone.utc)
+    await append_release_event(db, release, message, level)
+    db.add(release)
+    await db.commit()
+
+
+async def trigger_bamboo_build(release_id: str) -> None:
+    """Queue the retag plan for one PENDING release; never changes the release status."""
+    async with AsyncSessionLocal() as db:
+        claimed = await db.execute(
+            update(MlflowImageRelease)
+            .where(
+                MlflowImageRelease.id == release_id,
+                MlflowImageRelease.status == ImageReleaseStatus.PUBLISHED,
+                MlflowImageRelease.bamboo_status == BambooTriggerStatus.PENDING,
+            )
+            .values(
+                bamboo_status=BambooTriggerStatus.TRIGGERING,
+                bamboo_attempted_at=datetime.now(timezone.utc),
+            )
+            .execution_options(synchronize_session=False)
+        )
+        await db.commit()
+        if claimed.rowcount != 1:
+            return
+        release = await db.get(MlflowImageRelease, release_id)
+        if release is None:
+            return
+        try:
+            config = await effective_bamboo_config(db)
+            application = await db.get(K8sApplication, release.application_id)
+            project = await db.get(K8sProject, application.project_id) if application else None
+            if application is None or project is None:
+                raise BambooTriggerError("Kubernetes uygulaması veya projesi artık bulunamıyor.")
+            variables = retag_variables(project.rfs_code, application.app_name, release.version)
+            result_key, result_url = await queue_retag_build(config, variables)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - a Bamboo failure never fails a release
+            known = isinstance(exc, (BambooConfigurationError, BambooTriggerError))
+            if not known:
+                logger.exception("Bamboo trigger for image release %s failed", release_id)
+            detail = str(exc)[:500] or exc.__class__.__name__
+            await db.rollback()
+            release = await db.get(MlflowImageRelease, release_id)
+            if release is None:
+                return
+            await _finish_bamboo_trigger(
+                db,
+                release,
+                BambooTriggerStatus.FAILED,
+                f"Bamboo retag planı tetiklenemedi; imaj yayında, Jira görevleri açılmadı: {detail}",
+                "warning",
+                error=detail,
+            )
+            return
+        await _finish_bamboo_trigger(
+            db,
+            release,
+            BambooTriggerStatus.QUEUED,
+            f"Bamboo {config.plan_key} planı kuyruğa alındı"
+            + (f" ({result_key})." if result_key else "."),
+            "success",
+            result_key=result_key,
+            result_url=result_url,
+        )
+
+
+async def _fail_stale_bamboo_triggers(db) -> None:
+    """A claim left by a stopped controller: the outcome is unknown, so do not resend.
+
+    Queuing the plan twice would open duplicate Jira tasks; the user checks
+    Bamboo and retries by hand if needed.
+    """
+    deadline = datetime.now(timezone.utc) - timedelta(seconds=_BAMBOO_CLAIM_SECONDS)
+    stale = (
+        await db.execute(
+            select(MlflowImageRelease).where(
+                MlflowImageRelease.bamboo_status == BambooTriggerStatus.TRIGGERING,
+                or_(
+                    MlflowImageRelease.bamboo_attempted_at.is_(None),
+                    MlflowImageRelease.bamboo_attempted_at < deadline,
+                ),
+            )
+        )
+    ).scalars().all()
+    for release in stale:
+        detail = "Controller istek sırasında durdu; Bamboo'da kontrol edip gerekirse yeniden deneyin."
+        claimed = await db.execute(
+            update(MlflowImageRelease)
+            .where(
+                MlflowImageRelease.id == release.id,
+                MlflowImageRelease.bamboo_status == BambooTriggerStatus.TRIGGERING,
+            )
+            .values(bamboo_status=BambooTriggerStatus.FAILED, bamboo_error=detail)
+            .execution_options(synchronize_session=False)
+        )
+        if claimed.rowcount == 1:
+            await append_release_event(
+                db, release, f"Bamboo tetiklemesinin sonucu bilinmiyor. {detail}", "warning"
+            )
+        await db.commit()
+
+
+async def trigger_pending_bamboo_builds() -> None:
+    async with AsyncSessionLocal() as db:
+        await _fail_stale_bamboo_triggers(db)
+        release_ids = list(
+            (
+                await db.execute(
+                    select(MlflowImageRelease.id)
+                    .where(
+                        MlflowImageRelease.status == ImageReleaseStatus.PUBLISHED,
+                        MlflowImageRelease.bamboo_status == BambooTriggerStatus.PENDING,
+                    )
+                    .order_by(MlflowImageRelease.completed_at)
+                    .limit(5)
+                )
+            ).scalars()
+        )
+        await db.commit()
+    for release_id in release_ids:
+        await trigger_bamboo_build(release_id)
+
+
 async def image_release_background_worker(check_interval_seconds: int = 2) -> None:
     """Separate from the deployment loop, so a long build never blocks the other."""
     while True:
@@ -580,6 +739,7 @@ async def image_release_background_worker(check_interval_seconds: int = 2) -> No
                 await db.commit()
             for release_id in release_ids:
                 await process_image_release(release_id)
+            await trigger_pending_bamboo_builds()
             task_health.success("image_releases")
         except asyncio.CancelledError:
             raise
