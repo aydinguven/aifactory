@@ -204,6 +204,9 @@ def managed_vscode_settings(config: str = "") -> str:
         "extensions.autoCheckUpdates": False,
         "extensions.autoUpdate": False,
         "chat.disableAIFeatures": True,
+        # basedpyright (baked into the image) is the language server; Pylance
+        # is not on Open VSX, so the Python extension's own server stays off.
+        "python.languageServer": "None",
     }
     model = ""
     if config:

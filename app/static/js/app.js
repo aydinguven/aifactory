@@ -1311,19 +1311,30 @@ function initWorkspaceCreationModal() {
               }
               if (statusBadge) {
                 statusBadge.className = "badge badge-running";
-                statusBadge.textContent = "IDE Açılıyor...";
+                statusBadge.textContent = "Hazır";
               }
               appendLog("Container çevrimiçi ve doğrulandı. Çalışma alanı hazır.", "success");
 
-              if (modalFooter) {
+              // The IDE opens in a new tab so this AI Factory tab stays open.
+              // Browsers may block the automatic tab after a long deployment;
+              // the button then opens it with the user's click.
+              const ideTab = window.open(ideUrl.pathname, "_blank");
+              if (ideTab) {
+                ideTab.opener = null;
+                appendLog("IDE yeni sekmede açıldı.", "success");
+                setTimeout(() => window.location.reload(), 1500);
+              } else if (modalFooter) {
                 modalFooter.innerHTML = `
-                  <a href="${ideUrl.pathname}" class="btn btn-success" style="padding: 0.65rem 1.5rem; font-weight: 600;">
-                    <span>↗</span> IDE'ye Git
+                  <button type="button" class="btn btn-secondary" id="btn-workspace-back">Panele Dön</button>
+                  <a href="${ideUrl.pathname}" target="_blank" rel="noopener" class="btn btn-success" id="btn-workspace-open-ide" style="padding: 0.65rem 1.5rem; font-weight: 600;">
+                    <span>↗</span> IDE'yi Yeni Sekmede Aç
                   </a>
                 `;
+                document.getElementById("btn-workspace-back")?.addEventListener("click", () => window.location.reload());
+                document.getElementById("btn-workspace-open-ide")?.addEventListener("click", () => {
+                  setTimeout(() => window.location.reload(), 500);
+                });
               }
-
-              window.location.assign(ideUrl.pathname);
             }
           } catch (parseErr) {
             console.warn("SSE parse error:", line);

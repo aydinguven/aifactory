@@ -90,8 +90,33 @@ RUN test -n "${KILO_CODE_VSIX_SHA256}" \
     && "${cli}" --version \
     && install -d -m 700 /home/coder/.local/share/code-server/User \
     && printf '%s\n' \
-        '{"extensions.autoCheckUpdates":false,"extensions.autoUpdate":false,"chat.disableAIFeatures":true}' \
+        '{"extensions.autoCheckUpdates":false,"extensions.autoUpdate":false,"chat.disableAIFeatures":true,"python.languageServer":"None"}' \
         > /home/coder/.local/share/code-server/User/settings.json
+
+# Python and Jupyter extensions from extensions.txt (pinned by SHA-256;
+# workspaces cannot reach a gallery at runtime).
+COPY --chown=coder:coder extensions.txt /opt/devcloud/vscode-extensions.txt
+RUN set -eu; \
+    list=/opt/devcloud/vscode-extensions.txt; \
+    grep -v '^#' "${list}" | while read -r id version target sha256; do \
+        [ -n "${id}" ] || continue; \
+        publisher="${id%%.*}"; name="${id#*.}"; \
+        if [ "${target}" = universal ]; then \
+            url="https://open-vsx.org/api/${publisher}/${name}/${version}/file/${id}-${version}.vsix"; \
+        else \
+            url="https://open-vsx.org/api/${publisher}/${name}/${target}/${version}/file/${id}-${version}@${target}.vsix"; \
+        fi; \
+        curl -fsSL "${url}" -o /tmp/extension.vsix; \
+        echo "${sha256}  /tmp/extension.vsix" | sha256sum -c -; \
+        code-server --install-extension /tmp/extension.vsix; \
+        rm -f /tmp/extension.vsix; \
+    done; \
+    installed="$(code-server --list-extensions --show-versions)"; \
+    grep -v '^#' "${list}" | while read -r id version _rest; do \
+        [ -n "${id}" ] || continue; \
+        printf '%s\n' "${installed}" | grep -Fx "${id}@${version}" >/dev/null \
+            || { echo "Extension ${id}@${version} is not installed." >&2; exit 1; }; \
+    done
 
 EXPOSE 8080
 
