@@ -286,7 +286,7 @@ async def select_workspace_placement(
 ) -> WorkspacePlacement:
     """Pick a connected worker and, for GPU flavors, one exact free CDI slot.
 
-    ``constraints`` restricts the datacenter and required custom tags. With
+    ``constraints`` lists the tags the worker must carry. With
     ``reserve_gpu_workers`` (workspaces), CPU flavors never land on a GPU
     worker; internal CPU jobs such as image builds pass False and only prefer
     CPU workers.
@@ -438,10 +438,10 @@ async def select_workspace_placement(
         ]
         in_scope = [node for node in online if node_matches(node, constraints)]
         kind = "GPU" if flavor.accelerator_count else "CPU"
-        if constraints and (constraints.datacenter or constraints.tags) and online and not in_scope:
+        if constraints and constraints.tags and online and not in_scope:
             raise NoSchedulableNode(
                 f"İstenen yerleşim için çevrimiçi worker yok ({constraints.describe()}). "
-                "Farklı bir veri merkezi/etiket seçin veya yöneticinize başvurun."
+                "Farklı etiketler seçin veya yöneticinize başvurun."
             )
         matching_class = [
             node for node in in_scope
@@ -450,7 +450,7 @@ async def select_workspace_placement(
         if in_scope and not matching_class and (
             flavor.accelerator_count or reserve_gpu_workers
         ):
-            scope = f" ({constraints.describe()})" if constraints and (constraints.datacenter or constraints.tags) else ""
+            scope = f" ({constraints.describe()})" if constraints and constraints.tags else ""
             if flavor.accelerator_count:
                 detail = "GPU profilleri yalnızca GPU worker'larda çalışır."
             else:

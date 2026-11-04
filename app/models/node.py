@@ -46,11 +46,7 @@ class Node(Base):
         Integer, default=0, server_default="0", nullable=False
     )
     labels_json: Mapped[str] = mapped_column(Text, default="{}", nullable=True)
-    # Placement: datacenter tag name ("" = unassigned, only serves "Any"
-    # workspaces) and the custom placement tags (JSON list of names).
-    datacenter: Mapped[str] = mapped_column(
-        String(40), default="", server_default="", nullable=False
-    )
+    # Placement tags of this worker (JSON list of names).
     tags_json: Mapped[str] = mapped_column(
         Text, default="[]", server_default="[]", nullable=False
     )
