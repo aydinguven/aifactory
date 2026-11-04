@@ -43,7 +43,9 @@ LOCAL_MCP_SCRIPT = "/opt/kilo/LocalMCP.sh"
 CATALOG_MCP_SERVER = "kilo-catalog"
 INSTALL_MCP_SERVER = "kilo-install"
 MAX_CONFIG_LENGTH = 65536
-CONFIG_DIGEST_SALT = b"devcloud-kilo-code-config-v1\x00"
+# v2: the VS Code settings in the container environment gained
+# remote.autoForwardPortsSource and telemetry.telemetryLevel.
+CONFIG_DIGEST_SALT = b"devcloud-kilo-code-config-v2\x00"
 DEFAULT_INDEXING_MODEL = "bge-m3"
 DEFAULT_INDEXING_DIMENSION = 1024
 
@@ -207,6 +209,14 @@ def managed_vscode_settings(config: str = "") -> str:
         # basedpyright (baked into the image) is the language server; Pylance
         # is not on Open VSX, so the Python extension's own server stays off.
         "python.languageServer": "None",
+        # Forward a port only when a terminal or debugger prints its URL, so
+        # dev servers still appear but the Kilo agent, language servers and
+        # Jupyter kernels no longer fill the Ports view.
+        "remote.autoForwardPortsSource": "output",
+        # The extension starts its CLI with KILO_TELEMETRY_LEVEL taken from
+        # this setting, overriding the image's "off"; otherwise the CLI keeps
+        # retrying PostHog, which workspaces cannot reach.
+        "telemetry.telemetryLevel": "off",
     }
     model = ""
     if config:

@@ -14,6 +14,10 @@ def managed_vscode_settings() -> str:
             "extensions.autoUpdate": False,
             "chat.disableAIFeatures": True,
             "cline.rollout.bundleOverride": "legacy",
+            # Same as Kilo Code workspaces: forward only ports whose URL is
+            # printed, and no telemetry to hosts workspaces cannot reach.
+            "remote.autoForwardPortsSource": "output",
+            "telemetry.telemetryLevel": "off",
         },
         separators=(",", ":"),
     )

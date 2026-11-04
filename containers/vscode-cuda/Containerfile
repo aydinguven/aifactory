@@ -153,7 +153,7 @@ RUN test -n "${KILO_CODE_VSIX_SHA256}" \
     && "${cli}" --version \
     && install -d -m 700 /home/coder/.local/share/code-server/User \
     && printf '%s\n' \
-        '{"extensions.autoCheckUpdates":false,"extensions.autoUpdate":false,"chat.disableAIFeatures":true,"python.languageServer":"None"}' \
+        '{"extensions.autoCheckUpdates":false,"extensions.autoUpdate":false,"chat.disableAIFeatures":true,"python.languageServer":"None","remote.autoForwardPortsSource":"output","telemetry.telemetryLevel":"off"}' \
         > /home/coder/.local/share/code-server/User/settings.json
 
 # Python and Jupyter extensions from extensions.txt (pinned by SHA-256;
