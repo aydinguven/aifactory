@@ -681,7 +681,7 @@ async def admin_page(
         context["placement_tags"] = list(tag_catalog.values())
         tag_usage: dict[str, int] = {}
         for node in nodes:
-            for name in {*node.tags, *([node.datacenter] if node.datacenter else [])}:
+            for name in set(node.tags):
                 tag_usage[name] = tag_usage.get(name, 0) + 1
         context["placement_tag_usage"] = tag_usage
         context["download_settings"] = download_settings

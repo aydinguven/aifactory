@@ -659,7 +659,6 @@ async def reserve_workspace(
             storage_path="",
             status=WorkspaceStatus.CREATING,
             auto_stop_minutes=data.auto_stop_minutes,
-            datacenter=constraints.datacenter if constraints else "",
             tags_json=encode_tags(constraints.tags if constraints else ()),
             accelerator_device_id=accelerator.device_id if accelerator else None,
             accelerator_cdi_name=accelerator.cdi_name if accelerator else None,
@@ -702,10 +701,10 @@ async def schedule_and_reserve_workspace(
 ) -> tuple[Workspace, WorkspacePlacement]:
     """Check name, user quota and placement inside one serialized reservation.
 
-    Raises ``PlacementRequestError`` for an unknown/disabled datacenter or tag.
+    Raises ``PlacementRequestError`` for an unknown/disabled tag.
     """
     user_id = current_user.id
-    constraints = await resolve_workspace_constraints(db, data.datacenter, data.tags)
+    constraints = await resolve_workspace_constraints(db, data.tags)
     if await workspace_name_taken(db, user_id=user_id, name=data.name):
         raise WorkspaceNameConflict(WORKSPACE_NAME_CONFLICT_DETAIL)
     existing = (await db.execute(select(Workspace).where(Workspace.user_id == user_id))).scalars().all()
