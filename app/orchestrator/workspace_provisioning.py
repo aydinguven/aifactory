@@ -31,6 +31,7 @@ from app.models.mlflow_server_settings import MlflowServerSettings
 from app.models.mlflow_settings import MlflowSettings
 from app.models.node import Node
 from app.models.kilo_code_settings import KiloCodeSettings
+from app.models.skill import Skill
 from app.models.user import User
 from app.models.workspace import (
     Workspace,
@@ -68,6 +69,11 @@ from app.kilo_code import (
     parse_skills_urls,
     render_config,
     select_models,
+)
+from app.skills import (
+    MIN_AGENT_VERSION as SKILLS_MIN_AGENT_VERSION,
+    SKILLS_DIR as KILO_CODE_SKILLS_DIR,
+    build_bundle as build_skills_bundle,
 )
 
 logger = logging.getLogger("devcloud.workspaces")
@@ -161,14 +167,26 @@ async def workspace_service_environment(
 # IDE types whose containers receive the Admin gateway CA bundle.
 CA_BUNDLE_IDE_TYPES = frozenset({"vscode", "jupyter"})
 _CA_DIGEST_SALT = b"devcloud-workspace-ai-ca-v1\x00"
+_SKILLS_DIGEST_SALT = b"devcloud-workspace-ai-skills-v1\x00"
+# IDE types whose containers receive the Admin skill library (Kilo Code
+# VS Code templates are narrowed further by their ai_assistant).
+SKILLS_IDE_TYPES = frozenset({"vscode", "jupyter"})
 
 
-def ai_config_digest(kilo_code_config: str, ca_bundle: str) -> str:
+def ai_config_digest(kilo_code_config: str, ca_bundle: str, skills_bundle: str = "") -> str:
     """Fingerprint of the AI settings baked into a container's environment.
 
-    Without a CA bundle this is the Kilo Code digest, so setting this feature
-    up recreates no container until an Admin actually saves a bundle.
+    Without a CA bundle this is the Kilo Code digest, and without skills it is
+    the previous digest, so neither feature recreates a container until an
+    Admin actually saves a bundle or a skill.
     """
+    if skills_bundle:
+        return hashlib.sha256(
+            _SKILLS_DIGEST_SALT
+            + ai_config_digest(kilo_code_config, ca_bundle).encode("ascii")
+            + b"\x00"
+            + skills_bundle.encode("ascii")
+        ).hexdigest()
     if not ca_bundle:
         return config_digest(kilo_code_config)
     return hashlib.sha256(
@@ -191,10 +209,12 @@ class WorkspaceAiConfig:
     kilo_code_problem: str = ""
     # Admin > Workspace AI gateway CA bundle (canonical PEM).
     ca_bundle: str = ""
+    # Admin > Skill Kütüphanesi: enabled skills as a base64 gzip tar.
+    skills_bundle: str = ""
 
     @property
     def digest(self) -> str:
-        return ai_config_digest(self.kilo_code_config, self.ca_bundle)
+        return ai_config_digest(self.kilo_code_config, self.ca_bundle, self.skills_bundle)
 
     def create_arguments(self) -> dict[str, str]:
         arguments = {"ai_gateway_token": self.ai_gateway_token}
@@ -203,6 +223,8 @@ class WorkspaceAiConfig:
             arguments["kilo_code_config"] = self.kilo_code_config
         if self.ca_bundle:
             arguments["ai_ca_bundle"] = self.ca_bundle
+        if self.skills_bundle:
+            arguments["ai_skills_bundle"] = self.skills_bundle
         return arguments
 
 
@@ -257,6 +279,11 @@ def worker_applies_ca_bundle(node) -> bool:
     return _worker_at_least(node, CA_BUNDLE_MIN_AGENT_VERSION)
 
 
+def worker_applies_skills(node) -> bool:
+    """False when the worker is too old to install ``ai_skills_bundle``."""
+    return _worker_at_least(node, SKILLS_MIN_AGENT_VERSION)
+
+
 async def applied_ai_config_digest(
     db: AsyncSession,
     workspace: Workspace,
@@ -264,13 +291,18 @@ async def applied_ai_config_digest(
 ) -> str:
     """Digest of the config the worker really writes into the container.
 
-    An outdated worker drops ``kilo_code_config`` or ``ai_ca_bundle``;
+    An outdated worker drops ``kilo_code_config``, ``ai_ca_bundle`` or
+    ``ai_skills_bundle``;
     recording the sent digest would make the next start believe the container
     is current and never recreate it after the worker is upgraded. Comparing
     a stored digest with this value (not ``ai_config.digest``) also keeps an
     outdated worker from recreating the container on every start.
     """
-    if not ai_config.kilo_code_config and not ai_config.ca_bundle:
+    if (
+        not ai_config.kilo_code_config
+        and not ai_config.ca_bundle
+        and not ai_config.skills_bundle
+    ):
         return ""
     node = await db.get(Node, workspace.node_id) if workspace.node_id else None
     if node is None:
@@ -278,6 +310,7 @@ async def applied_ai_config_digest(
     return ai_config_digest(
         ai_config.kilo_code_config if worker_applies_kilo_code(node) else "",
         ai_config.ca_bundle if worker_applies_ca_bundle(node) else "",
+        ai_config.skills_bundle if worker_applies_skills(node) else "",
     )
 
 
@@ -353,15 +386,37 @@ async def workspace_ai_config(
     user_id: int,
 ) -> WorkspaceAiConfig:
     """Resolve the owner's AI wiring for a new or recreated container."""
-    config = await _workspace_ai_wiring(db, template, user_id)
+    skills_bundle = await workspace_skills_bundle(db, template)
+    config = await _workspace_ai_wiring(db, template, user_id, bool(skills_bundle))
+    if getattr(template, "ai_assistant", "") == KILO_CODE_ASSISTANT and not config.kilo_code_config:
+        # Kilo Code finds the skills through kilo.jsonc; without one they are unused.
+        skills_bundle = ""
     ca_bundle = await workspace_ca_bundle(db, template)
-    return replace(config, ca_bundle=ca_bundle) if ca_bundle else config
+    return replace(config, ca_bundle=ca_bundle, skills_bundle=skills_bundle)
+
+
+async def workspace_skills_bundle(db: AsyncSession, template) -> str:
+    """The enabled Admin skills for a Kilo Code or Jupyter template, else ''."""
+    if template is None or template.ide_type not in SKILLS_IDE_TYPES:
+        return ""
+    if (
+        template.ide_type == "vscode"
+        and getattr(template, "ai_assistant", "") != KILO_CODE_ASSISTANT
+    ):
+        return ""
+    skills = (
+        await db.execute(
+            select(Skill.name, Skill.content).where(Skill.enabled.is_(True))
+        )
+    ).all()
+    return build_skills_bundle([(name, content) for name, content in skills])
 
 
 async def _workspace_ai_wiring(
     db: AsyncSession,
     template,
     user_id: int,
+    with_skills: bool = False,
 ) -> WorkspaceAiConfig:
     from app.genai import workspace_gateway_token
 
@@ -408,6 +463,7 @@ async def _workspace_ai_wiring(
         catalog_url=record.catalog_url,
         catalog_token=catalog_token,
         skills_urls=parse_skills_urls(record.skills_urls_json),
+        skills_paths=[KILO_CODE_SKILLS_DIR] if with_skills else None,
         indexing_enabled=record.indexing_enabled,
         indexing_model=record.indexing_model,
         indexing_dimension=record.indexing_dimension,

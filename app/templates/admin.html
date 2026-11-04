@@ -54,6 +54,10 @@
   {% include "partials/admin_images.html" %}
 {% endif %}
 
+{% if admin_section == 'skills' %}
+  {% include "partials/admin_skills.html" %}
+{% endif %}
+
 {% if admin_section == 'kubernetes' %}
   {% include "partials/admin_kubernetes.html" %}
 {% endif %}
@@ -1631,6 +1635,9 @@ USER coder" required></textarea>
 {% if admin_section == 'users' %}
 <script src="/static/js/genai_charts.js?v={{ static_version }}"></script>
 <script src="/static/js/genai_admin_usage.js?v={{ static_version }}"></script>
+{% endif %}
+{% if admin_section == 'skills' %}
+<script src="/static/js/admin_skills.js?v={{ static_version }}"></script>
 {% endif %}
 {% if admin_section == 'kubernetes' %}
 <script src="/static/js/admin_kubernetes.js?v={{ static_version }}"></script>

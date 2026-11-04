@@ -35,6 +35,7 @@ from app.models.genai_account import GenAiAccount
 from app.models.directory_team import DirectoryTeam
 from app.models.flavor_settings import FlavorSettings
 from app.models.template_settings import TemplateSettings
+from app.models.skill import Skill
 
 __all__ = [
     "Base",
@@ -71,4 +72,5 @@ __all__ = [
     "GenAiAccount",
     "FlavorSettings",
     "TemplateSettings",
+    "Skill",
 ]

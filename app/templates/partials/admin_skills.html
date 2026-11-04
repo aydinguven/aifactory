@@ -1,0 +1,33 @@
+<section class="card" id="skill-library" style="margin-bottom: 2rem; border-top: 3px solid #7c3aed;">
+  <div class="card-header">
+    <div>
+      <h2 class="card-title">Skill Kütüphanesi</h2>
+      <p class="admin-section-description">Etkin skill'ler Kilo Code ve Jupyter AI workspace'lerine kullanıcı düzeyinde yazılır. Asistan her skill'in yalnızca adını ve açıklamasını görür; istek açıklamaya uyduğunda talimatların tamamını okur. Kullanıcı skill'i adıyla da isteyebilir (örneğin "tcmb-bvp-trino skill'ini kullan").</p>
+    </div>
+    <span id="skill-library-usage" class="badge badge-stopped">Yükleniyor...</span>
+  </div>
+  <form id="skill-form" autocomplete="off" style="margin-bottom:1rem;">
+    <label class="form-group" style="margin:0 0 .75rem;">
+      <span class="form-label">SKILL.md</span>
+      <textarea class="form-input" name="content" rows="18" required spellcheck="false" style="font-family: var(--font-mono); font-size: 0.8rem; line-height: 1.4;" placeholder="---&#10;name: skill-adi&#10;description: Skill'in ne yaptığı ve ne zaman kullanılacağı.&#10;---&#10;&#10;# Talimatlar&#10;..."></textarea>
+      <small class="form-help">Dosya <code>---</code> satırları arasında <code>name</code> (küçük harf, rakam ve tire; en fazla 64 karakter) ve <code>description</code> (en fazla 1024 karakter) içeren YAML frontmatter ile başlamalı. Ad ve açıklama frontmatter'dan okunur. Yalnızca tek dosyalık skill'ler desteklenir; <code>scripts/</code> veya <code>references/</code> klasörleri gönderilmez.</small>
+    </label>
+    <div class="grid grid-cols-2" style="gap:.75rem;margin-bottom:.75rem;">
+      <label class="form-group" style="margin:0;">
+        <span class="form-label">Dosyadan yükle</span>
+        <input id="skill-file" class="form-input" type="file" accept=".md,text/markdown,text/plain" data-file-picker-label="SKILL.md Seç">
+      </label>
+      <label style="display:flex;gap:.5rem;align-items:center;align-self:end;min-height:2.75rem;">
+        <input type="checkbox" name="enabled" checked>
+        <span>Workspace'lere dağıt</span>
+      </label>
+    </div>
+    <div class="table-actions">
+      <button id="btn-save-skill" type="submit" class="btn btn-primary">Skill Ekle</button>
+      <button id="btn-cancel-skill" type="button" class="btn btn-secondary" hidden>Düzenlemeyi İptal Et</button>
+      <span id="skill-form-status" class="quota-form-status" role="status" aria-live="polite"></span>
+    </div>
+    <p class="text-muted">Değişiklikler yeni oluşturulan veya durdurulup yeniden başlatılan workspace'lere uygulanır; çalışan workspace'ler etkilenmez. Kilo Code için Entegrasyonlar &gt; Kilo Code dağıtımının açık olması gerekir. Skill'ler gizli bilgi içermemelidir: tüm Kilo Code ve Jupyter AI kullanıcıları okuyabilir.</p>
+  </form>
+  <div id="skill-list" aria-live="polite"><p class="text-muted">Skill'ler yükleniyor...</p></div>
+</section>

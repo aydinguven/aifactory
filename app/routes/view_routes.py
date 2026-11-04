@@ -551,6 +551,10 @@ ADMIN_SECTIONS = {
         "title": "Entegrasyonlar",
         "description": "Harici platform bağlantılarını ve servis kimlik bilgilerini yönetin.",
     },
+    "skills": {
+        "title": "Skill Kütüphanesi",
+        "description": "Kilo Code ve Jupyter AI sohbetlerinin kullanacağı SKILL.md talimatlarını yönetin.",
+    },
     "kubernetes": {
         "title": "Kubernetes Dağıtımı",
         "description": "Model imajlarının yayınlandığı dağıtım registry'sini, Kubernetes projelerini ve uygulamalarını yönetin.",

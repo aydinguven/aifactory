@@ -19,7 +19,7 @@ from app.config import settings
 from app.database import engine, init_db
 
 
-CURRENT_SCHEMA_VERSION = 35
+CURRENT_SCHEMA_VERSION = 36
 # ai_config_digest of the workspaces migration 33 moved off TCMB Code.
 TCMB_CODE_MIGRATED_DIGEST = "tcmb-code-migrated"
 
@@ -1188,6 +1188,9 @@ async def upgrade() -> None:
         if 35 not in applied:
             await _add_jupyter_ai_ca_bundle(conn)
             await _record_version(conn, 35, "Workspace AI gateway CA bundle")
+        if 36 not in applied:
+            # init_db creates the portable skills table.
+            await _record_version(conn, 36, "Admin skill library for Kilo Code and Jupyter AI")
 
 
 async def current_version() -> int:

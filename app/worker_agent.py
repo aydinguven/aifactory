@@ -731,7 +731,7 @@ class WorkerAgent:
                 "flavor_id", "host_port", "workspace_token",
                 "accelerator_cdi_name", "image_ref", "image_sha256",
                 "mlflow_environment", "service_environment", "ai_gateway_token",
-                "kilo_code_config", "ai_ca_bundle",
+                "kilo_code_config", "ai_ca_bundle", "ai_skills_bundle",
             }
             args = {key: value for key, value in payload.items() if key in allowed}
             token = args.get("ai_gateway_token")
@@ -755,6 +755,18 @@ class WorkerAgent:
                     args["ai_ca_bundle"] = ca_bundle
                 else:
                     args.pop("ai_ca_bundle")
+            if "ai_skills_bundle" in args:
+                from app.skills import validated_bundle
+
+                skills_bundle = validated_bundle(args["ai_skills_bundle"])
+                if skills_bundle:
+                    args["ai_skills_bundle"] = skills_bundle
+                else:
+                    logger.warning(
+                        "Dropping an invalid skill library bundle for %s",
+                        args.get("container_name"),
+                    )
+                    args.pop("ai_skills_bundle")
             async with self.registry_lock:
                 existing = self.registry.get(args["container_name"])
                 if isinstance(existing, dict):

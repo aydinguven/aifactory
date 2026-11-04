@@ -57,6 +57,7 @@ from app.orchestrator.workspace_provisioning import (
     workspace_mlflow_environment,
     workspace_runtime_image,
     workspace_service_environment,
+    workspace_skills_bundle,
 )
 from app.placement import (
     PlacementRequestError,
@@ -558,16 +559,22 @@ async def start_workspace_endpoint(
                             exc,
                         )
             elif template and template.ide_type in CA_BUNDLE_IDE_TYPES:
-                # The gateway CA bundle is in the container's environment as
-                # well, so adding, changing or removing it needs a new one.
-                # The digest is what this worker applies, so an outdated
-                # worker is not asked to recreate on every start.
-                ca_digest = await applied_ai_config_digest(
+                # The gateway CA bundle and the skill library are in the
+                # container's environment as well, so adding, changing or
+                # removing them needs a new one. The digest is what this
+                # worker applies, so an outdated worker is not asked to
+                # recreate on every start.
+                # Only the digested parts: resolving the gateway key here could
+                # rotate it under a container that is then merely restarted.
+                applied_digest = await applied_ai_config_digest(
                     db,
                     workspace,
-                    WorkspaceAiConfig(ca_bundle=await workspace_ca_bundle(db, template)),
+                    WorkspaceAiConfig(
+                        ca_bundle=await workspace_ca_bundle(db, template),
+                        skills_bundle=await workspace_skills_bundle(db, template),
+                    ),
                 )
-                if ca_digest != (workspace.ai_config_digest or ""):
+                if applied_digest != (workspace.ai_config_digest or ""):
                     try:
                         image_problem = await runtime_image_missing_problem(
                             db, workspace, template
@@ -585,12 +592,13 @@ async def start_workspace_endpoint(
                             if await runtime.remove_container(workspace.container_name):
                                 container_exists = False
                                 logger.info(
-                                    "Recreating %s because the gateway CA bundle changed",
+                                    "Recreating %s because the gateway CA bundle "
+                                    "or the skill library changed",
                                     workspace.container_name,
                                 )
                         except Exception as exc:  # noqa: BLE001 - outdated workers
                             logger.warning(
-                                "Keeping %s with its previous gateway CA bundle: %s",
+                                "Keeping %s with its previous CA bundle and skills: %s",
                                 workspace.container_name,
                                 exc,
                             )
