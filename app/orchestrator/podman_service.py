@@ -35,6 +35,10 @@ from app.kilo_code import (
     managed_vscode_settings as kilo_code_vscode_settings,
     validated_config as validated_kilo_code_config,
 )
+from app.skills import (
+    SKILLS_DIR as KILO_CODE_SKILLS_DIR,
+    validated_bundle as validated_skills_bundle,
+)
 
 logger = logging.getLogger("devcloud.podman")
 CDI_DEVICE_PATTERN = re.compile(r"^nvidia\.com/gpu=[A-Za-z0-9_.:/-]+$")
@@ -74,6 +78,22 @@ WORKSPACE_CA_SETUP = (
 )
 
 
+def _skills_setup(target_dir: str) -> str:
+    """Unpack the Admin skill library from DEVCLOUD_SKILLS_TGZ into ``target_dir``.
+
+    The worker has already checked that the archive only holds
+    ``<name>/SKILL.md`` files. A failure is reported and the IDE still starts.
+    """
+    # The outer group always succeeds, so it can sit in an ``&&`` chain.
+    return (
+        "{ { install -d -m 700 " + target_dir
+        + " && printf '%s' \"$DEVCLOUD_SKILLS_TGZ\" | base64 -d"
+        " | tar -xzf - --no-same-owner -C " + target_dir + ";"
+        " } || echo 'DevCloud: skill kütüphanesi yazılamadı.' >&2;"
+        " unset DEVCLOUD_SKILLS_TGZ; }"
+    )
+
+
 def _redacted_command(cmd: list[str]) -> str:
     redacted = []
     for argument in cmd:
@@ -83,6 +103,9 @@ def _redacted_command(cmd: list[str]) -> str:
         elif separator and key == "DEVCLOUD_CA_BUNDLE_PEM":
             # Public, but several KB of base64 per log line.
             argument = f"{key}=<pem>"
+        elif separator and key == "DEVCLOUD_SKILLS_TGZ":
+            # Not secret, but up to ~120 KB of base64.
+            argument = f"{key}=<skills>"
         redacted.append(argument)
     return " ".join(redacted)
 
@@ -324,6 +347,7 @@ class PodmanService:
         ai_gateway_token: str = "",
         kilo_code_config: str = "",
         ai_ca_bundle: str = "",
+        ai_skills_bundle: str = "",
         progress_callback: Any | None = None,
     ) -> tuple[str, str]:
         """Create and run a new container for a workspace.
@@ -379,6 +403,13 @@ class PodmanService:
         # combined bundle before the IDE starts.
         ai_ca_bundle = (
             normalize_ca_bundle(ai_ca_bundle) if is_vscode or is_jupyter else ""
+        )
+        # Kilo Code reads the skills folder from kilo.jsonc, so without one
+        # the library would be unused.
+        ai_skills_bundle = (
+            validated_skills_bundle(ai_skills_bundle)
+            if is_jupyter or (is_kilo_code and kilo_code_config)
+            else ""
         )
 
         if self._mock_mode:
@@ -537,6 +568,8 @@ class PodmanService:
             cmd_args.extend(["-e", f"DEVCLOUD_CA_BUNDLE_PEM={ai_ca_bundle}"])
             for key, value in WORKSPACE_CA_ENVIRONMENT.items():
                 cmd_args.extend(["-e", f"{key}={value}"])
+        if ai_skills_bundle:
+            cmd_args.extend(["-e", f"DEVCLOUD_SKILLS_TGZ={ai_skills_bundle}"])
 
         for k, v in template.env_vars.items():
             cmd_args.extend(["-e", f"{k}={v}"])
@@ -562,7 +595,13 @@ class PodmanService:
                 " && printf '%s' \"$DEVCLOUD_CLAUDE_SETTINGS_JSON\""
                 " > \"$CLAUDE_CONFIG_DIR/settings.json\""
                 " && chmod 600 \"$CLAUDE_CONFIG_DIR/settings.json\""
-                " && exec start-notebook.py \"$@\"",
+                # Claude Code's user-level skills folder.
+                + (
+                    " && " + _skills_setup("\"$CLAUDE_CONFIG_DIR/skills\"")
+                    if ai_skills_bundle
+                    else ""
+                )
+                + " && exec start-notebook.py \"$@\"",
                 "devcloud-jupyter",
                 "--ServerApp.ip=0.0.0.0",
                 f"--ServerApp.port={template.default_port}",
@@ -602,6 +641,9 @@ class PodmanService:
                     # Keep the keys out of every editor terminal's environment.
                     "unset DEVCLOUD_KILO_CONFIG_JSON",
                 ])
+            if ai_skills_bundle:
+                # kilo.jsonc lists this folder under "skills".
+                setup_commands.append(_skills_setup(KILO_CODE_SKILLS_DIR))
             setup_commands.append(
                 "exec /usr/bin/entrypoint.sh"
                 f" --bind-addr 0.0.0.0:{template.default_port}"

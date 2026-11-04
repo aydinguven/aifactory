@@ -349,6 +349,19 @@ config adds two MCP servers: `kilo-catalog` (remote, `<catalog>/mcp`) and
 skills, agents, rules, workflows or `AGENTS.md` into the open project's
 `.kilo` folder. Rules load through `instructions: [".kilo/rules/*.md"]`. This requires GenAI and
 Workspace AI to point at the same LiteLLM.
+
+**Admin > Skill Kütüphanesi** keeps a library of single-file skills: paste or
+upload a `SKILL.md` (YAML frontmatter with `name` and `description`, then the
+instructions). Every enabled skill is written into Kilo Code workspaces
+(`/home/coder/.devcloud/skills`, listed under `skills` in `kilo.jsonc`) and
+Jupyter workspaces (`$CLAUDE_CONFIG_DIR/skills`, Claude Code's user skills,
+which the Jupyter AI chat uses). The assistant sees each skill's name and
+description and loads the instructions when a request matches; users can also
+ask for a skill by name. Changes apply when a workspace is created or stopped
+and started (the container is recreated once). The enabled skills together
+must fit in about 117 KB compressed, and they need workers on 3.27.0 or later.
+Skills are readable by every Kilo Code and Jupyter AI user, so do not put
+secrets in them.
 Disabling Cline uses the extension manager to remove it from a workspace
 container without leaving a broken registration. Recreate affected containers
 after changing the toggle; project data remains in its bind mount.
@@ -646,6 +659,8 @@ intelligent-nobel/
 | `PUT` | `/api/admin/users/{id}/quota` | Update a user's CPU/RAM/disk/GPU-slot quota | Yes (Admin) |
 | `GET` | `/api/admin/workspaces` | List all workspaces | Yes (Admin) |
 | `GET` | `/api/admin/stats` | System statistics | Yes (Admin) |
+| `GET`, `POST` | `/api/admin/skills` | List the skill library, add a `SKILL.md` | Yes (Admin) |
+| `PUT`, `DELETE` | `/api/admin/skills/{id}` | Replace, enable/disable or delete a skill | Yes (Admin) |
 
 ---
 

@@ -349,6 +349,7 @@ async def init_db() -> None:
     from app.models.genai_account import GenAiAccount  # noqa: F401
     from app.models.flavor_settings import FlavorSettings  # noqa: F401
     from app.models.template_settings import TemplateSettings  # noqa: F401
+    from app.models.skill import Skill  # noqa: F401
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

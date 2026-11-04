@@ -121,6 +121,7 @@ def render_config(
     catalog_url: str = "",
     catalog_token: str = "",
     skills_urls: list[str] | None = None,
+    skills_paths: list[str] | None = None,
     indexing_enabled: bool = False,
     indexing_model: str = DEFAULT_INDEXING_MODEL,
     indexing_dimension: int = DEFAULT_INDEXING_DIMENSION,
@@ -156,8 +157,11 @@ def render_config(
     servers = catalog_mcp_servers(catalog_url, catalog_token)
     if servers:
         config["mcp"] = {"servers": servers}
-    if skills_urls:
-        config["skills"] = list(skills_urls)
+    # One list takes local folders and URLs; a folder declared in this
+    # user-level config is trusted (the Admin skill library lives there).
+    skills = [*(skills_paths or []), *(skills_urls or [])]
+    if skills:
+        config["skills"] = skills
     if indexing_enabled and indexing_key and indexing_model:
         config["indexing"] = {
             "provider": "openai-compatible",
