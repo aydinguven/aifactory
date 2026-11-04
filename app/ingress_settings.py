@@ -176,16 +176,19 @@ def certificate_public_key_pin(certificate_pem: bytes) -> str:
     return "sha256//" + base64.b64encode(digest).decode("ascii")
 
 
-def validate_agent_ca_bundle(certificate_pem: bytes) -> str:
+def validate_agent_ca_bundle(
+    certificate_pem: bytes,
+    label: str = "Worker CA bundle",
+) -> str:
     """Validate a public CA-only PEM bundle and return its content digest."""
     if not certificate_pem or len(certificate_pem) > MAX_AGENT_CA_BYTES:
         raise IngressConfigurationError(
-            "Worker CA bundle dosyası boş veya 256 KB sınırını aşıyor."
+            f"{label} dosyası boş veya 256 KB sınırını aşıyor."
         )
     certificate_blocks = CERTIFICATE_PATTERN.findall(certificate_pem)
     if not certificate_blocks or CERTIFICATE_PATTERN.sub(b"", certificate_pem).strip():
         raise IngressConfigurationError(
-            "Worker CA bundle yalnızca PEM sertifika blokları içermelidir."
+            f"{label} yalnızca PEM sertifika blokları içermelidir."
         )
     try:
         certificates = [
@@ -193,14 +196,14 @@ def validate_agent_ca_bundle(certificate_pem: bytes) -> str:
         ]
     except ValueError as exc:
         raise IngressConfigurationError(
-            "Worker CA bundle PEM içeriği okunamadı."
+            f"{label} PEM içeriği okunamadı."
         ) from exc
 
     now = datetime.now(timezone.utc)
     for certificate in certificates:
         if now < certificate.not_valid_before_utc or now > certificate.not_valid_after_utc:
             raise IngressConfigurationError(
-                "Worker CA bundle süresi dolmuş veya henüz geçerli olmayan sertifika içeriyor."
+                f"{label} süresi dolmuş veya henüz geçerli olmayan sertifika içeriyor."
             )
         try:
             constraints = certificate.extensions.get_extension_for_class(
@@ -208,11 +211,11 @@ def validate_agent_ca_bundle(certificate_pem: bytes) -> str:
             ).value
         except x509.ExtensionNotFound as exc:
             raise IngressConfigurationError(
-                "Worker CA bundle içindeki her sertifika CA Basic Constraints taşımalıdır."
+                f"{label} içindeki her sertifika CA Basic Constraints taşımalıdır."
             ) from exc
         if not constraints.ca:
             raise IngressConfigurationError(
-                "Worker CA bundle yalnızca kök ve ara CA sertifikaları içerebilir."
+                f"{label} yalnızca kök ve ara CA sertifikaları içerebilir."
             )
         try:
             key_usage = certificate.extensions.get_extension_for_class(x509.KeyUsage).value
@@ -220,7 +223,7 @@ def validate_agent_ca_bundle(certificate_pem: bytes) -> str:
             key_usage = None
         if key_usage is not None and not key_usage.key_cert_sign:
             raise IngressConfigurationError(
-                "Worker CA bundle sertifikası sertifika imzalama yetkisi taşımıyor."
+                f"{label} sertifikası sertifika imzalama yetkisi taşımıyor."
             )
 
     normalized = certificate_pem.strip() + b"\n"

@@ -757,6 +757,11 @@ cd devcloud
         <span>Kayıtlı API anahtarını temizle</span>
       </label>
     </div>
+    <label class="form-group" style="margin: 0 0 0.75rem;">
+      <span class="form-label">Gateway CA paketi (PEM, isteğe bağlı)</span>
+      <textarea class="form-input" name="ca_bundle_pem" rows="4" spellcheck="false" style="font-family: monospace; font-size: 0.8rem;" placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----">{{ jupyter_ai_settings.ca_bundle_pem if jupyter_ai_settings else '' }}</textarea>
+      <span class="text-muted" style="font-size: 0.85rem;">Gateway sertifikası kurum içi bir CA tarafından imzalandıysa kök ve ara CA sertifikalarını yapıştırın (özel anahtar değil). Worker'lar bağlantı testinde kullanır ve Jupyter ile VS Code workspace'lerine kurar; mevcut workspace'ler bir sonraki başlatmada yeniden oluşturulur. Kaldırmak için alanı boşaltın.</span>
+    </label>
     <label style="display: flex; gap: 0.5rem; align-items: center; margin: 0.75rem 0;">
       <input type="checkbox" name="gateway_model_discovery" {% if jupyter_ai_settings and jupyter_ai_settings.gateway_model_discovery %}checked{% endif %}>
       <span>LiteLLM <code>/v1/models</code> gateway keşfini etkinleştir</span>

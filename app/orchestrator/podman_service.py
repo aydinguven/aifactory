@@ -16,7 +16,12 @@ import httpx
 
 from app.config import settings
 from app.cline import managed_cline_files, managed_vscode_settings
-from app.jupyter_ai import claude_settings, model_environment, parse_model_catalog
+from app.jupyter_ai import (
+    claude_settings,
+    model_environment,
+    normalize_ca_bundle,
+    parse_model_catalog,
+)
 from app.mlflow_workspace import (
     validate_mlflow_environment,
     validate_mlflow_service_environment,
@@ -43,12 +48,41 @@ _SENSITIVE_ENV_KEYS = {
 }
 
 
+# The Admin gateway CA bundle reaches the container as an environment value;
+# the startup command writes it next to a copy of the image's system bundle.
+# Python (ssl, httpx), requests and curl replace their trust store with the
+# combined file, Node (Claude Code, code-server, Kilo Code) adds the extra CAs
+# to its built-in roots.
+WORKSPACE_CA_DIR = "/tmp/devcloud-ca"
+WORKSPACE_CA_EXTRA_FILE = f"{WORKSPACE_CA_DIR}/extra-ca.pem"
+WORKSPACE_CA_BUNDLE_FILE = f"{WORKSPACE_CA_DIR}/ca-bundle.pem"
+WORKSPACE_CA_ENVIRONMENT = {
+    "SSL_CERT_FILE": WORKSPACE_CA_BUNDLE_FILE,
+    "REQUESTS_CA_BUNDLE": WORKSPACE_CA_BUNDLE_FILE,
+    "CURL_CA_BUNDLE": WORKSPACE_CA_BUNDLE_FILE,
+    "NODE_EXTRA_CA_CERTS": WORKSPACE_CA_EXTRA_FILE,
+}
+WORKSPACE_CA_SETUP = (
+    f"install -d -m 755 {WORKSPACE_CA_DIR}"
+    f" && printf '%s\\n' \"$DEVCLOUD_CA_BUNDLE_PEM\" > {WORKSPACE_CA_EXTRA_FILE}"
+    " && { for system_bundle in /etc/ssl/certs/ca-certificates.crt"
+    " /etc/pki/tls/certs/ca-bundle.crt; do"
+    " if [ -r \"$system_bundle\" ]; then cat \"$system_bundle\"; echo; break; fi;"
+    f" done; cat {WORKSPACE_CA_EXTRA_FILE}; }} > {WORKSPACE_CA_BUNDLE_FILE}"
+    f" && chmod 644 {WORKSPACE_CA_EXTRA_FILE} {WORKSPACE_CA_BUNDLE_FILE}"
+    " && unset DEVCLOUD_CA_BUNDLE_PEM"
+)
+
+
 def _redacted_command(cmd: list[str]) -> str:
     redacted = []
     for argument in cmd:
         key, separator, _value = argument.partition("=")
         if separator and key in _SENSITIVE_ENV_KEYS:
             argument = f"{key}=<redacted>"
+        elif separator and key == "DEVCLOUD_CA_BUNDLE_PEM":
+            # Public, but several KB of base64 per log line.
+            argument = f"{key}=<pem>"
         redacted.append(argument)
     return " ".join(redacted)
 
@@ -289,6 +323,7 @@ class PodmanService:
         service_environment: dict[str, str] | None = None,
         ai_gateway_token: str = "",
         kilo_code_config: str = "",
+        ai_ca_bundle: str = "",
         progress_callback: Any | None = None,
     ) -> tuple[str, str]:
         """Create and run a new container for a workspace.
@@ -340,6 +375,11 @@ class PodmanService:
             )
         is_jupyter = template.ide_type == "jupyter"
         is_service = template.ide_type == "service"
+        # Only images whose startup command DevCloud controls can build the
+        # combined bundle before the IDE starts.
+        ai_ca_bundle = (
+            normalize_ca_bundle(ai_ca_bundle) if is_vscode or is_jupyter else ""
+        )
 
         if self._mock_mode:
             container_id = f"mock-cid-{workspace_id[:12]}"
@@ -493,6 +533,11 @@ class PodmanService:
                 "-e", "CLAUDE_CODE_FILE_READ_MAX_OUTPUT_TOKENS=4000",
             ])
 
+        if ai_ca_bundle:
+            cmd_args.extend(["-e", f"DEVCLOUD_CA_BUNDLE_PEM={ai_ca_bundle}"])
+            for key, value in WORKSPACE_CA_ENVIRONMENT.items():
+                cmd_args.extend(["-e", f"{key}={value}"])
+
         for k, v in template.env_vars.items():
             cmd_args.extend(["-e", f"{k}={v}"])
         for key, value in mlflow_environment.items():
@@ -507,11 +552,13 @@ class PodmanService:
         # Exact image selected and pinned by the controller.
         cmd_args.append(image_ref)
 
+        ca_setup = f"{WORKSPACE_CA_SETUP} && " if ai_ca_bundle else ""
         if is_jupyter:
             cmd_args.extend([
                 "bash",
                 "-lc",
-                "install -d -m 700 \"$CLAUDE_CONFIG_DIR\""
+                ca_setup
+                + "install -d -m 700 \"$CLAUDE_CONFIG_DIR\""
                 " && printf '%s' \"$DEVCLOUD_CLAUDE_SETTINGS_JSON\""
                 " > \"$CLAUDE_CONFIG_DIR/settings.json\""
                 " && chmod 600 \"$CLAUDE_CONFIG_DIR/settings.json\""
@@ -527,6 +574,7 @@ class PodmanService:
             ])
         elif is_vscode:
             setup_commands: list[str] = [
+                *([WORKSPACE_CA_SETUP] if ai_ca_bundle else []),
                 "install -d -m 700 \"$VSCODE_USER_DIR\"",
                 "printf '%s' \"$DEVCLOUD_VSCODE_SETTINGS_JSON\""
                 " > \"$VSCODE_USER_DIR/settings.json\"",

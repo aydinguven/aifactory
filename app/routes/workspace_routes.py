@@ -36,8 +36,10 @@ from app.quotas import effective_quota
 from app.kilo_code import KILO_CODE_ASSISTANT
 from app.orchestrator.metrics_service import get_workspace_disk_usage_by_user
 from app.orchestrator.workspace_provisioning import (
+    CA_BUNDLE_IDE_TYPES,
     KILO_CODE_MISSING_KEY_MESSAGE,
     QuotaExceeded,
+    WorkspaceAiConfig,
     WorkspaceNameConflict,
     WorkspaceOperationError,
     applied_ai_config_digest,
@@ -51,6 +53,7 @@ from app.orchestrator.workspace_provisioning import (
     runtime_image_missing_problem,
     template_definition,
     workspace_ai_config,
+    workspace_ca_bundle,
     workspace_mlflow_environment,
     workspace_runtime_image,
     workspace_service_environment,
@@ -526,7 +529,9 @@ async def start_workspace_endpoint(
                         "Workspace %s: %s", workspace.id, ai_config.kilo_code_problem
                     )
                 worker_problem = await kilo_code_worker_problem(db, workspace)
-                config_changed = ai_config.digest != (workspace.ai_config_digest or "")
+                config_changed = await applied_ai_config_digest(
+                    db, workspace, ai_config
+                ) != (workspace.ai_config_digest or "")
                 image_problem = ""
                 if config_changed and not worker_problem:
                     image_problem = await _kilo_code_image_problem(db, workspace, template)
@@ -552,6 +557,43 @@ async def start_workspace_endpoint(
                             workspace.container_name,
                             exc,
                         )
+            elif template and template.ide_type in CA_BUNDLE_IDE_TYPES:
+                # The gateway CA bundle is in the container's environment as
+                # well, so adding, changing or removing it needs a new one.
+                # The digest is what this worker applies, so an outdated
+                # worker is not asked to recreate on every start.
+                ca_digest = await applied_ai_config_digest(
+                    db,
+                    workspace,
+                    WorkspaceAiConfig(ca_bundle=await workspace_ca_bundle(db, template)),
+                )
+                if ca_digest != (workspace.ai_config_digest or ""):
+                    try:
+                        image_problem = await runtime_image_missing_problem(
+                            db, workspace, template
+                        )
+                    except RuntimeError as exc:
+                        image_problem = str(exc)
+                    if image_problem:
+                        logger.warning(
+                            "Workspace %s keeps its container: %s",
+                            workspace.id,
+                            image_problem,
+                        )
+                    else:
+                        try:
+                            if await runtime.remove_container(workspace.container_name):
+                                container_exists = False
+                                logger.info(
+                                    "Recreating %s because the gateway CA bundle changed",
+                                    workspace.container_name,
+                                )
+                        except Exception as exc:  # noqa: BLE001 - outdated workers
+                            logger.warning(
+                                "Keeping %s with its previous gateway CA bundle: %s",
+                                workspace.container_name,
+                                exc,
+                            )
 
         if container_exists:
             success = await runtime.start_container(workspace.container_name)

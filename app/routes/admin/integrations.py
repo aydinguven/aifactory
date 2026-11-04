@@ -59,7 +59,12 @@ from app.model_container_registry import (
     test_model_container_registry,
 )
 from app.integrations.mlflow import MlflowConfig, validate_config as validate_mlflow_config
-from app.jupyter_ai import default_model_catalog, parse_model_catalog
+from app.jupyter_ai import (
+    default_model_catalog,
+    normalize_ca_bundle,
+    parse_model_catalog,
+)
+from app.ingress_settings import IngressConfigurationError, validate_agent_ca_bundle
 from app.config import settings
 from app.security.secrets import (
     SecretDecryptionError,
@@ -126,8 +131,26 @@ def _jupyter_ai_settings_out(
             )
         ],
         has_shared_token=bool(record.encrypted_shared_token),
+        ca_bundle_pem=record.ca_bundle_pem or "",
         updated_at=record.updated_at,
     )
+
+
+def _validated_ca_bundle(value: str) -> str:
+    """Parse every certificate and return the canonical bundle, or raise 422."""
+    if not value.strip():
+        return ""
+    try:
+        validate_agent_ca_bundle(value.strip().encode("utf-8"), label="Gateway CA paketi")
+    except IngressConfigurationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    bundle = normalize_ca_bundle(value)
+    if not bundle:
+        raise HTTPException(
+            status_code=422,
+            detail="Gateway CA paketi yalnızca PEM sertifika blokları içermelidir.",
+        )
+    return bundle
 
 
 def _model_container_registry_settings_out(
@@ -424,6 +447,10 @@ async def update_jupyter_ai_settings(
     record.model_catalog_json = json.dumps(effective_models, ensure_ascii=False)
     if update.shared_token is not None:
         record.encrypted_shared_token = encrypt_secret(update.shared_token)
+    if update.ca_bundle_pem is not None:
+        record.ca_bundle_pem = _validated_ca_bundle(update.ca_bundle_pem)
+    elif record.ca_bundle_pem is None:
+        record.ca_bundle_pem = ""
     record.updated_at = datetime.now(timezone.utc)
     db.add(record)
     await db.commit()
@@ -492,6 +519,7 @@ async def test_jupyter_ai_settings(
                     "gateway_url": record.gateway_url,
                     "model_id": request.model_id,
                     "shared_token": shared_token,
+                    "ca_bundle_pem": record.ca_bundle_pem or "",
                 },
                 timeout=40,
             )

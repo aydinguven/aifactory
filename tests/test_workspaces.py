@@ -730,3 +730,57 @@ async def test_terminal_workspace_deploys_and_is_proxied(
     listed = await client.get("/api/workspaces", headers=headers)
     assert listed.status_code == 200
     assert any(item["template_id"] == "terminal-rocky" for item in listed.json())
+
+
+@pytest.mark.asyncio
+async def test_gateway_ca_bundle_recreates_jupyter_once_on_a_capable_worker(
+    client: AsyncClient, db_session, monkeypatch
+):
+    """A saved CA bundle reaches the container once the worker can apply it."""
+    from app.models.jupyter_ai_settings import JupyterAiSettings
+    from app.models.node import Node
+    from tests.test_jupyter_ai_settings import _self_signed_pem
+
+    created: list[str] = []
+    original_create = podman_service.create_workspace_container
+
+    async def recording_create(**kwargs):
+        created.append(kwargs.get("ai_ca_bundle", ""))
+        return await original_create(**kwargs)
+
+    monkeypatch.setattr(podman_service, "create_workspace_container", recording_create)
+    node = await db_session.get(Node, TEST_WORKER_ID)
+    node.agent_version = "3.25.0"
+    await db_session.commit()
+
+    headers = await get_authenticated_headers(client, "ca_bundle_tester")
+    workspace = (
+        await client.post(
+            "/api/workspaces",
+            json={"name": "CA", "template_id": "jupyter-python", "flavor_id": "t1.micro"},
+            headers=headers,
+        )
+    ).json()
+    bundle = _self_signed_pem("LiteLLM Gateway LAB CA", ca=True)
+    db_session.add(JupyterAiSettings(id=1, ca_bundle_pem=bundle))
+    await db_session.commit()
+
+    async def restart() -> dict:
+        await client.post(f"/api/workspaces/{workspace['id']}/stop", headers=headers)
+        response = await client.post(
+            f"/api/workspaces/{workspace['id']}/start", headers=headers
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["status"] == "running"
+        return response.json()
+
+    # A 3.25 worker would drop the bundle, so it must not recreate in a loop.
+    await restart()
+    assert created == [""]
+
+    node.agent_version = "3.26.0"
+    await db_session.commit()
+    await restart()
+    assert created == ["", bundle]
+    await restart()
+    assert created == ["", bundle]

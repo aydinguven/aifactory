@@ -6,8 +6,9 @@ caller's job.
 """
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
+import hashlib
 import logging
 from types import SimpleNamespace
 import uuid
@@ -22,7 +23,7 @@ from app.integrations.mlflow import (
     config_from_record as mlflow_config_from_record,
     validate_config as validate_mlflow_config,
 )
-from app.jupyter_ai import parse_model_catalog
+from app.jupyter_ai import CA_BUNDLE_MIN_AGENT_VERSION, parse_model_catalog
 from app.mlflow_workspace import environment_from_config
 from app.models.jupyter_ai_settings import JupyterAiSettings
 from app.models.mlflow_deployment import MlflowDeployment
@@ -157,6 +158,27 @@ async def workspace_service_environment(
     }
 
 
+# IDE types whose containers receive the Admin gateway CA bundle.
+CA_BUNDLE_IDE_TYPES = frozenset({"vscode", "jupyter"})
+_CA_DIGEST_SALT = b"devcloud-workspace-ai-ca-v1\x00"
+
+
+def ai_config_digest(kilo_code_config: str, ca_bundle: str) -> str:
+    """Fingerprint of the AI settings baked into a container's environment.
+
+    Without a CA bundle this is the Kilo Code digest, so setting this feature
+    up recreates no container until an Admin actually saves a bundle.
+    """
+    if not ca_bundle:
+        return config_digest(kilo_code_config)
+    return hashlib.sha256(
+        _CA_DIGEST_SALT
+        + kilo_code_config.encode("utf-8")
+        + b"\x00"
+        + ca_bundle.encode("utf-8")
+    ).hexdigest()
+
+
 @dataclass(frozen=True)
 class WorkspaceAiConfig:
     """AI wiring sent to the worker with a container.create request."""
@@ -167,16 +189,20 @@ class WorkspaceAiConfig:
     user_key_missing: bool = False
     # Why a Kilo Code workspace gets no kilo.jsonc at all (Admin-side cause).
     kilo_code_problem: str = ""
+    # Admin > Workspace AI gateway CA bundle (canonical PEM).
+    ca_bundle: str = ""
 
     @property
     def digest(self) -> str:
-        return config_digest(self.kilo_code_config)
+        return ai_config_digest(self.kilo_code_config, self.ca_bundle)
 
     def create_arguments(self) -> dict[str, str]:
         arguments = {"ai_gateway_token": self.ai_gateway_token}
+        # Older workers drop unknown keys, so these stay rolling-safe.
         if self.kilo_code_config:
-            # Older workers drop unknown keys, so this stays rolling-safe.
             arguments["kilo_code_config"] = self.kilo_code_config
+        if self.ca_bundle:
+            arguments["ai_ca_bundle"] = self.ca_bundle
         return arguments
 
 
@@ -211,15 +237,24 @@ def kilo_code_worker_outdated_message(node_name: str, agent_version: str) -> str
     )
 
 
+def _worker_at_least(node, minimum: str) -> bool:
+    current = semantic_version(str(getattr(node, "agent_version", "") or ""))
+    required = semantic_version(minimum)
+    return current is None or required is None or current >= required
+
+
 def worker_applies_kilo_code(node) -> bool:
     """False only when the worker reports a release older than MIN_AGENT_VERSION.
 
     Such a worker drops kilo_code_config. An unknown version is given the
     benefit of the doubt, matching the scheduler.
     """
-    current = semantic_version(str(getattr(node, "agent_version", "") or ""))
-    required = semantic_version(KILO_CODE_MIN_AGENT_VERSION)
-    return current is None or required is None or current >= required
+    return _worker_at_least(node, KILO_CODE_MIN_AGENT_VERSION)
+
+
+def worker_applies_ca_bundle(node) -> bool:
+    """False when the worker is too old to install ``ai_ca_bundle``."""
+    return _worker_at_least(node, CA_BUNDLE_MIN_AGENT_VERSION)
 
 
 async def applied_ai_config_digest(
@@ -227,18 +262,31 @@ async def applied_ai_config_digest(
     workspace: Workspace,
     ai_config: WorkspaceAiConfig,
 ) -> str:
-    """Digest of the config the worker really wrote into the container.
+    """Digest of the config the worker really writes into the container.
 
-    An outdated worker drops ``kilo_code_config``; recording the sent digest
-    would make the next start believe the container is current and never
-    recreate it after the worker is upgraded.
+    An outdated worker drops ``kilo_code_config`` or ``ai_ca_bundle``;
+    recording the sent digest would make the next start believe the container
+    is current and never recreate it after the worker is upgraded. Comparing
+    a stored digest with this value (not ``ai_config.digest``) also keeps an
+    outdated worker from recreating the container on every start.
     """
-    if not ai_config.kilo_code_config:
+    if not ai_config.kilo_code_config and not ai_config.ca_bundle:
         return ""
     node = await db.get(Node, workspace.node_id) if workspace.node_id else None
-    if node is None or not worker_applies_kilo_code(node):
+    if node is None:
         return ""
-    return ai_config.digest
+    return ai_config_digest(
+        ai_config.kilo_code_config if worker_applies_kilo_code(node) else "",
+        ai_config.ca_bundle if worker_applies_ca_bundle(node) else "",
+    )
+
+
+async def workspace_ca_bundle(db: AsyncSession, template) -> str:
+    """The Admin gateway CA bundle for this template's containers, else ''."""
+    if template is None or template.ide_type not in CA_BUNDLE_IDE_TYPES:
+        return ""
+    record = await db.get(JupyterAiSettings, 1)
+    return (record.ca_bundle_pem or "") if record is not None else ""
 
 
 async def kilo_code_worker_problem(db: AsyncSession, workspace: Workspace) -> str:
@@ -305,6 +353,16 @@ async def workspace_ai_config(
     user_id: int,
 ) -> WorkspaceAiConfig:
     """Resolve the owner's AI wiring for a new or recreated container."""
+    config = await _workspace_ai_wiring(db, template, user_id)
+    ca_bundle = await workspace_ca_bundle(db, template)
+    return replace(config, ca_bundle=ca_bundle) if ca_bundle else config
+
+
+async def _workspace_ai_wiring(
+    db: AsyncSession,
+    template,
+    user_id: int,
+) -> WorkspaceAiConfig:
     from app.genai import workspace_gateway_token
 
     if template is None or template.ide_type == "service":
