@@ -49,17 +49,23 @@
       fileInput.value = "";
     });
 
-    const row = skill => `<tr>
-      <td class="data-value"><code>${esc(skill.name)}</code></td>
-      <td><span title="${esc(skill.description)}">${esc(skill.description.length > 180 ? `${skill.description.slice(0, 180)}…` : skill.description)}</span></td>
-      <td><span class="badge ${skill.enabled ? "badge-running" : "badge-stopped"}">${skill.enabled ? "Etkin" : "Devre Dışı"}</span></td>
-      <td style="white-space:nowrap;">${esc(formatDate(skill.updated_at))}</td>
-      <td style="white-space:nowrap;">
+    // One row per skill; the description wraps under the name instead of
+    // squeezing a five-column table into the admin content width.
+    const row = skill => `<li class="skill-item">
+      <div class="skill-item-main">
+        <div class="skill-item-head">
+          <code class="skill-item-name">${esc(skill.name)}</code>
+          <span class="badge ${skill.enabled ? "badge-running" : "badge-stopped"}">${skill.enabled ? "Etkin" : "Devre Dışı"}</span>
+          <small class="text-muted">Güncellendi: ${esc(formatDate(skill.updated_at))}</small>
+        </div>
+        <p class="skill-item-description" title="${esc(skill.description)}">${esc(skill.description)}</p>
+      </div>
+      <div class="skill-item-actions">
         <button type="button" class="btn btn-secondary btn-sm" data-skill-action="edit" data-id="${skill.id}">Düzenle</button>
         <button type="button" class="btn btn-secondary btn-sm" data-skill-action="toggle" data-id="${skill.id}">${skill.enabled ? "Devre Dışı Bırak" : "Etkinleştir"}</button>
         <button type="button" class="btn btn-danger btn-sm" data-skill-action="delete" data-id="${skill.id}">Sil</button>
-      </td>
-    </tr>`;
+      </div>
+    </li>`;
 
     const load = async () => {
       const data = await request("/api/admin/skills");
@@ -68,10 +74,7 @@
       usage.textContent = `${enabled} etkin · ${kilobytes(data.bundle_length)} / ${kilobytes(data.bundle_limit)}`;
       usage.className = `badge ${enabled ? "badge-running" : "badge-stopped"}`;
       list.innerHTML = skills.length
-        ? `<div class="data-table-shell"><table class="table">
-            <thead><tr><th>Ad</th><th>Açıklama</th><th>Durum</th><th>Güncellendi</th><th>İşlem</th></tr></thead>
-            <tbody>${skills.map(row).join("")}</tbody>
-          </table></div>`
+        ? `<ul class="skill-list">${skills.map(row).join("")}</ul>`
         : '<p class="text-muted">Henüz skill eklenmedi.</p>';
     };
 
