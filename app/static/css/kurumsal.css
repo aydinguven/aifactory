@@ -2874,3 +2874,28 @@ code { color: #8d0022; }
 @media (max-width: 620px) {
   .deploy-targets, .deploy-pipeline { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Admin > Skill Kütüphanesi list */
+.skill-list { border: 1px solid var(--border-color); border-radius: 8px; list-style: none; margin: 0; padding: 0; }
+.skill-item { align-items: flex-start; display: flex; gap: 1rem; padding: 0.9rem 1rem; }
+.skill-item + .skill-item { border-top: 1px solid var(--border-color); }
+.skill-item-main { flex: 1 1 auto; min-width: 0; }
+.skill-item-head { align-items: center; display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.35rem; }
+.skill-item-name { font-weight: 600; white-space: nowrap; }
+.skill-item-head .badge { white-space: nowrap; }
+.skill-item-description {
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--text-muted);
+  display: -webkit-box;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  margin: 0;
+  overflow: hidden;
+}
+.skill-item-actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; gap: 0.4rem; justify-content: flex-end; }
+.skill-item-actions .btn { white-space: nowrap; }
+@media (max-width: 760px) {
+  .skill-item { flex-direction: column; }
+  .skill-item-actions { justify-content: flex-start; }
+}
