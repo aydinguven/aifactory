@@ -207,6 +207,14 @@ def managed_vscode_settings(config: str = "") -> str:
         # basedpyright (baked into the image) is the language server; Pylance
         # is not on Open VSX, so the Python extension's own server stays off.
         "python.languageServer": "None",
+        # VS Code auto-forwards every port a process listens on. The Kilo
+        # agent's own server (4096) and the ephemeral ports of language
+        # servers, Jupyter kernels and debuggers (Linux 32768-60999) only
+        # filled the Ports panel; the user's app ports are still forwarded.
+        "remote.portsAttributes": {
+            "4096": {"onAutoForward": "ignore"},
+            "32768-60999": {"onAutoForward": "ignore"},
+        },
     }
     model = ""
     if config:
