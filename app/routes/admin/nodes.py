@@ -24,7 +24,7 @@ from app.models.workspace import Workspace
 from app.models.node import Node, NodeStatus
 from app.models.worker_bootstrap_ticket import WorkerBootstrapTicket
 from app.agents.manager import agent_manager
-from app.models.placement_tag import TAG_KIND_DATACENTER, PlacementTag
+from app.models.placement_tag import TAG_KIND_CUSTOM, PlacementTag
 from app.placement import (
     PlacementRequestError,
     encode_tags,
@@ -75,7 +75,6 @@ def _node_out(node: Node, enrollment_token: str | None = None):
         active_containers_count=node.active_containers_count,
         gpu_slots_per_device=node.gpu_slots_per_device,
         labels=json.loads(node.labels_json or "{}"),
-        datacenter=node.datacenter or "",
         tags=node.tags,
         gpu_worker=is_gpu_worker(node),
         capabilities=json.loads(node.capabilities_json or "{}"),
@@ -297,7 +296,7 @@ async def update_node_placement(
     _admin: Annotated[User, Depends(get_current_admin_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Admin: Assign a worker's datacenter and custom placement tags.
+    """Admin: Assign a worker's placement tags.
 
     Only new placements are affected; workspaces already on the worker stay.
     """
@@ -305,16 +304,15 @@ async def update_node_placement(
     if not node:
         raise HTTPException(status_code=404, detail="Worker bulunamadı.")
     try:
-        datacenter, tags = await validate_node_placement(db, data.datacenter, data.tags)
+        tags = await validate_node_placement(db, data.tags)
     except PlacementRequestError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    node.datacenter = datacenter
     node.tags_json = encode_tags(tags)
     db.add(node)
     await db.commit()
     await db.refresh(node)
     await agent_manager.broadcast_event(
-        "node.updated", {"node_id": node.id, "datacenter": datacenter, "tags": tags}
+        "node.updated", {"node_id": node.id, "tags": tags}
     )
     return _node_out(node)
 
@@ -322,10 +320,7 @@ async def update_node_placement(
 async def _tag_worker_counts(db: AsyncSession) -> dict[str, int]:
     counts: dict[str, int] = {}
     for node in (await db.execute(select(Node))).scalars().all():
-        names = set(node.tags)
-        if node.datacenter:
-            names.add(node.datacenter)
-        for name in names:
+        for name in set(node.tags):
             counts[name] = counts.get(name, 0) + 1
     return counts
 
@@ -333,7 +328,6 @@ async def _tag_worker_counts(db: AsyncSession) -> dict[str, int]:
 def _tag_out(tag: PlacementTag, counts: dict[str, int]) -> PlacementTagOut:
     return PlacementTagOut(
         name=tag.name,
-        kind=tag.kind,
         description=tag.description,
         enabled=tag.enabled,
         worker_count=counts.get(tag.name, 0),
@@ -346,7 +340,7 @@ async def list_placement_tags(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     tags = (
-        await db.execute(select(PlacementTag).order_by(PlacementTag.kind, PlacementTag.name))
+        await db.execute(select(PlacementTag).order_by(PlacementTag.name))
     ).scalars().all()
     counts = await _tag_worker_counts(db)
     return [_tag_out(tag, counts) for tag in tags]
@@ -366,7 +360,7 @@ async def create_placement_tag(
     if not valid_tag_name(name):
         raise HTTPException(
             status_code=400,
-            detail="Bu ad ayrılmış veya geçersiz (Any, GPU ve CPU kullanılamaz).",
+            detail="Bu ad ayrılmış veya geçersiz (GPU ve CPU kullanılamaz).",
         )
     existing = (
         await db.execute(
@@ -375,7 +369,9 @@ async def create_placement_tag(
     ).scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=409, detail=f"'{existing.name}' zaten tanımlı.")
-    tag = PlacementTag(name=name, kind=data.kind, description=data.description.strip())
+    tag = PlacementTag(
+        name=name, kind=TAG_KIND_CUSTOM, description=data.description.strip()
+    )
     db.add(tag)
     await db.commit()
     await db.refresh(tag)
@@ -414,11 +410,10 @@ async def delete_placement_tag(
         raise HTTPException(status_code=404, detail="Etiket bulunamadı.")
     in_use = (await _tag_worker_counts(db)).get(tag.name, 0)
     if in_use:
-        what = "veri merkezi" if tag.kind == TAG_KIND_DATACENTER else "etiket"
         raise HTTPException(
             status_code=409,
             detail=(
-                f"Bu {what} {in_use} worker'a atanmış. Önce worker'lardan kaldırın "
+                f"Bu etiket {in_use} worker'a atanmış. Önce worker'lardan kaldırın "
                 "veya silmek yerine devre dışı bırakın."
             ),
         )

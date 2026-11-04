@@ -81,7 +81,6 @@
             <span class="badge badge-flavor">Profil: {{ ws.flavor_id }}</span>
             <span class="badge badge-template">{{ ws.template_id }}</span>
             <span class="badge badge-neutral">Port: {{ ws.host_port }}</span>
-            <span class="badge badge-neutral" title="Veri merkezi">DC: {{ ws.datacenter or 'Any' }}</span>
             {% for tag in ws.tags %}
               <span class="badge badge-neutral">#{{ tag }}</span>
             {% endfor %}
@@ -206,29 +205,20 @@
         </small>
       </div>
 
+      {% if placement_options.tags %}
       <div class="form-group" id="placement-picker">
-        <label class="form-label" for="input-datacenter">Veri Merkezi</label>
-        <p class="form-help">Çalışma alanı yalnızca seçilen veri merkezindeki bir worker'a yerleşir. GPU profilleri GPU worker'larda, CPU profilleri CPU worker'larda çalışır.</p>
-        <select id="input-datacenter" class="form-input" style="background: var(--bg-input); color: #fff;">
-          <option value="" selected>Any (herhangi bir veri merkezi)</option>
-          {% for dc in placement_options.datacenters %}
-            <option value="{{ dc.name }}">{{ dc.name }}{% if dc.description %} — {{ dc.description }}{% endif %}</option>
+        <span class="form-label">Gerekli Etiketler (İsteğe Bağlı)</span>
+        <p class="form-help">Çalışma alanı yalnızca seçilen etiketlerin tümünü taşıyan bir worker'a yerleşir. GPU profilleri GPU worker'larda, CPU profilleri CPU worker'larda çalışır.</p>
+        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem 1rem;">
+          {% for tag in placement_options.tags %}
+            <label style="display: flex; gap: 0.35rem; align-items: center; font-size: 0.8rem;" title="{{ tag.description }}">
+              <input type="checkbox" class="input-placement-tag" value="{{ tag.name }}">
+              <span>{{ tag.name }}</span>
+            </label>
           {% endfor %}
-        </select>
-        {% if placement_options.tags %}
-        <div style="margin-top: 0.6rem;">
-          <span class="form-label" style="font-size: 0.8rem;">Gerekli Etiketler (İsteğe Bağlı)</span>
-          <div style="display: flex; flex-wrap: wrap; gap: 0.5rem 1rem;">
-            {% for tag in placement_options.tags %}
-              <label style="display: flex; gap: 0.35rem; align-items: center; font-size: 0.8rem;" title="{{ tag.description }}">
-                <input type="checkbox" class="input-placement-tag" value="{{ tag.name }}">
-                <span>{{ tag.name }}</span>
-              </label>
-            {% endfor %}
-          </div>
         </div>
-        {% endif %}
       </div>
+      {% endif %}
 
       <div class="form-group">
         <label class="form-label">Geliştirme Ortamı Şablonu</label>

@@ -9,7 +9,7 @@ DevCloud is a lightweight, high-performance cloud development platform built wit
 - **Podman Container Orchestration**: Rootless container lifecycle management with memory & CPU quotas.
 - **Persistent Workspace Storage**: Host bind-mounts maintain project files across container restarts and updates.
 - **Integrated Browser IDEs**:
-  - **Kilo Code (VS Code)**: Python 3, `pip`, `uv`, Node.js 22 LTS, git and the Kilo Code AI assistant with LanceDB codebase indexing and an Admin-managed skill/agent/rule catalog (MCP). Chat uses the workspace owner's own AI Factory key.
+  - **Kilo Code (VS Code)**: Python 3, `pip`, `uv`, Node.js 22 LTS, git, the Python, Jupyter, basedpyright and Ruff extensions, and the Kilo Code AI assistant with LanceDB codebase indexing and an Admin-managed skill/agent/rule catalog (MCP). Chat uses the workspace owner's own AI Factory key.
   - **JupyterLab (Python)**: Data science environment with NumPy, Pandas, Matplotlib, Jupyter AI 3, and a Claude ACP persona for on-prem model gateways.
 
   The Cline-based VS Code templates (Boş Proje, Python 3.14, React/Node.js, Java 21 LTS) were retired in 3.18.1: existing workspaces keep running, new ones use Kilo Code. TCMB Code (TCMB's Kilo Code build, 3.18–3.23) was replaced by upstream Kilo Code in 3.24.0.

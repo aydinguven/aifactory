@@ -19,7 +19,7 @@ from app.config import settings
 from app.database import engine, init_db
 
 
-CURRENT_SCHEMA_VERSION = 36
+CURRENT_SCHEMA_VERSION = 37
 # ai_config_digest of the workspaces migration 33 moved off TCMB Code.
 TCMB_CODE_MIGRATED_DIGEST = "tcmb-code-migrated"
 
@@ -688,28 +688,17 @@ async def _add_directory_sync_fields(conn) -> None:
             )
 
 
-async def _seed_default_datacenters(conn) -> None:
-    """Seed the IDM and ODM datacenter tags once; admins manage them afterwards."""
-    from app.placement import DEFAULT_DATACENTERS
-
-    for name, description in DEFAULT_DATACENTERS:
-        exists = await conn.execute(
-            text("SELECT name FROM placement_tags WHERE name = :name"), {"name": name}
+async def _remove_datacenters(conn) -> None:
+    """Drop the datacenter placement (IDM/ODM); custom tags stay."""
+    await conn.execute(text("DELETE FROM placement_tags WHERE kind = 'datacenter'"))
+    for table in ("nodes", "workspaces"):
+        columns = await conn.run_sync(
+            lambda sync_conn, table=table: {
+                column["name"] for column in inspect(sync_conn).get_columns(table)
+            }
         )
-        if exists.first():
-            continue
-        await conn.execute(
-            text(
-                "INSERT INTO placement_tags (name, kind, description, enabled, created_at) "
-                "VALUES (:name, 'datacenter', :description, :enabled, :created_at)"
-            ),
-            {
-                "name": name,
-                "description": description,
-                "enabled": True,
-                "created_at": datetime.now(timezone.utc),
-            },
-        )
+        if "datacenter" in columns:
+            await conn.execute(text(f"ALTER TABLE {table} DROP COLUMN datacenter"))
 
 
 async def _replace_tcmb_code_with_kilo_code(conn) -> None:
@@ -1169,9 +1158,8 @@ async def upgrade() -> None:
             # workspaces.ai_config_digest column.
             await _record_version(conn, 30, "TCMB Code settings and workspace AI config digest")
         if 31 not in applied:
-            # init_db creates placement_tags and the node/workspace datacenter
-            # and tags_json columns.
-            await _seed_default_datacenters(conn)
+            # init_db creates placement_tags and the node/workspace tags_json
+            # columns. The IDM/ODM datacenter tags it seeded were removed in 37.
             await _record_version(conn, 31, "datacenter and placement tags")
         if 32 not in applied:
             # init_db creates the portable deploy_registry_settings, k8s_projects,
@@ -1191,6 +1179,9 @@ async def upgrade() -> None:
         if 36 not in applied:
             # init_db creates the portable skills table.
             await _record_version(conn, 36, "Admin skill library for Kilo Code and Jupyter AI")
+        if 37 not in applied:
+            await _remove_datacenters(conn)
+            await _record_version(conn, 37, "remove datacenter (IDM/ODM) placement")
 
 
 async def current_version() -> int:

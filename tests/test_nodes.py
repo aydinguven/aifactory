@@ -453,10 +453,10 @@ async def test_scheduler_load_balancing_and_affinity(db_session, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_scheduler_enforces_datacenter_tags_and_gpu_worker_class(
+async def test_scheduler_enforces_tags_and_gpu_worker_class(
     db_session, monkeypatch
 ):
-    def worker(name, datacenter="", tags=(), gpu=False, token="a"):
+    def worker(name, tags=(), gpu=False, token="a"):
         accelerators = [{
             "vendor": "nvidia", "kind": "physical", "id": f"GPU-{name}",
             "cdi_name": f"nvidia.com/gpu=GPU-{name}", "model": "NVIDIA L40S",
@@ -465,47 +465,41 @@ async def test_scheduler_enforces_datacenter_tags_and_gpu_worker_class(
         return Node(
             name=name, status=NodeStatus.ONLINE, enabled=True, schedulable=True,
             cpu_total=32, memory_total_mb=131072, disk_total_mb=100000,
-            datacenter=datacenter, tags_json=json.dumps(list(tags)),
+            tags_json=json.dumps(list(tags)),
             capabilities_json=json.dumps({"accelerators": accelerators}),
             agent_token_hash=token * 64,
         )
 
-    unassigned = worker("unassigned-cpu", token="b")
-    odm_cpu = worker("odm-cpu", "ODM", ("secure",), token="c")
-    odm_gpu = worker("odm-gpu", "ODM", gpu=True, token="d")
-    db_session.add_all([unassigned, odm_cpu, odm_gpu])
+    plain_cpu = worker("plain-cpu", token="b")
+    secure_cpu = worker("secure-cpu", ("secure",), token="c")
+    secure_gpu = worker("secure-gpu", ("secure",), gpu=True, token="d")
+    db_session.add_all([plain_cpu, secure_cpu, secure_gpu])
     await db_session.commit()
     monkeypatch.setattr(
         "app.orchestrator.scheduler.agent_manager.is_connected", lambda _node_id: True
     )
     cpu, gpu = get_flavor("t1.small"), get_flavor("g1.shared")
 
-    async def place(flavor, datacenter="", tags=()):
-        constraints = PlacementConstraints(datacenter=datacenter, tags=tuple(tags))
+    async def place(flavor, tags=()):
+        constraints = PlacementConstraints(tags=tuple(tags))
         return (await select_workspace_placement(db_session, flavor, constraints=constraints)).node
 
-    assert (await place(cpu, "ODM")).id == odm_cpu.id
-    assert (await place(cpu, "ODM", ["secure"])).id == odm_cpu.id
-    assert (await place(gpu, "ODM")).id == odm_gpu.id
-    assert (await place(gpu)).id == odm_gpu.id
-    # "Any" never lands a CPU workspace on the GPU worker.
-    assert (await place(cpu)).id in {unassigned.id, odm_cpu.id}
-    for flavor, datacenter, tags in (
-        (cpu, "IDM", ()),  # unassigned workers only serve "Any"
-        (gpu, "IDM", ()),
-        (cpu, "ODM", ["missing-tag"]),
-    ):
-        with pytest.raises(NoSchedulableNode):
-            await place(flavor, datacenter, tags)
+    assert (await place(cpu, ["secure"])).id == secure_cpu.id
+    assert (await place(gpu, ["secure"])).id == secure_gpu.id
+    assert (await place(gpu)).id == secure_gpu.id
+    # Without tags a CPU workspace still never lands on the GPU worker.
+    assert (await place(cpu)).id in {plain_cpu.id, secure_cpu.id}
+    with pytest.raises(NoSchedulableNode):
+        await place(cpu, ["missing-tag"])
 
-    odm_cpu.schedulable = False
+    secure_cpu.schedulable = False
     await db_session.commit()
     with pytest.raises(NoSchedulableNode, match="GPU worker"):
-        await place(cpu, "ODM")
+        await place(cpu, ["secure"])
     # Internal CPU jobs (image builds) may still use a GPU worker.
-    unassigned.schedulable = False
+    plain_cpu.schedulable = False
     await db_session.commit()
-    assert (await select_worker_node(db_session, cpu)).id == odm_gpu.id
+    assert (await select_worker_node(db_session, cpu)).id == secure_gpu.id
 
 
 @pytest.mark.asyncio

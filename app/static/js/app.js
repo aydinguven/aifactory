@@ -1158,21 +1158,18 @@ function initWorkspaceCreationModal() {
   });
   applyTemplateFlavorRules(document.querySelector(".template-card.selected"));
 
-  // Datacenter / tag placement: GPU slot availability depends on where the
-  // workspace may land, so re-check the GPU cards whenever it changes.
-  const datacenterSelect = document.getElementById("input-datacenter");
+  // Tag placement: GPU slot availability depends on where the workspace may
+  // land, so re-check the GPU cards whenever the selected tags change.
   const placementTagInputs = document.querySelectorAll(".input-placement-tag");
   function selectedPlacement() {
     return {
-      datacenter: datacenterSelect?.value || "",
       tags: Array.from(placementTagInputs).filter((input) => input.checked).map((input) => input.value),
     };
   }
   let placementRefresh = 0;
   async function refreshGpuAvailability() {
-    const {datacenter, tags} = selectedPlacement();
+    const {tags} = selectedPlacement();
     const params = new URLSearchParams();
-    if (datacenter) params.set("datacenter", datacenter);
     tags.forEach((tag) => params.append("tags", tag));
     const request = ++placementRefresh;
     try {
@@ -1217,7 +1214,6 @@ function initWorkspaceCreationModal() {
       // Availability is advisory; the create request reports the real result.
     }
   }
-  datacenterSelect?.addEventListener("change", refreshGpuAvailability);
   placementTagInputs.forEach((input) => input.addEventListener("change", refreshGpuAvailability));
 
   function appendLog(text, level = "info") {
@@ -1311,19 +1307,30 @@ function initWorkspaceCreationModal() {
               }
               if (statusBadge) {
                 statusBadge.className = "badge badge-running";
-                statusBadge.textContent = "IDE Açılıyor...";
+                statusBadge.textContent = "Hazır";
               }
               appendLog("Container çevrimiçi ve doğrulandı. Çalışma alanı hazır.", "success");
 
-              if (modalFooter) {
+              // The IDE opens in a new tab so this AI Factory tab stays open.
+              // Browsers may block the automatic tab after a long deployment;
+              // the button then opens it with the user's click.
+              const ideTab = window.open(ideUrl.pathname, "_blank");
+              if (ideTab) {
+                ideTab.opener = null;
+                appendLog("IDE yeni sekmede açıldı.", "success");
+                setTimeout(() => window.location.reload(), 1500);
+              } else if (modalFooter) {
                 modalFooter.innerHTML = `
-                  <a href="${ideUrl.pathname}" class="btn btn-success" style="padding: 0.65rem 1.5rem; font-weight: 600;">
-                    <span>↗</span> IDE'ye Git
+                  <button type="button" class="btn btn-secondary" id="btn-workspace-back">Panele Dön</button>
+                  <a href="${ideUrl.pathname}" target="_blank" rel="noopener" class="btn btn-success" id="btn-workspace-open-ide" style="padding: 0.65rem 1.5rem; font-weight: 600;">
+                    <span>↗</span> IDE'yi Yeni Sekmede Aç
                   </a>
                 `;
+                document.getElementById("btn-workspace-back")?.addEventListener("click", () => window.location.reload());
+                document.getElementById("btn-workspace-open-ide")?.addEventListener("click", () => {
+                  setTimeout(() => window.location.reload(), 500);
+                });
               }
-
-              window.location.assign(ideUrl.pathname);
             }
           } catch (parseErr) {
             console.warn("SSE parse error:", line);
@@ -2234,12 +2241,11 @@ function apiErrorMessage(data, fallback) {
   return detail || fallback;
 }
 
-// Worker datacenter/tag assignment and the admin-managed tag catalog.
+// Worker tag assignment and the admin-managed tag catalog.
 function initPlacementAdmin() {
   const modal = document.getElementById("node-placement-modal");
   const form = document.getElementById("node-placement-form");
   const nodeIdInput = document.getElementById("placement-modal-node-id");
-  const datacenterSelect = document.getElementById("placement-modal-datacenter");
   const title = document.getElementById("node-placement-modal-title");
   document.getElementById("btn-close-placement-modal")?.addEventListener("click", () => {
     modal?.classList.remove("open");
@@ -2255,7 +2261,6 @@ function initPlacementAdmin() {
         tags = [];
       }
       nodeIdInput.value = button.dataset.nodeId;
-      datacenterSelect.value = button.dataset.datacenter || "";
       if (title) title.textContent = `Worker Yerleşimi · ${button.dataset.nodeName || ""}`;
       modal.querySelectorAll(".placement-modal-tag").forEach((box) => {
         box.checked = tags.includes(box.value);
@@ -2271,7 +2276,7 @@ function initPlacementAdmin() {
       const response = await fetch(`/api/admin/nodes/${nodeIdInput.value}/placement`, {
         method: "PUT",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({datacenter: datacenterSelect.value, tags}),
+        body: JSON.stringify({tags}),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(apiErrorMessage(data, "Yerleşim kaydedilemedi."));
@@ -2293,7 +2298,6 @@ function initPlacementAdmin() {
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({
           name: document.getElementById("placement-tag-name").value.trim(),
-          kind: document.getElementById("placement-tag-kind").value,
           description: document.getElementById("placement-tag-description").value.trim(),
         }),
       });

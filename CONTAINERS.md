@@ -79,6 +79,12 @@ committed lockfile in `containers/vscode-kilo/lancedb/`. The image also sets
 `KILO_TELEMETRY_LEVEL=off` and disables CLI auto-update, sharing, session
 ingest, models.dev fetches and LSP downloads, so nothing reaches the Internet
 from a workspace by default.
+Both Kilo Code images also bake in the Python tooling listed in
+`extensions.txt`: the Python and Python Debugger extensions, Python
+Environments, basedpyright as the language server (Pylance is not on Open VSX,
+so `python.languageServer` is `None`), Ruff and Jupyter with its companion
+extensions. Workspaces cannot reach an extension gallery, so users only have
+what the image ships.
 The `vscode-cuda` image is `vscode-kilo` plus NVIDIA's CUDA 13.4 toolkit from
 the Debian 13 repository: nvcc, the runtime and math libraries, the
 command-line debugging/profiling tools (the `cuda:*-devel` set without Nsight
@@ -113,6 +119,22 @@ Set `KILO_CODE_VERSION` and `KILO_CODE_VSIX_SHA256` in
 identical too; the release smoke test checks both images against the
 vscode-kilo version), and release DevCloud as usual. The build refuses to run
 while the checksum is empty.
+
+### Updating the bundled extensions
+
+`containers/vscode-kilo/extensions.txt` lists one extension per line:
+`<publisher.name> <version> <universal|linux-x64> <sha256>`. The build
+downloads each VSIX from Open VSX in that order, checks its checksum and
+installs it, then fails if any listed extension is missing. Put dependencies
+first (Python before Python Debugger, the Jupyter companions before Jupyter).
+Extensions with native code (Python Debugger, Ruff) need the `linux-x64`
+build. To pin a new version:
+
+    curl -fsSL "https://open-vsx.org/api/<publisher>/<name>/<version>/file/<publisher>.<name>-<version>.vsix" | sha256sum
+    curl -fsSL "https://open-vsx.org/api/<publisher>/<name>/linux-x64/<version>/file/<publisher>.<name>-<version>@linux-x64.vsix" | sha256sum
+
+Keep `containers/vscode-cuda/extensions.txt` identical. A change rebuilds both
+images in the next release.
 
 ### Replacing TCMB Code (3.24.0)
 

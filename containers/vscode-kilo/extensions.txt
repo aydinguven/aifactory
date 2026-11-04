@@ -1,0 +1,16 @@
+# VS Code extensions baked into the image from Open VSX, pinned by SHA-256.
+# Workspaces cannot reach a gallery, so users get only what is listed here.
+# Format: <publisher.name> <version> <target: universal or linux-x64> <sha256>
+# Installed in this order: an extension's dependencies must come first.
+# Pylance is not on Open VSX; basedpyright is the Python language server.
+# Keep identical to containers/vscode-cuda/extensions.txt.
+ms-python.python 2026.4.0 universal 232aeafb01f069824fdd92d3e628c1c442bbcfa1d3cc945ff97076340bb2b4a6
+ms-python.debugpy 2026.6.0 linux-x64 c7744af4bf72978f5792624a71c80e2b622a1118574fada3a903d70ac03d5bca
+ms-python.vscode-python-envs 1.40.0 universal a32ea2166e040d6e4069b7654e700dfa0f03891313dd2565cbfe8eb1d8378968
+detachhead.basedpyright 1.40.2 universal 9c87b0b992714ca2f9298cb7e98bda621612f0ee96121a8e77ee7fcccce2f351
+charliermarsh.ruff 2026.92.0 linux-x64 b0800861abc95f225acab9784003798db8426437f7824ae79854ad51c5fd084a
+ms-toolsai.jupyter-keymap 1.1.2 universal 3d2998929bb43156f3b428116aee290543c437875df616ec755692219b4afa17
+ms-toolsai.jupyter-renderers 1.3.0 universal d09f6c517a8090a932bb4e2c31bcb2de34ddb2a71133477f6c47f28f36eb76ae
+ms-toolsai.vscode-jupyter-cell-tags 0.1.9 universal 7cd43af55cf562a001dc475e92d9f3fd4b7173011adca0c02da22fbf891c274b
+ms-toolsai.vscode-jupyter-slideshow 0.1.6 universal 5b8dee0d569b7e0990bb4847c34748cdc0102078779351ed415d9d71cfa3e945
+ms-toolsai.jupyter 2025.9.1 universal 110660656944c4ab0ff687db488c2e8c59c67ec121dcf09bcaa54b6edd9ce71f

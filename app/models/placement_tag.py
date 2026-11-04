@@ -5,19 +5,16 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
 
-TAG_KIND_DATACENTER = "datacenter"
+# The only kind left; migration 37 removed the former "datacenter" tags.
 TAG_KIND_CUSTOM = "custom"
-TAG_KINDS = (TAG_KIND_DATACENTER, TAG_KIND_CUSTOM)
 
 
 class PlacementTag(Base):
     """Admin-defined placement tag assigned to workers and requested by workspaces.
 
-    A ``datacenter`` tag names where a worker VM runs (IDM, ODM, ...); a worker
-    has at most one and a workspace may ask for one or "Any". A ``custom`` tag
-    is a capability a workspace can require; the worker must carry every
-    requested custom tag. GPU/CPU is not a catalog tag: it is detected from
-    the worker's reported hardware.
+    A tag is a capability a workspace can require; the worker must carry every
+    requested tag. GPU/CPU is not a catalog tag: it is detected from the
+    worker's reported hardware.
     """
 
     __tablename__ = "placement_tags"

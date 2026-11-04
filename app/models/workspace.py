@@ -158,11 +158,7 @@ class Workspace(Base):
     )
     error_message: Mapped[str] = mapped_column(Text, nullable=True)
     auto_stop_minutes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)  # 0 = disabled
-    # Placement request recorded at creation: datacenter ("" = Any) and the
-    # custom placement tags the chosen worker had to carry.
-    datacenter: Mapped[str] = mapped_column(
-        String(40), default="", server_default="", nullable=False
-    )
+    # Placement tags the chosen worker had to carry (recorded at creation).
     tags_json: Mapped[str] = mapped_column(
         Text, default="[]", server_default="[]", nullable=False
     )

@@ -108,19 +108,18 @@ async def get_templates(db: Annotated[AsyncSession, Depends(get_db)]):
 
 @workspace_router.get("/placement-options", response_model=PlacementOptions)
 async def get_placement_options(db: Annotated[AsyncSession, Depends(get_db)]):
-    """Datacenters and custom placement tags offered on the create form."""
+    """Placement tags offered on the create form."""
     return await placement_options(db)
 
 
 @workspace_router.get("/flavors", response_model=list[FlavorInfo])
 async def get_flavors(
     db: Annotated[AsyncSession, Depends(get_db)],
-    datacenter: Annotated[str, Query(max_length=40)] = "",
     tags: Annotated[list[str], Query()] = [],
 ):
     """List available resource flavors, optionally for a requested placement."""
     try:
-        constraints = await resolve_workspace_constraints(db, datacenter, tags)
+        constraints = await resolve_workspace_constraints(db, tags)
     except PlacementRequestError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     catalog = []
@@ -338,10 +337,8 @@ async def deploy_workspace_stream(
 
             await emit_log(f"Şablon: {template.name} ({template.image_tag})", "info")
             await emit_log(f"Çalışma alanı kaynağı: {flavor.cpus} CPU, {flavor.memory_display} RAM ({flavor.name})", "info")
-            placement_request = (data.datacenter or "Any") + (
-                f" · etiketler: {', '.join(data.tags)}" if data.tags else ""
-            )
-            await emit_log(f"Yerleşim isteği: {placement_request}", "info")
+            if data.tags:
+                await emit_log(f"Yerleşim etiketleri: {', '.join(data.tags)}", "info")
 
             try:
                 workspace, placement = await schedule_and_reserve_workspace(
@@ -353,7 +350,6 @@ async def deploy_workspace_stream(
                 )
                 await emit_log(
                     f"Worker seçildi: {placement.node.name}"
-                    f"{' (' + placement.node.datacenter + ')' if placement.node.datacenter else ''}"
                     f"; host portu ayrıldı: {workspace.host_port}",
                     "info",
                 )

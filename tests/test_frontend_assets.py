@@ -42,16 +42,17 @@ def test_platform_updater_waits_for_new_healthy_service():
     assert "window.location.replace" in javascript
 
 
-def test_new_workspace_opens_ide_after_successful_deployment():
+def test_new_workspace_opens_ide_in_a_new_tab_after_successful_deployment():
     javascript = (PROJECT_ROOT / "app/static/js/app.js").read_text(encoding="utf-8")
     creation_flow = javascript.split("function initWorkspaceCreationModal()", 1)[1].split(
         "// 2. Action Buttons", 1
     )[0]
 
     assert 'data.type === "done"' in creation_flow
-    assert "window.location.assign(ideUrl.pathname)" in creation_flow
+    # The AI Factory tab must stay open: the IDE never replaces it.
+    assert 'window.open(ideUrl.pathname, "_blank")' in creation_flow
+    assert "window.location.assign(ideUrl.pathname)" not in creation_flow
     assert "ideUrl.origin !== window.location.origin" in creation_flow
-    assert "IDE'yi Şimdi Aç" not in creation_flow
 
 
 def test_admin_has_separate_worker_offline_bundle_controls():
