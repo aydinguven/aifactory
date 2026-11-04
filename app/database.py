@@ -188,7 +188,6 @@ async def ensure_workspace_columns(conn) -> None:
             if "ai_config_digest" not in current_columns:
                 raise
     placement_columns = {
-        "datacenter": "VARCHAR(40) NOT NULL DEFAULT ''",
         "tags_json": "TEXT NOT NULL DEFAULT '[]'",
     }
     existing_columns = await _workspace_column_names(conn)
@@ -279,7 +278,6 @@ async def ensure_node_columns(conn) -> None:
         "active_containers_count": "INTEGER DEFAULT 0",
         "gpu_slots_per_device": "INTEGER NOT NULL DEFAULT 0",
         "labels_json": "TEXT DEFAULT '{}'",
-        "datacenter": "VARCHAR(40) NOT NULL DEFAULT ''",
         "tags_json": "TEXT NOT NULL DEFAULT '[]'",
         "capabilities_json": "TEXT DEFAULT '{}'",
         "inventory_json": "TEXT DEFAULT '[]'",
