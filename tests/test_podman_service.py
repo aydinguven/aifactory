@@ -344,6 +344,90 @@ async def test_vscode_launch_ignores_legacy_disabled_cline_toggle(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_jupyter_launch_installs_gateway_ca_bundle(monkeypatch, tmp_path):
+    """The bundle is trusted next to the system roots before Jupyter starts."""
+    import shutil
+    import ssl
+    import subprocess
+
+    from app.orchestrator.podman_service import (
+        WORKSPACE_CA_DIR,
+        WORKSPACE_CA_ENVIRONMENT,
+        WORKSPACE_CA_SETUP,
+    )
+    from tests.test_jupyter_ai_settings import _self_signed_pem
+
+    svc = PodmanService(podman_bin="podman")
+    svc._mock_mode = False
+    commands = []
+
+    async def fake_run_cmd(*args, timeout=None):
+        commands.append(args)
+        return (0, "container-id", "") if args[0] == "run" else (0, "", "")
+
+    async def fake_ensure_image_exists(*args, **kwargs):
+        return True
+
+    class FakeWriter:
+        def close(self):
+            return None
+
+        async def wait_closed(self):
+            return None
+
+    async def fake_open_connection(*args, **kwargs):
+        return object(), FakeWriter()
+
+    monkeypatch.setattr(
+        svc, "ensure_workspace_storage", lambda user_id, workspace_id: "/workspace"
+    )
+    monkeypatch.setattr(svc, "run_cmd", fake_run_cmd)
+    monkeypatch.setattr(svc, "ensure_image_exists", fake_ensure_image_exists)
+    monkeypatch.setattr(asyncio, "open_connection", fake_open_connection)
+    bundle = _self_signed_pem("LiteLLM Gateway LAB CA", ca=True)
+
+    await svc.create_workspace_container(
+        workspace_id="12345678-1234-1234-1234-123456789abc",
+        user_id=1,
+        container_name="devcloud-1-12345678",
+        template_id="jupyter-python",
+        flavor_id="t1.micro",
+        host_port=10100,
+        workspace_token="secret-workspace-token",
+        ai_ca_bundle=bundle,
+    )
+
+    run_command = next(args for args in commands if args[0] == "run")
+    assert f"DEVCLOUD_CA_BUNDLE_PEM={bundle}" in run_command
+    for key, value in WORKSPACE_CA_ENVIRONMENT.items():
+        assert f"{key}={value}" in run_command
+    image_index = run_command.index("localhost/devcloud-jupyter-python:latest")
+    assert run_command[image_index + 3].startswith(WORKSPACE_CA_SETUP + " && ")
+
+    if not shutil.which("bash"):
+        pytest.skip("bash is required to run the container setup command")
+    setup = WORKSPACE_CA_SETUP.replace(WORKSPACE_CA_DIR, str(tmp_path / "ca"))
+    subprocess.run(
+        ["bash", "-c", setup],
+        env={"PATH": "/usr/bin:/bin", "DEVCLOUD_CA_BUNDLE_PEM": bundle},
+        check=True,
+    )
+    extra = (tmp_path / "ca" / "extra-ca.pem").read_text()
+    combined = (tmp_path / "ca" / "ca-bundle.pem").read_text()
+    assert extra.strip() == bundle.strip()
+    assert combined.rstrip().endswith(bundle.strip())
+    context = ssl.create_default_context(cafile=str(tmp_path / "ca" / "ca-bundle.pem"))
+    subjects = {
+        value
+        for certificate in context.get_ca_certs()
+        for field in certificate["subject"]
+        for key, value in field
+        if key == "commonName"
+    }
+    assert "LiteLLM Gateway LAB CA" in subjects
+
+
+@pytest.mark.asyncio
 async def test_jupyter_launch_uses_secure_workspace_base_url(monkeypatch):
     """Jupyter must remain token-protected and mounted below its proxy prefix."""
     svc = PodmanService(podman_bin="podman")

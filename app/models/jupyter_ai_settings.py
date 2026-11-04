@@ -32,6 +32,11 @@ class JupyterAiSettings(Base):
     encrypted_shared_token: Mapped[str] = mapped_column(
         Text, default="", nullable=False
     )
+    # Public root/intermediate CAs of a privately signed gateway. Workers use
+    # it for the connectivity test and install it in workspace containers.
+    ca_bundle_pem: Mapped[str] = mapped_column(
+        Text, default="", server_default="", nullable=False
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

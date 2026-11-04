@@ -3,6 +3,38 @@
 from __future__ import annotations
 
 import json
+import re
+
+
+# Workers older than this drop ``ai_ca_bundle`` from container.create and
+# ignore it in the connectivity test.
+CA_BUNDLE_MIN_AGENT_VERSION = "3.26.0"
+MAX_CA_BUNDLE_BYTES = 256 * 1024
+# Only base64 text between the markers, so the bundle can never carry
+# anything but certificates into a container environment.
+_CERTIFICATE_BLOCK = re.compile(
+    r"-----BEGIN CERTIFICATE-----[A-Za-z0-9+/=\s]+?-----END CERTIFICATE-----"
+)
+
+
+def normalize_ca_bundle(value: object) -> str:
+    """Return the PEM certificate blocks of ``value`` in canonical form, else ''.
+
+    The controller additionally parses every certificate before storing it;
+    this check is the cheap structural gate the worker also applies.
+    """
+    if not isinstance(value, str):
+        return ""
+    text = value.strip()
+    if not text or len(text.encode("utf-8")) > MAX_CA_BUNDLE_BYTES:
+        return ""
+    blocks = _CERTIFICATE_BLOCK.findall(text)
+    if not blocks or _CERTIFICATE_BLOCK.sub("", text).strip():
+        return ""
+    return "\n".join(
+        "\n".join(line.strip() for line in block.splitlines() if line.strip())
+        for block in blocks
+    ) + "\n"
 
 
 DEFAULT_JUPYTER_AI_MODELS = (

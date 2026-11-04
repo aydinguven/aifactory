@@ -39,6 +39,7 @@ from app.model_container_registry import (
     validate_model_container_registry_config,
 )
 from app.release_catalog import semantic_version
+from app.jupyter_ai import normalize_ca_bundle
 from app.schemas.jupyter_ai_settings import JupyterAiModel
 from app.worker_gpu import discover_nvidia_capabilities
 
@@ -730,7 +731,7 @@ class WorkerAgent:
                 "flavor_id", "host_port", "workspace_token",
                 "accelerator_cdi_name", "image_ref", "image_sha256",
                 "mlflow_environment", "service_environment", "ai_gateway_token",
-                "kilo_code_config",
+                "kilo_code_config", "ai_ca_bundle",
             }
             args = {key: value for key, value in payload.items() if key in allowed}
             token = args.get("ai_gateway_token")
@@ -748,6 +749,12 @@ class WorkerAgent:
                     args["kilo_code_config"] = kilo_code_config
                 else:
                     args.pop("kilo_code_config")
+            if "ai_ca_bundle" in args:
+                ca_bundle = normalize_ca_bundle(args["ai_ca_bundle"])
+                if ca_bundle:
+                    args["ai_ca_bundle"] = ca_bundle
+                else:
+                    args.pop("ai_ca_bundle")
             async with self.registry_lock:
                 existing = self.registry.get(args["container_name"])
                 if isinstance(existing, dict):
@@ -1266,11 +1273,19 @@ class WorkerAgent:
             ):
                 raise ValueError("Gecersiz Jupyter AI gateway tokeni.")
 
+            # httpx's default trust (certifi, or SSL_CERT_FILE) plus the Admin
+            # gateway CA bundle, the same CAs workspace containers receive.
+            verify = httpx.create_ssl_context()
+            ca_bundle = normalize_ca_bundle(payload.get("ca_bundle_pem"))
+            if ca_bundle:
+                verify.load_verify_locations(cadata=ca_bundle)
+
             started_at = time.perf_counter()
             try:
                 async with httpx.AsyncClient(
                     timeout=httpx.Timeout(30.0, connect=5.0),
                     follow_redirects=False,
+                    verify=verify,
                 ) as client:
                     response = await client.post(
                         f"{gateway_url}/v1/messages",

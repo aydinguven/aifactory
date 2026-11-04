@@ -100,6 +100,20 @@ path used by workspace containers. The gateway value must be a root URL such as
 `http://llm-gateway:5003`, without `/v1`. Model IDs must exactly match the
 LiteLLM aliases allowed for the shared key.
 
+If the gateway certificate is signed by a private CA, the test fails with
+`CERTIFICATE_VERIFY_FAILED ... unable to get local issuer certificate`. Paste
+the root and intermediate CA certificates (PEM, never a private key) into
+**Gateway CA paketi** on the same card. Nothing is installed on the worker
+host. Workers from 3.26.0 on trust the bundle in the connectivity test and
+install it in every new or recreated Jupyter and VS Code workspace. Inside the
+container, `SSL_CERT_FILE`, `REQUESTS_CA_BUNDLE` and `CURL_CA_BUNDLE` point
+at `/tmp/devcloud-ca/ca-bundle.pem` (the image's system roots plus the
+bundle), and `NODE_EXTRA_CA_CERTS` at `/tmp/devcloud-ca/extra-ca.pem`.
+Existing workspaces are recreated on their next start after the bundle is
+saved or changed. Project files on the mounted work directory are kept, but
+anything installed elsewhere in the container is lost. Terminal workspaces
+do not receive the bundle.
+
 The `vscode-kilo` image contains Kilo Code (`kilocode.kilo-code`). Its
 configuration is not part of the 30-second worker sync: the controller renders
 `~/.config/kilo/kilo.jsonc` for each workspace (owner's AI Factory key,

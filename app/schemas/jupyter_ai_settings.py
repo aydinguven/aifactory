@@ -30,6 +30,8 @@ class JupyterAiSettingsUpdate(BaseModel):
     gateway_model_discovery: bool = False
     models: list[JupyterAiModel] | None = None
     shared_token: str | None = Field(default=None, max_length=4096)
+    # None keeps the stored bundle, "" removes it.
+    ca_bundle_pem: str | None = Field(default=None, max_length=300_000)
 
     @field_validator("gateway_url", "model_id", mode="after")
     @classmethod
@@ -85,6 +87,7 @@ class JupyterAiSettingsOut(BaseModel):
     gateway_model_discovery: bool
     models: list[JupyterAiModel]
     has_shared_token: bool
+    ca_bundle_pem: str = ""
     updated_at: datetime | None = None
 
 

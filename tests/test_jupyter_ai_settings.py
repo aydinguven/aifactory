@@ -50,6 +50,7 @@ async def test_admin_encrypts_settings_and_worker_receives_shared_token(
         "gateway_model_discovery": False,
         "models": default_model_catalog(),
         "has_shared_token": False,
+        "ca_bundle_pem": "",
         "updated_at": None,
     }
 
@@ -406,3 +407,81 @@ async def test_admin_tests_selected_litellm_model_from_worker(
         json={"model_id": "missing-model"},
     )
     assert unknown.status_code == 422
+
+
+def _self_signed_pem(common_name: str, *, ca: bool) -> str:
+    from datetime import datetime, timedelta, timezone
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.x509.oid import NameOID
+
+    key = ec.generate_private_key(ec.SECP256R1())
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, common_name)])
+    now = datetime.now(timezone.utc)
+    certificate = (
+        x509.CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - timedelta(minutes=1))
+        .not_valid_after(now + timedelta(days=30))
+        .add_extension(x509.BasicConstraints(ca=ca, path_length=None), critical=True)
+        .sign(key, hashes.SHA256())
+    )
+    return certificate.public_bytes(serialization.Encoding.PEM).decode("ascii")
+
+
+@pytest.mark.asyncio
+async def test_admin_stores_only_a_valid_gateway_ca_bundle(client, db_session):
+    registration = await client.post(
+        "/api/auth/register",
+        json={
+            "username": "jupyter-ai-ca",
+            "email": "jupyter-ai-ca@example.com",
+            "password": "AdminPassword123!",
+        },
+    )
+    admin_id = registration.json()["user"]["id"]
+    await db_session.execute(
+        update(User).where(User.id == admin_id).values(role=UserRole.ADMIN)
+    )
+    await db_session.commit()
+    headers = {"Authorization": f"Bearer {registration.json()['access_token']}"}
+    base = {
+        "enabled": True,
+        "gateway_url": "https://llm.internal.example",
+        "model_id": "qwen3.6-35b",
+        "shared_token": "token",
+    }
+
+    leaf = await client.put(
+        "/api/admin/jupyter-ai-settings",
+        headers=headers,
+        json={**base, "ca_bundle_pem": _self_signed_pem("litellm-gateway", ca=False)},
+    )
+    assert leaf.status_code == 422
+    assert "Gateway CA paketi" in leaf.json()["detail"]
+
+    ca_pem = _self_signed_pem("LiteLLM Gateway LAB CA", ca=True)
+    saved = await client.put(
+        "/api/admin/jupyter-ai-settings",
+        headers=headers,
+        json={**base, "ca_bundle_pem": "\r\n" + ca_pem.replace("\n", "\r\n")},
+    )
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["ca_bundle_pem"] == ca_pem
+
+    kept = await client.put(
+        "/api/admin/jupyter-ai-settings", headers=headers, json=base
+    )
+    assert kept.json()["ca_bundle_pem"] == ca_pem
+
+    cleared = await client.put(
+        "/api/admin/jupyter-ai-settings",
+        headers=headers,
+        json={**base, "ca_bundle_pem": ""},
+    )
+    assert cleared.json()["ca_bundle_pem"] == ""

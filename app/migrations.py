@@ -19,7 +19,7 @@ from app.config import settings
 from app.database import engine, init_db
 
 
-CURRENT_SCHEMA_VERSION = 34
+CURRENT_SCHEMA_VERSION = 35
 # ai_config_digest of the workspaces migration 33 moved off TCMB Code.
 TCMB_CODE_MIGRATED_DIGEST = "tcmb-code-migrated"
 
@@ -1051,6 +1051,23 @@ async def _add_image_release_bamboo_columns(conn) -> None:
     )
 
 
+async def _add_jupyter_ai_ca_bundle(conn) -> None:
+    """Store the gateway CA bundle that workers install in workspaces."""
+    columns = await conn.run_sync(
+        lambda sync_conn: {
+            column["name"]
+            for column in inspect(sync_conn).get_columns("jupyter_ai_settings")
+        }
+    )
+    if "ca_bundle_pem" not in columns:
+        await conn.execute(
+            text(
+                "ALTER TABLE jupyter_ai_settings "
+                "ADD COLUMN ca_bundle_pem TEXT NOT NULL DEFAULT ''"
+            )
+        )
+
+
 async def upgrade() -> None:
     # The legacy initializer remains the compatibility migration for all
     # pre-versioned installations.
@@ -1168,6 +1185,9 @@ async def upgrade() -> None:
             # init_db creates the portable bamboo_settings table.
             await _add_image_release_bamboo_columns(conn)
             await _record_version(conn, 34, "Bamboo retag trigger after image releases")
+        if 35 not in applied:
+            await _add_jupyter_ai_ca_bundle(conn)
+            await _record_version(conn, 35, "Workspace AI gateway CA bundle")
 
 
 async def current_version() -> int:

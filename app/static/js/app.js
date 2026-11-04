@@ -710,6 +710,7 @@ function initJupyterAiSettings() {
           gateway_model_discovery: form.elements.gateway_model_discovery.checked,
           models: modelCatalog,
           shared_token: clearToken ? "" : (token || null),
+          ca_bundle_pem: String(data.get("ca_bundle_pem") || "").trim(),
         }),
       });
       const result = await response.json().catch(() => ({}));
@@ -720,6 +721,7 @@ function initJupyterAiSettings() {
       }
       form.elements.shared_token.value = "";
       form.elements.clear_token.checked = false;
+      form.elements.ca_bundle_pem.value = result.ca_bundle_pem || "";
       form.elements.shared_token.placeholder = result.has_shared_token
         ? "Kayıtlı tokenı korumak için boş bırakın"
         : "Ortak gateway tokenını girin";
