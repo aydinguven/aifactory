@@ -248,7 +248,7 @@
   </div>
   <form id="onboarding-settings-form">
     <label class="form-group" style="display:flex;align-items:center;gap:.6rem;">
-      <input name="enabled" type="checkbox" {% if onboarding_settings and onboarding_settings.enabled %}checked{% endif %}>
+      <input name="enabled" type="checkbox" class="toggle" role="switch" {% if onboarding_settings and onboarding_settings.enabled %}checked{% endif %}>
       <span>Yeni kullanıcı turunu etkinleştir</span>
     </label>
     <label class="form-group" for="onboarding-current-version">
@@ -298,11 +298,11 @@
     </div>
     <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:.75rem;">
       <label style="display:flex;gap:.5rem;align-items:center;">
-        <input type="checkbox" name="https_enabled" {% if download_settings and download_settings.https_enabled %}checked{% endif %}>
+        <input type="checkbox" class="toggle" role="switch" name="https_enabled" {% if download_settings and download_settings.https_enabled %}checked{% endif %}>
         <span>HTTPS'i etkinleştir</span>
       </label>
       <label style="display:flex;gap:.5rem;align-items:center;">
-        <input type="checkbox" name="http_fallback_enabled" {% if not download_settings or download_settings.http_fallback_enabled %}checked{% endif %}>
+        <input type="checkbox" class="toggle" role="switch" name="http_fallback_enabled" {% if not download_settings or download_settings.http_fallback_enabled %}checked{% endif %}>
         <span>Port 80 HTTP fallback açık kalsın</span>
       </label>
     </div>
@@ -712,7 +712,7 @@ cd devcloud
 
   <form id="jupyter-ai-settings-form" autocomplete="off">
     <label style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1rem;">
-      <input type="checkbox" name="enabled" {% if jupyter_ai_settings and jupyter_ai_settings.enabled %}checked{% endif %}>
+      <input type="checkbox" class="toggle" role="switch" name="enabled" {% if jupyter_ai_settings and jupyter_ai_settings.enabled %}checked{% endif %}>
       <span>Ortak Workspace AI gateway erişimini etkinleştir</span>
     </label>
     <p class="text-muted" style="margin: 0 0 1rem;">
@@ -748,7 +748,7 @@ cd devcloud
       <span class="text-muted" style="font-size: 0.85rem;">Gateway sertifikası kurum içi bir CA tarafından imzalandıysa kök ve ara CA sertifikalarını yapıştırın (özel anahtar değil). Worker'lar bağlantı testinde kullanır ve Jupyter ile VS Code workspace'lerine kurar; mevcut workspace'ler bir sonraki başlatmada yeniden oluşturulur. Kaldırmak için alanı boşaltın.</span>
     </label>
     <label style="display: flex; gap: 0.5rem; align-items: center; margin: 0.75rem 0;">
-      <input type="checkbox" name="gateway_model_discovery" {% if jupyter_ai_settings and jupyter_ai_settings.gateway_model_discovery %}checked{% endif %}>
+      <input type="checkbox" class="toggle" role="switch" name="gateway_model_discovery" {% if jupyter_ai_settings and jupyter_ai_settings.gateway_model_discovery %}checked{% endif %}>
       <span>LiteLLM <code>/v1/models</code> gateway keşfini etkinleştir</span>
     </label>
     <p class="text-muted">Keşif, Claude Code tarafından yalnızca <code>claude-*</code> veya <code>anthropic-*</code> gateway alias'ları için kullanılır. Aşağıdaki sabit katalog eski LiteLLM/OpenRouter model kimliklerini de seçilebilir tutar.</p>
@@ -807,7 +807,7 @@ cd devcloud
   </div>
   <form id="kilo-code-settings-form" autocomplete="off">
     <label style="display:flex;gap:.5rem;align-items:center;margin-bottom:1rem;">
-      <input type="checkbox" name="enabled" {% if kilo_code_settings and kilo_code_settings.enabled %}checked{% endif %}>
+      <input type="checkbox" class="toggle" role="switch" name="enabled" {% if kilo_code_settings and kilo_code_settings.enabled %}checked{% endif %}>
       <span>Kilo Code yapılandırmasını workspace'lere dağıt</span>
     </label>
     <div class="grid grid-cols-2" style="gap:.75rem;margin-bottom:.75rem;">
@@ -838,7 +838,7 @@ cd devcloud
     <p class="text-muted">Katalog URL girildiğinde iki MCP sunucusu eklenir: <code>kilo-catalog</code> (<code>&lt;URL&gt;/mcp</code>, öğeleri listeler) ve <code>kilo-install</code> (image'daki <code>/opt/kilo/LocalMCP.sh</code>; seçilen skill, agent, kural ve workflow'ları projenin <code>.kilo</code> klasörüne yazar). Token her Kilo Code kullanıcısının workspace'inde okunabilir.</p>
     <h3 class="card-title" style="font-size:1rem;margin:1rem 0 .5rem;">Kod indeksleme</h3>
     <label style="display:flex;gap:.5rem;align-items:center;margin-bottom:.75rem;">
-      <input type="checkbox" name="indexing_enabled" {% if not kilo_code_settings or kilo_code_settings.indexing_enabled %}checked{% endif %}>
+      <input type="checkbox" class="toggle" role="switch" name="indexing_enabled" {% if not kilo_code_settings or kilo_code_settings.indexing_enabled %}checked{% endif %}>
       <span>Kod tabanı indekslemeyi etkinleştir (LanceDB, Workspace AI gateway'inin <code>/v1/embeddings</code> ucu)</span>
     </label>
     <div class="grid grid-cols-2" style="gap:.75rem;margin-bottom:.75rem;">
@@ -883,7 +883,7 @@ cd devcloud
   </div>
   <form id="model-container-registry-settings-form" autocomplete="off">
     <label style="display:flex;gap:.5rem;align-items:center;margin-bottom:1rem;">
-      <input type="checkbox" name="enabled" {% if model_container_registry_settings and model_container_registry_settings.enabled %}checked{% endif %}>
+      <input type="checkbox" class="toggle" role="switch" name="enabled" {% if model_container_registry_settings and model_container_registry_settings.enabled %}checked{% endif %}>
       <span>Model serving image build ve dağıtımı için registry kullanımını etkinleştir</span>
     </label>
     <div class="grid grid-cols-2" style="gap:.75rem;margin-bottom:.75rem;">
@@ -929,11 +929,11 @@ cd devcloud
     <span id="admin-mlflow-status-badge" class="badge {% if mlflow_server_settings and mlflow_server_settings.enabled %}badge-running{% else %}badge-stopped{% endif %}">{{ 'Etkin' if mlflow_server_settings and mlflow_server_settings.enabled else 'Devre Dışı' }}</span>
   </div>
   <form id="admin-mlflow-settings-form" autocomplete="off">
-    <label style="display:flex;gap:.5rem;align-items:center;margin-bottom:1rem;"><input type="checkbox" name="enabled" {% if mlflow_server_settings and mlflow_server_settings.enabled %}checked{% endif %}><span>MLflow entegrasyonunu etkinleştir</span></label>
+    <label style="display:flex;gap:.5rem;align-items:center;margin-bottom:1rem;"><input type="checkbox" class="toggle" role="switch" name="enabled" {% if mlflow_server_settings and mlflow_server_settings.enabled %}checked{% endif %}><span>MLflow entegrasyonunu etkinleştir</span></label>
     <div class="grid grid-cols-2" style="gap:.75rem;margin-bottom:.75rem;">
       <label class="form-group" style="margin:0;"><span class="form-label">MLflow sunucu URL</span><input class="form-input" name="base_url" type="url" value="{{ mlflow_server_settings.base_url if mlflow_server_settings else '' }}" placeholder="https://mlflow.internal.example"></label>
       <label class="form-group" style="margin:0;"><span class="form-label">Zaman aşımı (sn)</span><input class="form-input" name="timeout_seconds" type="number" min="1" max="120" value="{{ mlflow_server_settings.timeout_seconds if mlflow_server_settings else 10 }}"></label>
-      <label style="display:flex;gap:.5rem;align-items:center;"><input type="checkbox" name="validate_tls" {% if not mlflow_server_settings or mlflow_server_settings.validate_tls %}checked{% endif %}><span>TLS sertifikasını doğrula</span></label>
+      <label style="display:flex;gap:.5rem;align-items:center;"><input type="checkbox" class="toggle" role="switch" name="validate_tls" {% if not mlflow_server_settings or mlflow_server_settings.validate_tls %}checked{% endif %}><span>TLS sertifikasını doğrula</span></label>
       <label class="form-group" style="margin:0;"><span class="form-label">Controller özel CA dosyası (isteğe bağlı)</span><input class="form-input" name="ca_cert_file" value="{{ mlflow_server_settings.ca_cert_file if mlflow_server_settings else '' }}" placeholder="/etc/pki/ca-trust/source/anchors/mlflow.pem"></label>
     </div>
     <p class="text-muted">URL kullanıcılar tarafından değiştirilemez. Kullanıcı adları, parolalar ve token'lar ayrı kullanıcı kayıtlarında şifreli tutulur.</p>
@@ -950,14 +950,14 @@ cd devcloud
     <span id="genai-status-badge" class="badge {% if genai_settings and genai_settings.enabled %}badge-running{% else %}badge-stopped{% endif %}">{{ 'Etkin' if genai_settings and genai_settings.enabled else 'Devre Dışı' }}</span>
   </div>
   <form id="genai-settings-form" autocomplete="off">
-    <label style="display:flex;gap:.5rem;align-items:center;margin-bottom:1rem;"><input type="checkbox" name="enabled" {% if genai_settings and genai_settings.enabled %}checked{% endif %}><span>GenAI sekmesinden kendi kendine anahtar oluşturmayı etkinleştir</span></label>
-    <label style="display:flex;gap:.5rem;align-items:center;margin-bottom:1rem;"><input type="checkbox" name="auto_provision_directory_users" {% if not genai_settings or genai_settings.auto_provision_directory_users %}checked{% endif %}><span>AD kullanıcılarına girişte LiteLLM kullanıcısı ve workspace anahtarı otomatik oluştur</span></label>
+    <label style="display:flex;gap:.5rem;align-items:center;margin-bottom:1rem;"><input type="checkbox" class="toggle" role="switch" name="enabled" {% if genai_settings and genai_settings.enabled %}checked{% endif %}><span>GenAI sekmesinden kendi kendine anahtar oluşturmayı etkinleştir</span></label>
+    <label style="display:flex;gap:.5rem;align-items:center;margin-bottom:1rem;"><input type="checkbox" class="toggle" role="switch" name="auto_provision_directory_users" {% if not genai_settings or genai_settings.auto_provision_directory_users %}checked{% endif %}><span>AD kullanıcılarına girişte LiteLLM kullanıcısı ve workspace anahtarı otomatik oluştur</span></label>
     <div class="grid grid-cols-2" style="gap:.75rem;margin-bottom:.75rem;">
       <label class="form-group" style="margin:0;"><span class="form-label">LiteLLM kök URL</span><input class="form-input" name="base_url" type="url" value="{{ genai_default_url }}" placeholder="http://litellm.internal:4000"><small class="form-help"><code>/ui</code> olmadan, kullanıcıların da erişebildiği adres.</small></label>
       <label class="form-group" style="margin:0;"><span class="form-label">Yönetici API anahtarı (proxy_admin)</span><input class="form-input" name="admin_key" type="password" autocomplete="new-password" placeholder="{% if genai_settings and genai_settings.encrypted_admin_key %}Kayıtlı anahtarı korumak için boş bırakın{% else %}aifactory kullanıcısının anahtarı{% endif %}"></label>
       <label style="display:flex;gap:.5rem;align-items:center;"><input type="checkbox" name="clear_admin_key"><span>Kayıtlı yönetici anahtarını temizle</span></label>
       <label class="form-group" style="margin:0;"><span class="form-label">Zaman aşımı (sn)</span><input class="form-input" name="timeout_seconds" type="number" min="1" max="120" value="{{ genai_settings.timeout_seconds if genai_settings else 15 }}"></label>
-      <label style="display:flex;gap:.5rem;align-items:center;"><input type="checkbox" name="validate_tls" {% if not genai_settings or genai_settings.validate_tls %}checked{% endif %}><span>TLS sertifikasını doğrula</span></label>
+      <label style="display:flex;gap:.5rem;align-items:center;"><input type="checkbox" class="toggle" role="switch" name="validate_tls" {% if not genai_settings or genai_settings.validate_tls %}checked{% endif %}><span>TLS sertifikasını doğrula</span></label>
       <label class="form-group" style="margin:0;"><span class="form-label">Controller özel CA dosyası (isteğe bağlı)</span><input class="form-input" name="ca_cert_file" value="{{ genai_settings.ca_cert_file if genai_settings else '' }}" placeholder="/etc/pki/ca-trust/source/anchors/litellm.pem"></label>
     </div>
     <h3 class="card-title" style="font-size:1rem;margin:1rem 0 .25rem;">Yeni kullanıcı ve anahtar varsayılanları</h3>
@@ -1009,19 +1009,19 @@ cd devcloud
   <form id="directory-settings-form" autocomplete="off">
     <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;">
       <label style="display: flex; gap: 0.5rem; align-items: center;">
-        <input type="checkbox" name="enabled" {% if directory_settings and directory_settings.enabled %}checked{% endif %}>
+        <input type="checkbox" class="toggle" role="switch" name="enabled" {% if directory_settings and directory_settings.enabled %}checked{% endif %}>
         <span>LDAP girişini etkinleştir</span>
       </label>
       <label style="display: flex; gap: 0.5rem; align-items: center;">
-        <input type="checkbox" name="use_ssl" {% if not directory_settings or directory_settings.use_ssl %}checked{% endif %}>
+        <input type="checkbox" class="toggle" role="switch" name="use_ssl" {% if not directory_settings or directory_settings.use_ssl %}checked{% endif %}>
         <span>SSL/TLS (LDAPS)</span>
       </label>
       <label style="display: flex; gap: 0.5rem; align-items: center;">
-        <input type="checkbox" name="validate_tls" {% if not directory_settings or directory_settings.validate_tls %}checked{% endif %}>
+        <input type="checkbox" class="toggle" role="switch" name="validate_tls" {% if not directory_settings or directory_settings.validate_tls %}checked{% endif %}>
         <span>Sunucu sertifikasını doğrula</span>
       </label>
       <label style="display: flex; gap: 0.5rem; align-items: center;">
-        <input type="checkbox" name="nested_group_search" {% if not directory_settings or directory_settings.nested_group_search %}checked{% endif %}>
+        <input type="checkbox" class="toggle" role="switch" name="nested_group_search" {% if not directory_settings or directory_settings.nested_group_search %}checked{% endif %}>
         <span>İç içe AD gruplarını çöz</span>
       </label>
     </div>

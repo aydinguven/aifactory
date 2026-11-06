@@ -9,7 +9,7 @@
   </div>
   <form id="deploy-registry-settings-form" autocomplete="off">
     <label style="display:flex;gap:.5rem;align-items:center;margin-bottom:1rem;">
-      <input type="checkbox" name="enabled" {% if deploy and deploy.enabled %}checked{% endif %}>
+      <input type="checkbox" class="toggle" role="switch" name="enabled" {% if deploy and deploy.enabled %}checked{% endif %}>
       <span>Kubernetes imaj yayınını etkinleştir</span>
     </label>
     <div class="grid grid-cols-2" style="gap:.75rem;margin-bottom:.75rem;">
@@ -31,7 +31,7 @@
         <span>Kayıtlı parolayı temizle</span>
       </label>
       <label style="display:flex;gap:.5rem;align-items:center;">
-        <input type="checkbox" name="tls_verify" {% if not deploy or deploy.tls_verify %}checked{% endif %}>
+        <input type="checkbox" class="toggle" role="switch" name="tls_verify" {% if not deploy or deploy.tls_verify %}checked{% endif %}>
         <span>TLS sertifikasını doğrula</span>
       </label>
       <label class="form-group" style="margin:0;">
@@ -65,7 +65,7 @@
   </div>
   <form id="bamboo-settings-form" autocomplete="off">
     <label style="display:flex;gap:.5rem;align-items:center;margin-bottom:1rem;">
-      <input type="checkbox" name="enabled" {% if bamboo and bamboo.enabled %}checked{% endif %}>
+      <input type="checkbox" class="toggle" role="switch" name="enabled" {% if bamboo and bamboo.enabled %}checked{% endif %}>
       <span>Yayından sonra Bamboo planını tetikle</span>
     </label>
     <div class="grid grid-cols-2" style="gap:.75rem;margin-bottom:.75rem;">
@@ -83,7 +83,7 @@
         <input class="form-input" name="token" type="password" autocomplete="new-password" placeholder="{% if bamboo and bamboo.has_token %}Kayıtlı tokenı korumak için boş bırakın{% else %}Bamboo erişim tokenını girin{% endif %}">
       </label>
       <label style="display:flex;gap:.5rem;align-items:center;align-self:end;min-height:2.75rem;">
-        <input type="checkbox" name="tls_verify" {% if not bamboo or bamboo.tls_verify %}checked{% endif %}>
+        <input type="checkbox" class="toggle" role="switch" name="tls_verify" {% if not bamboo or bamboo.tls_verify %}checked{% endif %}>
         <span>TLS sertifikasını doğrula</span>
       </label>
     </div>
