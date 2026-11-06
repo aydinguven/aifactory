@@ -149,6 +149,7 @@ def _settings_out(record: GenAiSettings | None) -> GenAiSettingsOut:
         key_duration=record.key_duration,
         default_team=record.default_team,
         team_priority=parse_models(record.team_priority_json),
+        auto_provision_directory_users=record.auto_provision_directory_users,
         updated_at=record.updated_at,
     )
 
@@ -191,6 +192,7 @@ async def update_genai_settings(
     record.key_duration = update.key_duration
     record.default_team = update.default_team
     record.team_priority_json = json.dumps(update.team_priority, ensure_ascii=False)
+    record.auto_provision_directory_users = update.auto_provision_directory_users
     if update.admin_key is not None:
         record.encrypted_admin_key = encrypt_secret(update.admin_key)
     record.updated_at = datetime.now(timezone.utc)

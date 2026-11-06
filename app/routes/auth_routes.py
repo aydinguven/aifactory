@@ -10,6 +10,7 @@ from app.auth import (
     get_current_user,
     create_access_token,
 )
+from app import genai
 from app.config import settings
 from app.session_settings import session_timeout_minutes
 from app.database import get_db
@@ -141,7 +142,10 @@ async def login_user(
 
     set_session_cookie(response, token, request, timeout)
 
-    return TokenResponse(access_token=token, token_type="bearer", user=await user_out_for(db, user))
+    user_out = await user_out_for(db, user)
+    # Directory users get a LiteLLM user and workspace key without opting in.
+    await genai.auto_provision(db, user)
+    return TokenResponse(access_token=token, token_type="bearer", user=user_out)
 
 
 @auth_router.post("/logout")
