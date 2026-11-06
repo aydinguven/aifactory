@@ -21,7 +21,36 @@
     "ai-factory": {label: "AI Factory", title: "Modeli Dağıt · AI Factory", submit: "Model Servisini Oluştur", available: true},
     kubernetes: {label: "Kubernetes", title: "Modeli Dağıt · Kubernetes", submit: "Nexus'a Yayınla", available: false},
   };
-  const statusBadge = value => value === "running" || value === "published" ? "badge-running" : value === "failed" ? "badge-error" : "badge-neutral";
+  const statusBadge = value => value === "running" || value === "published" ? "badge-running" : value === "failed" ? "badge-error" : "badge-stopped";
+  // Turkish labels: the raw values upper-cased under lang="tr" read "FAİLED".
+  const STATUS_LABELS = {
+    queued: "Kuyrukta", waiting_for_image: "İmaj bekleniyor", scheduling: "Planlanıyor", starting: "Başlatılıyor",
+    health_checking: "Sağlık kontrolü", running: "Çalışıyor", stopped: "Durduruldu", failed: "Başarısız",
+    deleting: "Siliniyor", building: "Oluşturuluyor", publishing: "Yayınlanıyor", published: "Yayınlandı",
+  };
+  const statusLabel = value => STATUS_LABELS[value] || value;
+
+  // Jobs run on the controller and store every step as an event, so a log can
+  // be reopened at any time. Both the deploy modal and the log viewer use these.
+  const JOB_API = {
+    deployment: id => `/api/mlflow/deployments/${encodeURIComponent(id)}`,
+    release: id => `/api/mlflow/image-releases/${encodeURIComponent(id)}`,
+  };
+  const logHash = (kind, id) => `#log=${kind}:${encodeURIComponent(id)}`;
+  const bambooActive = new Set(["pending", "triggering"]);
+  const jobFinished = (kind, job) => kind === "release"
+    ? releaseTerminalStatuses.has(job.status) && !bambooActive.has(job.bamboo_status)
+    : terminalStatuses.has(job.status);
+  const formatEvents = (eventData, buildLog) => {
+    const lines = (eventData.events || []).map(item => {
+      const when = new Date(item.created_at);
+      return `[${when.toLocaleDateString("tr-TR")} ${when.toLocaleTimeString("tr-TR")}] ${item.message}`;
+    });
+    // A failed container build is only explainable from the build log, so
+    // append it verbatim under the progress events instead of hiding it.
+    if (buildLog) lines.push("", "----- image build günlüğü -----", buildLog);
+    return lines.join("\n");
+  };
 
   function initDeployModal() {
     const modal = document.getElementById("mlflow-deploy-modal");
@@ -165,13 +194,10 @@
     }
 
     const renderEvents = (eventData, buildLog) => {
-      const lines = (eventData.events || []).map(item => `[${new Date(item.created_at).toLocaleTimeString("tr-TR")}] ${item.message}`);
-      // A failed container build is only explainable from the build log, so
-      // append it verbatim under the progress events instead of hiding it.
-      if (buildLog) lines.push("", "----- image build günlüğü -----", buildLog);
-      events.textContent = lines.join("\n");
+      events.textContent = formatEvents(eventData, buildLog);
       events.scrollTop = events.scrollHeight;
     };
+    const logLink = document.getElementById("mlflow-deploy-log-link");
 
     async function refreshDeployment() {
       if (!activeDeployment) return;
@@ -179,7 +205,7 @@
         fetchJson(`/api/mlflow/deployments/${encodeURIComponent(activeDeployment)}`),
         fetchJson(`/api/mlflow/deployments/${encodeURIComponent(activeDeployment)}/events`),
       ]);
-      status.textContent = deployment.status;
+      status.textContent = statusLabel(deployment.status);
       status.className = `badge ${statusBadge(deployment.status)}`;
       renderEvents(eventData, deployment.build_error_message);
       if (deployment.status === "running") {
@@ -203,7 +229,7 @@
         fetchJson(`/api/mlflow/image-releases/${encodeURIComponent(releaseId)}/events`),
       ]);
       if (activeRelease !== releaseId) return;
-      status.textContent = release.status;
+      status.textContent = statusLabel(release.status);
       status.className = `badge ${statusBadge(release.status)}`;
       renderEvents(eventData, release.status === "failed" ? release.build_error_message : "");
       if (release.status === "published") {
@@ -243,10 +269,11 @@
       loadK8sOptions(model);
     });
 
-    const startProgress = () => {
+    const startProgress = (kind, id) => {
       form.hidden = true;
       progress.hidden = false;
       events.textContent = "";
+      if (logLink) logLink.href = `/deployments${logHash(kind, id)}`;
     };
 
     async function submitDeployment() {
@@ -264,7 +291,7 @@
       });
       activeDeployment = deployment.id;
       accessToken = deployment.access_token;
-      startProgress();
+      startProgress("deployment", deployment.id);
       result.hidden = false;
       document.getElementById("mlflow-deploy-endpoint").textContent = new URL(deployment.endpoint_url, location.origin).href;
       document.getElementById("mlflow-deploy-token").value = accessToken;
@@ -291,7 +318,7 @@
         }),
       });
       activeRelease = release.id;
-      startProgress();
+      startProgress("release", release.id);
       await refreshRelease();
     }
 
@@ -330,12 +357,12 @@
     async function load() {
       const data = await fetchJson("/api/mlflow/deployments");
       body.innerHTML = (data.deployments || []).map(item => `<tr>
-        <td><strong>${esc(item.name)}</strong><br><span class="text-muted">${esc(item.model_name)} v${esc(item.model_version)}</span></td>
-        <td><span class="badge badge-neutral">${esc(DEPLOY_TARGETS[item.target || "ai-factory"]?.label || item.target)}</span></td>
-        <td><span class="badge ${statusBadge(item.status)}">${esc(item.status)}</span><br><span class="text-muted">${esc(item.status_message || "")}</span></td>
-        <td>${esc(item.flavor_id)}</td>
-        <td class="data-value"><code>${esc(item.endpoint_url)}</code></td>
-        <td style="white-space:nowrap;">${actions(item)} ${terminalStatuses.has(item.status) ? `<button class="btn btn-danger btn-sm" data-deployment-action="delete" data-deployment-id="${esc(item.id)}">Sil</button>` : ""}</td>
+        <td class="mlflow-job-name"><strong>${esc(item.name)}</strong><br><span class="text-muted">${esc(item.model_name)} v${esc(item.model_version)}</span></td>
+        <td class="mlflow-job-nowrap"><span class="badge badge-neutral">${esc(DEPLOY_TARGETS[item.target || "ai-factory"]?.label || item.target)}</span></td>
+        <td class="mlflow-job-status"><span class="badge ${statusBadge(item.status)}">${esc(statusLabel(item.status))}</span><br><span class="text-muted mlflow-job-message" title="${esc(item.status_message || "")}">${esc(item.status_message || "")}</span></td>
+        <td class="mlflow-job-nowrap">${esc(item.flavor_id)}</td>
+        <td class="data-value mlflow-job-ref"><code>${esc(item.endpoint_url)}</code></td>
+        <td class="mlflow-job-actions">${logButton("deployment", item.id)} ${actions(item)} ${terminalStatuses.has(item.status) ? `<button class="btn btn-danger btn-sm" data-deployment-action="delete" data-deployment-id="${esc(item.id)}">Sil</button>` : ""}</td>
       </tr>`).join("") || '<tr><td colspan="6" class="text-muted">Henüz model deployment oluşturulmadı.</td></tr>';
       status.textContent = "";
     }
@@ -385,14 +412,13 @@
     async function load() {
       const data = await fetchJson("/api/mlflow/image-releases");
       body.innerHTML = (data.releases || []).map(item => `<tr>
-        <td><strong>${esc(item.rfs_code)}/${esc(item.app_name)}</strong><br><span class="text-muted">${esc(item.model_name)} v${esc(item.model_version)}</span></td>
-        <td><span class="badge badge-neutral">Kubernetes</span><br><span class="text-muted">${esc(item.namespace)}</span></td>
-        <td><strong>${esc(item.version)}</strong></td>
-        <td><span class="badge ${statusBadge(item.status)}">${esc(item.status)}</span><br><span class="text-muted" title="${esc(item.error_message || "")}">${esc(item.status_message || "")}</span>${bambooLine(item)}</td>
-        <td class="data-value">${imageCell(item)}</td>
-        <td>${esc(item.username)}<br><span class="text-muted">${esc(new Date(item.created_at).toLocaleString("tr-TR"))}</span></td>
-        <td style="white-space:nowrap;">${item.status === "failed" ? `<button class="btn btn-primary btn-sm" data-release-retry="${esc(item.id)}">Yeniden Dene</button>` : ""}${item.bamboo_status === "failed" ? `<button class="btn btn-secondary btn-sm" data-bamboo-retry="${esc(item.id)}">Bamboo'yu Yeniden Tetikle</button>` : ""}</td>
-      </tr>`).join("") || '<tr><td colspan="7" class="text-muted">Henüz Kubernetes yayını yapılmadı.</td></tr>';
+        <td class="mlflow-job-name"><strong>${esc(item.rfs_code)}/${esc(item.app_name)}</strong><br><span class="text-muted">${esc(item.model_name)} v${esc(item.model_version)}</span><br><span class="text-muted">Namespace: ${esc(item.namespace)}</span></td>
+        <td class="mlflow-job-nowrap"><strong>${esc(item.version)}</strong></td>
+        <td class="mlflow-job-status"><span class="badge ${statusBadge(item.status)}">${esc(statusLabel(item.status))}</span><br><span class="text-muted mlflow-job-message" title="${esc(item.error_message || item.status_message || "")}">${esc(item.status_message || "")}</span>${bambooLine(item)}</td>
+        <td class="data-value mlflow-job-ref">${imageCell(item)}</td>
+        <td class="mlflow-job-nowrap">${esc(item.username)}<br><span class="text-muted">${esc(new Date(item.created_at).toLocaleString("tr-TR"))}</span></td>
+        <td class="mlflow-job-actions">${logButton("release", item.id)}${item.status === "failed" ? ` <button class="btn btn-primary btn-sm" data-release-retry="${esc(item.id)}">Yeniden Dene</button>` : ""}${item.bamboo_status === "failed" ? ` <button class="btn btn-secondary btn-sm" data-bamboo-retry="${esc(item.id)}">Bamboo'yu Yeniden Tetikle</button>` : ""}</td>
+      </tr>`).join("") || '<tr><td colspan="6" class="text-muted">Henüz Kubernetes yayını yapılmadı.</td></tr>';
       status.textContent = "";
       status.className = "";
     }
@@ -416,7 +442,99 @@
     window.setInterval(() => load().catch(() => {}), 5000);
   }
 
+  // Log viewer on /deployments: opens from a row's "Günlük" button or from
+  // #log=<kind>:<id> (the deploy modal links there), and follows the job live
+  // until it finishes.
+  function initLogViewer() {
+    const modal = document.getElementById("mlflow-log-modal");
+    if (!modal) return;
+    const el = id => document.getElementById(id);
+    const title = el("mlflow-log-title");
+    const kicker = el("mlflow-log-kicker");
+    const badge = el("mlflow-log-status");
+    const summary = el("mlflow-log-summary");
+    const events = el("mlflow-log-events");
+    const footer = el("mlflow-log-footer");
+    let current = null;
+    let timer = null;
+
+    const stop = () => {
+      window.clearTimeout(timer);
+      timer = null;
+    };
+    const close = () => {
+      stop();
+      current = null;
+      modal.classList.remove("open");
+      if (location.hash.startsWith("#log=")) history.replaceState(null, "", location.pathname + location.search);
+    };
+
+    async function refresh(job) {
+      const base = JOB_API[job.kind](job.id);
+      const [detail, eventData] = await Promise.all([fetchJson(base), fetchJson(`${base}/events`)]);
+      if (current !== job) return;
+      const finished = jobFinished(job.kind, detail);
+      title.textContent = job.kind === "release"
+        ? `${detail.rfs_code}/${detail.app_name}:${detail.version}`
+        : detail.name;
+      kicker.textContent = job.kind === "release"
+        ? `Kubernetes yayını · ${detail.model_name} v${detail.model_version}`
+        : `Model deployment · ${detail.model_name} v${detail.model_version}`;
+      badge.textContent = statusLabel(detail.status);
+      badge.className = `badge ${statusBadge(detail.status)}`;
+      summary.textContent = detail.status === "failed" ? (detail.error_message || detail.status_message || "") : (detail.status_message || "");
+      summary.className = `mlflow-log-summary ${detail.status === "failed" ? "text-destructive" : "text-muted"}`;
+      // Keep the reader's scroll position unless they were following the end.
+      const atEnd = events.scrollHeight - events.scrollTop - events.clientHeight < 24;
+      events.textContent = formatEvents(eventData, detail.status === "failed" ? detail.build_error_message : "")
+        || "Henüz kayıtlı adım yok.";
+      if (atEnd || !job.rendered) events.scrollTop = events.scrollHeight;
+      job.rendered = true;
+      footer.textContent = finished
+        ? `Tamamlandı · ${(eventData.events || []).length} adım kayıtlı.`
+        : "İşlem sürüyor · günlük her 2 saniyede güncellenir. Pencereyi kapatmak işlemi durdurmaz.";
+      if (!finished) timer = window.setTimeout(() => refresh(job).catch(fail), 2000);
+    }
+    const fail = value => {
+      if (!current) return;
+      summary.textContent = value.message;
+      summary.className = "mlflow-log-summary text-destructive";
+    };
+
+    const open = (kind, id) => {
+      if (!JOB_API[kind] || !id) return;
+      stop();
+      current = {kind, id, rendered: false};
+      title.textContent = "Yükleniyor...";
+      kicker.textContent = "Günlük";
+      badge.textContent = "—";
+      badge.className = "badge badge-neutral";
+      summary.textContent = "";
+      events.textContent = "";
+      footer.textContent = "";
+      modal.classList.add("open");
+      history.replaceState(null, "", location.pathname + location.search + logHash(kind, id));
+      refresh(current).catch(fail);
+    };
+
+    el("mlflow-log-close").addEventListener("click", close);
+    modal.addEventListener("click", event => { if (event.target === modal) close(); });
+    document.addEventListener("keydown", event => { if (event.key === "Escape" && current) close(); });
+    document.addEventListener("click", event => {
+      const button = event.target.closest("[data-log-kind]");
+      if (button) open(button.dataset.logKind, button.dataset.logId);
+    });
+    const fromHash = () => {
+      const match = /^#log=(deployment|release):(.+)$/.exec(location.hash);
+      if (match) open(match[1], decodeURIComponent(match[2]));
+    };
+    window.addEventListener("hashchange", fromHash);
+    fromHash();
+  }
+  const logButton = (kind, id) => `<button class="btn btn-secondary btn-sm" type="button" data-log-kind="${kind}" data-log-id="${esc(id)}">Günlük</button>`;
+
   initDeployModal();
   initDeploymentList();
   initReleaseList();
+  initLogViewer();
 })();

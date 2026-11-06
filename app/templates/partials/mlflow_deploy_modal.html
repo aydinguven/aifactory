@@ -74,7 +74,10 @@
         <p style="margin-top:.75rem;"><strong>Digest</strong></p><code id="mlflow-deploy-k8s-result-digest" style="overflow-wrap:anywhere;"></code>
         <p class="form-help" style="margin-top:.75rem;">Platform ekibi bu imajı test için <code>X.Y.Z-RC.N</code>, prod için <code>X.Y.Z-N</code> olarak etiketleyip dağıtır.</p>
       </div>
-      <div style="display:flex;justify-content:flex-end;margin-top:1rem;"><a class="btn btn-secondary" href="/deployments">Deployment'ları Gör</a></div>
+      <div class="mlflow-deploy-progress-footer">
+        <p class="form-help">Bu pencereyi kapatabilir veya sayfadan ayrılabilirsiniz; işlem arka planda sürer. Günlüğü Deployment'lar sayfasından istediğiniz zaman açabilirsiniz.</p>
+        <a id="mlflow-deploy-log-link" class="btn btn-secondary" href="/deployments">Deployment'larda Aç</a>
+      </div>
     </section>
   </div>
 </div>
