@@ -1,38 +1,10 @@
 <nav class="admin-category-nav" aria-label="Yönetim kategorileri">
-  <a class="admin-category-link{% if admin_section == 'overview' %} is-active{% endif %}" href="/admin" {% if admin_section == 'overview' %}aria-current="page"{% endif %}>
-    <span class="admin-category-icon" aria-hidden="true">01</span>
-    <span><strong>Genel Bakış</strong><small>Durum ve kısayollar</small></span>
-  </a>
-  <a class="admin-category-link{% if admin_section == 'users' %} is-active{% endif %}" href="/admin/users" {% if admin_section == 'users' %}aria-current="page"{% endif %}>
-    <span class="admin-category-icon" aria-hidden="true">02</span>
-    <span><strong>Kullanıcılar</strong><small>Kotalar ve erişim</small></span>
-  </a>
-  <a class="admin-category-link{% if admin_section == 'workspaces' %} is-active{% endif %}" href="/admin/workspaces" {% if admin_section == 'workspaces' %}aria-current="page"{% endif %}>
-    <span class="admin-category-icon" aria-hidden="true">03</span>
-    <span><strong>Workspaces</strong><small>Alanlar ve şablonlar</small></span>
-  </a>
-  <a class="admin-category-link{% if admin_section == 'images' %} is-active{% endif %}" href="/admin/images" {% if admin_section == 'images' %}aria-current="page"{% endif %}>
-    <span class="admin-category-icon" aria-hidden="true">04</span>
-    <span><strong>Workspace Image'ları</strong><small>Sürümler ve dağıtım</small></span>
-  </a>
-  <a class="admin-category-link{% if admin_section == 'workers' %} is-active{% endif %}" href="/admin/workers" {% if admin_section == 'workers' %}aria-current="page"{% endif %}>
-    <span class="admin-category-icon" aria-hidden="true">05</span>
-    <span><strong>Worker'lar</strong><small>Node ve planlama</small></span>
-  </a>
-  <a class="admin-category-link{% if admin_section == 'integrations' %} is-active{% endif %}" href="/admin/integrations" {% if admin_section == 'integrations' %}aria-current="page"{% endif %}>
-    <span class="admin-category-icon" aria-hidden="true">06</span>
-    <span><strong>Entegrasyonlar</strong><small>MLflow ve servisler</small></span>
-  </a>
-  <a class="admin-category-link{% if admin_section == 'skills' %} is-active{% endif %}" href="/admin/skills" {% if admin_section == 'skills' %}aria-current="page"{% endif %}>
-    <span class="admin-category-icon" aria-hidden="true">07</span>
-    <span><strong>Skill Kütüphanesi</strong><small>Kilo Code ve Jupyter AI</small></span>
-  </a>
-  <a class="admin-category-link{% if admin_section == 'kubernetes' %} is-active{% endif %}" href="/admin/kubernetes" {% if admin_section == 'kubernetes' %}aria-current="page"{% endif %}>
-    <span class="admin-category-icon" aria-hidden="true">08</span>
-    <span><strong>Kubernetes</strong><small>Nexus ve projeler</small></span>
-  </a>
-  <a class="admin-category-link{% if admin_section == 'system' %} is-active{% endif %}" href="/admin/system" {% if admin_section == 'system' %}aria-current="page"{% endif %}>
-    <span class="admin-category-icon" aria-hidden="true">09</span>
-    <span><strong>Sistem</strong><small>Dağıtım ve güvenlik</small></span>
-  </a>
+  {% set ns = namespace(group=None) %}
+  {% for key, item in admin_sections.items() %}
+    {% if item.group != ns.group %}
+      {% if item.group %}<span class="admin-category-group">{{ item.group }}</span>{% endif %}
+      {% set ns.group = item.group %}
+    {% endif %}
+    <a class="admin-category-link{% if admin_section == key %} is-active{% endif %}" href="/admin{% if key != 'overview' %}/{{ key }}{% endif %}" {% if admin_section == key %}aria-current="page"{% endif %}>{{ item.title }}</a>
+  {% endfor %}
 </nav>

@@ -361,7 +361,7 @@
     restartButtons.forEach(button => {
       button.hidden = !state?.enabled;
       if (!state?.enabled) return;
-      const compact = Boolean(button.closest(".navbar"));
+      const compact = button.hasAttribute("data-onboarding-compact");
       if (state.status === "paused" || state.status === "in_progress") {
         button.textContent = compact ? "Tura Devam" : "Canlı Tura Devam Et";
       } else if (state.status === "completed") {
