@@ -217,6 +217,14 @@ def managed_vscode_settings(config: str = "") -> str:
         # this setting, overriding the image's "off"; otherwise the CLI keeps
         # retrying PostHog, which workspaces cannot reach.
         "telemetry.telemetryLevel": "off",
+        # Second guard: never auto-forward the Kilo agent's own server (4096)
+        # or the ephemeral ports of language servers, Jupyter kernels and
+        # debuggers (Linux 32768-60999), even if one prints its URL. The
+        # user's app ports are still forwarded.
+        "remote.portsAttributes": {
+            "4096": {"onAutoForward": "ignore"},
+            "32768-60999": {"onAutoForward": "ignore"},
+        },
     }
     model = ""
     if config:

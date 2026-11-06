@@ -13,6 +13,7 @@
 
 | Owner | Status | Branch | Task | Next step |
 |---|---|---|---|---|
+| Kiro | In review | `fix/vscode-port-autoforward` | Stop the Kilo Code Ports panel filling with internal ports (no schema change) | Merge and release. Kilo Code workspaces are recreated once on their next start; then the Ports panel should list only the user's own app ports |
 | Aydin | Pending | `main` | 3.28.0 rollout: IDM/ODM datacenter placement removed (migration 37, PR #82); new workspaces open the IDE in a new tab and the Kilo Code images ship Python/Jupyter extensions (PR #83); skill library list layout (PR #84) | Back up the database (migration 37 drops the datacenter columns), then update IDMVAIFACT1; workers need no update. Import `vscode-kilo-3.28.0` and `vscode-cuda-3.28.0` under Admin > Workspace Image'ları; Kilo Code workspaces move to the new image when recreated. Check that Admin > Worker'lar shows only Yerleşim Etiketleri, that creating a workspace keeps the AI Factory tab open, and that the Python, Jupyter, basedpyright and Ruff extensions are listed |
 | Aydin | Pending | `main` | 3.27.0 rollout: Admin skill library for Kilo Code and Jupyter AI (migration 36, PR #80) | Update IDMVAIFACT1, then the workers (before saving the first skill), then add `tcmb-bvp-trino` under Admin > Skill Kütüphanesi. Stop and start one Kilo Code and one Jupyter workspace and ask the chat "What skills do you have available?" |
 | Aydin | Pending | `main` | 3.26.0 rollout: Workspace AI gateway CA bundle for workers and Jupyter/VS Code workspaces (migration 35, PR #78) | Update IDMVAIFACT1, then the workers. Paste the "LiteLLM Gateway LAB CA" PEM under Admin > Entegrasyonlar > Workspace AI > Gateway CA paketi, save and run Seçili Modeli Test Et; Jupyter/VS Code workspaces are recreated once on their next start. Then the manual drop-in `/etc/containers/systemd/devcloud-worker.container.d/ca-trust.conf` on IDMVAIFACT2 can be removed. Send one Kilo Code chat message to confirm the Kilo CLI trusts the CA |
@@ -32,6 +33,15 @@
 | Aydin | Pending | `main` | 3.12.0 rollout | Update IDMVAIFACT1 and workers, set `TCMB_Standard_User` + priority in Admin > GenAI, then create a workspace as a GenAI user and check the key in LiteLLM |
 
 ## Decisions
+
+- 2026-11-06 (unreleased, migration 38): AD users get GenAI access without opting in. On every successful login of an `active_directory` user, `genai.auto_provision` (called from `POST /api/auth/login`) creates or adopts the LiteLLM user (default team, budget and role from the GenAI settings) and a `GenAiAccount`. When Workspace AI points at the same LiteLLM, it also issues the per-user workspace key right away. Before, both happened only after the user pressed "GenAI erişimi oluştur".
+  - It runs only when GenAI is enabled and configured and the admin switch **"AD kullanıcılarına girişte LiteLLM kullanıcısı ve workspace anahtarı otomatik oluştur"** (Admin > Entegrasyonlar > GenAI, `genai_settings.auto_provision_directory_users`) is on. Migration 38 adds the column with default on, so upgraded installs start provisioning at the next AD login unless an admin unticks it. Turning it off stops new provisioning only; existing LiteLLM users and keys stay. Local (internal) accounts are unchanged and still opt in on the GenAI tab.
+  - After the workspace key exists, later logins make no LiteLLM calls; workspace creation keeps the key current (team changes, deleted keys), as before.
+  - The personal key is not issued at login because it is shown only once. The GenAI tab shows "LiteLLM kullanıcınız mevcut" and the user can still create one.
+  - `workspace_gateway_token` now gives a per-user key to any user with a `GenAiAccount`, not only to users with a personal key.
+  - Failures are logged and never block the login; the next login retries. If LiteLLM accepts the connection but hangs, the first login can wait up to the LiteLLM timeout (default 15 s).
+  - Existing AD users are provisioned at their next login. There is no bulk backfill.
+  - One test added: `test_directory_login_provisions_litellm_user_and_workspace_key`.
 
 - 2026-11-04: workspace port noise and Kilo Code's internet traffic.
   - **Ports view.** DevCloud publishes one loopback host port per workspace. The many entries came from VS Code's default `remote.autoForwardPortsSource: process`, which lists every listening socket: the Kilo agent (`kilo serve --port 0`), language servers, Jupyter kernels. The managed settings (Kilo Code and Cline, plus the image defaults) now use `output`, so a port is forwarded only when a terminal or debugger prints its URL. `/proxy/<ws>/port/<N>/` and share links go through the container bridge IP and do not depend on VS Code forwarding; manual forwards still work.

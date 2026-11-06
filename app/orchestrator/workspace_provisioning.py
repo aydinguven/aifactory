@@ -65,6 +65,7 @@ from app.kilo_code import (
     KILO_CODE_ASSISTANT,
     MIN_AGENT_VERSION as KILO_CODE_MIN_AGENT_VERSION,
     config_digest,
+    managed_vscode_settings as kilo_code_vscode_settings,
     parse_model_ids,
     parse_skills_urls,
     render_config,
@@ -187,6 +188,12 @@ def ai_config_digest(kilo_code_config: str, ca_bundle: str, skills_bundle: str =
             + b"\x00"
             + skills_bundle.encode("ascii")
         ).hexdigest()
+    if kilo_code_config:
+        # The VS Code user settings ride in the same container environment,
+        # so a change to them recreates Kilo Code containers too.
+        kilo_code_config = (
+            kilo_code_config + "\x00" + kilo_code_vscode_settings(kilo_code_config)
+        )
     if not ca_bundle:
         return config_digest(kilo_code_config)
     return hashlib.sha256(

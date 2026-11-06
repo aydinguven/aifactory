@@ -71,7 +71,7 @@
       $("genai-none-title").textContent = existing ? "LiteLLM kullanıcınız mevcut" : "GenAI erişiminiz yok";
       $("genai-none-text").replaceChildren(
         existing
-          ? `LiteLLM'de ${status.litellm_user_id} kullanıcınız zaten var. Bu kullanıcı için kişisel bir API anahtarı oluşturabilirsiniz.`
+          ? `LiteLLM'de ${status.litellm_user_id} kullanıcınız zaten var.${status.workspace_key ? " Workspace'leriniz bu kullanıcıya ait anahtarı otomatik kullanır." : ""} Workspace dışında kullanmak için kişisel bir API anahtarı oluşturabilirsiniz.`
           : `Tek tıkla ${status.litellm_user_id} adlı LiteLLM kullanıcınız oluşturulur ve size kişisel bir API anahtarı verilir.`
       );
       $("btn-genai-create").textContent = existing ? "API anahtarı oluştur" : "GenAI erişimi oluştur";

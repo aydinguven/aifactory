@@ -19,7 +19,7 @@ from app.config import settings
 from app.database import engine, init_db
 
 
-CURRENT_SCHEMA_VERSION = 37
+CURRENT_SCHEMA_VERSION = 38
 # ai_config_digest of the workspaces migration 33 moved off TCMB Code.
 TCMB_CODE_MIGRATED_DIGEST = "tcmb-code-migrated"
 
@@ -688,6 +688,22 @@ async def _add_directory_sync_fields(conn) -> None:
             )
 
 
+async def _add_genai_auto_provision(conn) -> None:
+    """Add the switch for LiteLLM provisioning at AD login (on by default)."""
+    existing = await conn.run_sync(
+        lambda sync_conn: {
+            column["name"] for column in inspect(sync_conn).get_columns("genai_settings")
+        }
+    )
+    if "auto_provision_directory_users" not in existing:
+        await conn.execute(
+            text(
+                "ALTER TABLE genai_settings ADD COLUMN "
+                "auto_provision_directory_users BOOLEAN NOT NULL DEFAULT TRUE"
+            )
+        )
+
+
 async def _remove_datacenters(conn) -> None:
     """Drop the datacenter placement (IDM/ODM); custom tags stay."""
     await conn.execute(text("DELETE FROM placement_tags WHERE kind = 'datacenter'"))
@@ -1182,6 +1198,9 @@ async def upgrade() -> None:
         if 37 not in applied:
             await _remove_datacenters(conn)
             await _record_version(conn, 37, "remove datacenter (IDM/ODM) placement")
+        if 38 not in applied:
+            await _add_genai_auto_provision(conn)
+            await _record_version(conn, 38, "GenAI auto-provisioning at AD login")
 
 
 async def current_version() -> int:

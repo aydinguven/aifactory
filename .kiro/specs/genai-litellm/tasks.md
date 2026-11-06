@@ -24,6 +24,6 @@ Changes from the design:
 - [x] 13. Tests: env injection with and without the key, the fallback when LiteLLM is down, and the old-worker case.
 
 Phase 2 notes (3.12.0):
-- Only users who created GenAI access get a workspace key. Everyone else keeps the shared key, and the shared key stays as the fallback.
+- Only users who created GenAI access get a workspace key. Everyone else keeps the shared key, and the shared key stays as the fallback. (Since 2026-11-06, AD users get GenAI access, a LiteLLM user and a workspace key, automatically at login.)
 - LiteLLM teams: a default team for new users, and a priority list that decides which team each key binds to. The workspace key is reissued when the user's team changes.
 - A per-user key is injected only when the GenAI base URL and the Workspace AI gateway URL point to the same LiteLLM.
