@@ -98,11 +98,8 @@ def test_admin_panel_exposes_category_navigation():
 
     assert 'class="admin-shell"' in template
     assert "admin_section == 'overview'" in template
-    assert 'href="/admin/users"' in navigation
-    assert 'href="/admin/workspaces"' in navigation
-    assert 'href="/admin/workers"' in navigation
-    assert 'href="/admin/integrations"' in navigation
-    assert 'href="/admin/system"' in navigation
+    # The menu is rendered from ADMIN_SECTIONS; test_admin checks the links.
+    assert "admin_sections.items()" in navigation
     assert 'aria-current="page"' in navigation
     assert 'data-admin-filter=".admin-user-card"' in template
     assert 'data-admin-filter="#admin-workspace-table tbody tr"' in template

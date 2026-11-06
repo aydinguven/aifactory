@@ -526,42 +526,53 @@ async def run_detail_page(
     )
 
 
+# One name per admin section: the menu label, the page title and the overview
+# card all use "title". "group" sorts the menu into short, labelled blocks.
 ADMIN_SECTIONS = {
     "overview": {
         "title": "Genel Bakış",
         "description": "Platform sağlığını ve yönetim alanlarını tek bakışta izleyin.",
+        "group": "",
     },
     "users": {
-        "title": "Kullanıcılar & Erişim",
+        "title": "Kullanıcılar",
         "description": "Kullanıcı kotalarını, hesap durumlarını ve kurumsal dizin erişimini yönetin.",
+        "group": "Kullanıcılar ve alanlar",
     },
     "workspaces": {
-        "title": "Çalışma Alanları & Şablonlar",
-        "description": "Tüm çalışma alanlarını denetleyin ve özel ortam şablonları oluşturun.",
-    },
-    "images": {
-        "title": "Workspace Image Yönetimi",
-        "description": "OCI image sürümlerini registry veya tar arşivinden içe aktarın ve worker senkronizasyonunu izleyin.",
+        "title": "Çalışma Alanları",
+        "description": "Tüm çalışma alanlarını, kaynak profillerini ve ortam şablonlarını yönetin.",
+        "group": "Kullanıcılar ve alanlar",
     },
     "workers": {
-        "title": "Worker Node'ları",
-        "description": "CPU worker kayıtlarını, bağlantı durumlarını ve planlamayı yönetin.",
+        "title": "Worker'lar",
+        "description": "Worker kayıtlarını, bağlantı durumlarını ve yerleşim etiketlerini yönetin.",
+        "group": "Altyapı",
+    },
+    "images": {
+        "title": "Workspace Image'ları",
+        "description": "Image sürümlerini registry veya tar arşivinden içe aktarın ve worker senkronizasyonunu izleyin.",
+        "group": "Altyapı",
+    },
+    "kubernetes": {
+        "title": "Kubernetes",
+        "description": "Model imajlarının yayınlandığı registry'yi, Kubernetes projelerini ve uygulamalarını yönetin.",
+        "group": "Altyapı",
     },
     "integrations": {
         "title": "Entegrasyonlar",
-        "description": "Harici platform bağlantılarını ve servis kimlik bilgilerini yönetin.",
+        "description": "Workspace AI, Kilo Code, registry, MLflow ve GenAI bağlantılarını yönetin.",
+        "group": "Platform",
     },
     "skills": {
         "title": "Skill Kütüphanesi",
         "description": "Kilo Code ve Jupyter AI sohbetlerinin kullanacağı SKILL.md talimatlarını yönetin.",
-    },
-    "kubernetes": {
-        "title": "Kubernetes Dağıtımı",
-        "description": "Model imajlarının yayınlandığı dağıtım registry'sini, Kubernetes projelerini ve uygulamalarını yönetin.",
+        "group": "Platform",
     },
     "system": {
-        "title": "Sistem & Dağıtım",
-        "description": "Platform güncellemelerini, offline paketleri, disk alanını ve HTTPS ayarlarını yönetin.",
+        "title": "Sistem",
+        "description": "Platform güncellemelerini, oturum ayarlarını, HTTPS'i ve offline paketleri yönetin.",
+        "group": "Platform",
     },
 }
 

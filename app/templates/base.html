@@ -23,22 +23,39 @@
         <span class="version-chip" title="Uygulama sürümü">v{{ app_version }}</span>
       </span>
     </div>
+    {% set path = request.url.path %}
     <div class="nav-links">
       {% if user %}
-        <a href="/" data-tour="nav-workspaces" class="nav-link {% if request.url.path == '/' %}active{% endif %}">Çalışma Alanları</a>
-        <a href="/mlflow" data-tour="nav-mlflow" class="nav-link {% if request.url.path.startswith('/mlflow') or request.url.path.startswith('/models') or request.url.path.startswith('/experiments') or request.url.path.startswith('/runs') %}active{% endif %}">MLflow</a>
-        <a href="/genai" data-tour="nav-genai" class="nav-link {% if request.url.path.startswith('/genai') %}active{% endif %}">GenAI</a>
+        <a href="/" data-tour="nav-workspaces" class="nav-link {% if path == '/' or path.startswith('/workspaces') %}active{% endif %}">Çalışma Alanları</a>
+        <a href="/mlflow" data-tour="nav-mlflow" class="nav-link {% if path.startswith(('/mlflow', '/models', '/experiments', '/runs', '/deployments')) %}active{% endif %}">MLflow</a>
+        <a href="/genai" data-tour="nav-genai" class="nav-link {% if path.startswith('/genai') %}active{% endif %}">GenAI</a>
         {% if user.role == "admin" %}
-          <a href="/admin" data-tour="nav-admin" class="nav-link nav-link-admin {% if request.url.path.startswith('/admin') %}active{% endif %}">Yönetim</a>
+          <a href="/admin" data-tour="nav-admin" class="nav-link {% if path.startswith('/admin') %}active{% endif %}">Yönetim</a>
         {% endif %}
-        <a href="/profile" data-tour="nav-profile" class="nav-link {% if request.url.path == '/profile' %}active{% endif %}">{{ user.full_name or user.username }}</a>
-        <button class="btn btn-secondary btn-sm" type="button" data-onboarding-restart hidden>Tur</button>
-        <button id="btn-logout" class="btn btn-secondary btn-sm" style="margin-left: 0.5rem;">Çıkış Yap</button>
       {% else %}
-        <a href="/login" class="nav-link {% if request.url.path == '/login' %}active{% endif %}">Giriş</a>
+        <a href="/login" class="nav-link {% if path == '/login' %}active{% endif %}">Giriş</a>
         <a href="/register" class="btn btn-primary btn-sm">Hesap Oluştur</a>
       {% endif %}
     </div>
+    {% if user %}
+      {% set display_name = user.full_name or user.username %}
+      <details class="user-menu" data-user-menu>
+        <summary class="user-menu-trigger{% if path == '/profile' %} active{% endif %}" data-tour="nav-profile" title="{{ display_name }}">
+          <span class="user-avatar" aria-hidden="true">{{ (display_name.split() | map('first') | list)[:2] | join | upper }}</span>
+          <span class="user-menu-name">{{ display_name.split()[0] }}</span>
+          <span class="sr-only">Hesap menüsü</span>
+        </summary>
+        <div class="user-menu-panel">
+          <div class="user-menu-identity">
+            <strong>{{ display_name }}</strong>
+            <span>{{ user.username }}{% if user.role == "admin" %} · Yönetici{% endif %}</span>
+          </div>
+          <a href="/profile" class="user-menu-item">Profil</a>
+          <button class="user-menu-item" type="button" data-onboarding-restart hidden>Tanıtım turunu başlat</button>
+          <button id="btn-logout" class="user-menu-item user-menu-item--danger" type="button">Çıkış Yap</button>
+        </div>
+      </details>
+    {% endif %}
   </nav>
 
   <main class="container">
@@ -55,6 +72,23 @@
   <script src="/static/js/app.js?v={{ static_version }}"></script>
   {% if user %}<script src="/static/js/onboarding-tour.js?v={{ static_version }}"></script>{% endif %}
   <script>
+    // Pop-up menus (account menu, "⋯" action menus) built on <details>:
+    // close on a click outside, after choosing an item, and on Escape.
+    const openMenus = () => document.querySelectorAll("details.user-menu[open], details.action-menu[open]");
+    document.addEventListener("click", (event) => {
+      openMenus().forEach((menu) => {
+        if (!menu.contains(event.target) || event.target.closest(".user-menu-item, .action-menu-item")) {
+          menu.open = false;
+        }
+      });
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      openMenus().forEach((menu) => {
+        menu.open = false;
+        menu.querySelector("summary").focus();
+      });
+    });
     const logoutBtn = document.getElementById("btn-logout");
     if (logoutBtn) {
       logoutBtn.addEventListener("click", async () => {

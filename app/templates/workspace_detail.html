@@ -31,17 +31,16 @@
           ▶ Başlat
         </button>
       {% endif %}
-      {% if not workspace.node_id %}
-        <a href="/api/workspaces/{{ workspace.id }}/backup/download" class="btn btn-secondary">
-          💾 Yedek İndir (.zip)
-        </a>
-        <button class="btn btn-secondary" id="btn-open-snapshot-modal">
-          📸 Şablon Yap (Snapshot)
-        </button>
-      {% endif %}
-      <button class="btn btn-danger" data-action="delete" data-workspace-id="{{ workspace.id }}">
-        Sil
-      </button>
+      <details class="action-menu action-menu--down">
+        <summary class="btn btn-secondary" aria-label="Diğer işlemler" title="Diğer işlemler"><svg class="action-menu-dots" viewBox="0 0 18 4" aria-hidden="true" focusable="false"><circle cx="2" cy="2" r="2"/><circle cx="9" cy="2" r="2"/><circle cx="16" cy="2" r="2"/></svg></summary>
+        <div class="action-menu-panel">
+          {% if not workspace.node_id %}
+            <a href="/api/workspaces/{{ workspace.id }}/backup/download" class="action-menu-item">Yedek indir (.zip)</a>
+            <button class="action-menu-item" type="button" id="btn-open-snapshot-modal">Şablon olarak kaydet (snapshot)</button>
+          {% endif %}
+          <button class="action-menu-item action-menu-item--danger" type="button" data-action="delete" data-workspace-id="{{ workspace.id }}">Çalışma alanını sil</button>
+        </div>
+      </details>
     </div>
   </div>
 </div>

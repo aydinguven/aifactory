@@ -39,7 +39,6 @@
 <section class="admin-overview-grid" data-tour="admin-overview" aria-label="Yönetim alanları">
   {% for key, item in admin_sections.items() if key != 'overview' %}
     <a class="admin-overview-card" href="/admin/{{ key }}">
-      <span class="admin-overview-index">0{{ loop.index }}</span>
       <span class="admin-overview-copy">
         <strong>{{ item.title }}</strong>
         <small>{{ item.description }}</small>
@@ -65,7 +64,7 @@
 {% if admin_section in ['system', 'workspaces'] %}
 {% if admin_section == 'system' %}
 <nav class="admin-section-jumps" aria-label="Sistem bölümleri">
-  <span class="admin-section-jumps-label">Hızlı geçiş</span>
+  <span class="admin-section-jumps-label">Bu sayfada</span>
   <a href="#platform-update">Platform Güncelleme</a>
   <a href="#session-policy">Oturum</a>
   <a href="#onboarding-tour-settings">Canlı Tur</a>
@@ -75,7 +74,7 @@
 </nav>
 {% else %}
 <nav class="admin-section-jumps" aria-label="Workspace yönetimi bölümleri">
-  <span class="admin-section-jumps-label">Hızlı geçiş</span>
+  <span class="admin-section-jumps-label">Bu sayfada</span>
   <a href="#template-builder-card">Şablon Derle</a>
   <a href="#resource-profiles">Kaynak Profilleri</a>
   <a href="#workspace-types">Workspace Tipleri</a>
@@ -692,7 +691,7 @@ cd devcloud
 
 {% if admin_section == 'integrations' %}
 <nav class="admin-section-jumps" aria-label="Entegrasyon bölümleri">
-  <span class="admin-section-jumps-label">Hızlı geçiş</span>
+  <span class="admin-section-jumps-label">Bu sayfada</span>
   <a href="#workspace-ai-integration">Workspace AI</a>
   <a href="#kilo-code-integration">Kilo Code</a>
   <a href="#container-registry-integration">Container Registry</a>
@@ -988,11 +987,6 @@ cd devcloud
 {% endif %}
 
 {% if admin_section == 'users' %}
-<nav class="admin-section-jumps" aria-label="Kullanıcı yönetimi bölümleri">
-  <span class="admin-section-jumps-label">Hızlı geçiş</span>
-  <a href="#directory-settings">Kurumsal Dizin</a>
-  <a href="#registered-users">Kayıtlı Kullanıcılar</a>
-</nav>
 <section class="card admin-directory-card" id="directory-settings" style="margin-bottom: 2rem; border-top: 3px solid #2563eb;">
   <div class="card-header">
     <div>

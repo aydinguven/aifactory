@@ -78,17 +78,17 @@
           </div>
 
           <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0; font-size: 0.8rem;">
-            <span class="badge badge-flavor">Profil: {{ ws.flavor_id }}</span>
-            <span class="badge badge-template">{{ ws.template_id }}</span>
-            <span class="badge badge-neutral">Port: {{ ws.host_port }}</span>
+            <span class="badge badge-flavor" title="Kaynak profili">{{ ws.flavor_id }}</span>
+            <span class="badge badge-template" title="Şablon">{{ ws.template_id }}</span>
+            <span class="badge badge-neutral" title="Host portu">Port {{ ws.host_port }}</span>
             {% for tag in ws.tags %}
-              <span class="badge badge-neutral">#{{ tag }}</span>
+              <span class="badge badge-neutral" title="Yerleşim etiketi">#{{ tag }}</span>
             {% endfor %}
             {% if ws.accelerator_device_id %}
-              <span class="badge badge-running">GPU: {{ ws.accelerator_model }} · slot {{ ws.accelerator_slot + 1 }}/{{ ws.accelerator_shared_slots }}</span>
+              <span class="badge badge-running badge-meta">GPU: {{ ws.accelerator_model }} · slot {{ ws.accelerator_slot + 1 }}/{{ ws.accelerator_shared_slots }}</span>
             {% endif %}
             {% if ws.auto_stop_minutes > 0 %}
-              <span class="badge" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3);">⏱ {{ ws.auto_stop_minutes }}dk Maksimum Süre</span>
+              <span class="badge badge-limit" title="Bu süre dolunca çalışma alanı otomatik durdurulur">⏱ En fazla {{ ws.auto_stop_minutes }} dk</span>
             {% endif %}
           </div>
 
@@ -120,11 +120,16 @@
             {% elif ws_st == 'stopped' or ws_st == 'error' or ws_st == 'creating' %}
               <button class="btn btn-primary btn-sm" data-action="start" data-workspace-id="{{ ws.id }}">▶ Başlat</button>
             {% endif %}
-            <a href="/workspaces/{{ ws.id }}" data-tour="workspace-detail-link" class="btn btn-secondary btn-sm">Ayrıntılar & Dosyalar</a>
-            <a href="/api/workspaces/{{ ws.id }}/backup/download" class="btn btn-secondary btn-sm" title="Yedek İndir (.zip)">💾 Yedek</a>
+            <a href="/workspaces/{{ ws.id }}" data-tour="workspace-detail-link" class="btn btn-secondary btn-sm" title="Loglar, dosyalar ve portlar">Ayrıntılar</a>
           </div>
 
-          <button class="btn btn-danger btn-sm" data-action="delete" data-workspace-id="{{ ws.id }}" title="Çalışma Alanını Sil">Sil</button>
+          <details class="action-menu">
+            <summary class="btn btn-secondary btn-sm" aria-label="Diğer işlemler" title="Diğer işlemler"><svg class="action-menu-dots" viewBox="0 0 18 4" aria-hidden="true" focusable="false"><circle cx="2" cy="2" r="2"/><circle cx="9" cy="2" r="2"/><circle cx="16" cy="2" r="2"/></svg></summary>
+            <div class="action-menu-panel">
+              <a href="/api/workspaces/{{ ws.id }}/backup/download" class="action-menu-item">Yedek indir (.zip)</a>
+              <button class="action-menu-item action-menu-item--danger" type="button" data-action="delete" data-workspace-id="{{ ws.id }}">Çalışma alanını sil</button>
+            </div>
+          </details>
         </div>
       </div>
     {% endfor %}
