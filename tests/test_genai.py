@@ -895,6 +895,16 @@ async def test_directory_login_provisions_litellm_user_and_workspace_key(
         assert response.status_code == 200, response.text
         return response.json()["user"]["id"]
 
+    # Admin switch off: no LiteLLM calls at login.
+    off = await _configure(
+        client, admin, **TEAM_SETTINGS, auto_provision_directory_users=False
+    )
+    assert off.json()["auto_provision_directory_users"] is False
+    fake_litellm.calls.clear()
+    await login()
+    assert fake_litellm.calls == []
+    assert (await _configure(client, admin, **TEAM_SETTINGS)).status_code == 200
+
     # LiteLLM down at the first login: the login still succeeds.
     fake_litellm.unreachable = True
     user_id = await login()

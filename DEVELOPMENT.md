@@ -33,8 +33,8 @@
 
 ## Decisions
 
-- 2026-11-06 (unreleased, no schema change): AD users get GenAI access without opting in. On every successful login of an `active_directory` user, `genai.auto_provision` (called from `POST /api/auth/login`) creates or adopts the LiteLLM user (default team, budget and role from the GenAI settings) and a `GenAiAccount`. When Workspace AI points at the same LiteLLM, it also issues the per-user workspace key right away. Before, both happened only after the user pressed "GenAI erişimi oluştur".
-  - It runs only when GenAI is enabled and configured. Local (internal) accounts are unchanged and still opt in on the GenAI tab.
+- 2026-11-06 (unreleased, migration 38): AD users get GenAI access without opting in. On every successful login of an `active_directory` user, `genai.auto_provision` (called from `POST /api/auth/login`) creates or adopts the LiteLLM user (default team, budget and role from the GenAI settings) and a `GenAiAccount`. When Workspace AI points at the same LiteLLM, it also issues the per-user workspace key right away. Before, both happened only after the user pressed "GenAI erişimi oluştur".
+  - It runs only when GenAI is enabled and configured and the admin switch **"AD kullanıcılarına girişte LiteLLM kullanıcısı ve workspace anahtarı otomatik oluştur"** (Admin > Entegrasyonlar > GenAI, `genai_settings.auto_provision_directory_users`) is on. Migration 38 adds the column with default on, so upgraded installs start provisioning at the next AD login unless an admin unticks it. Turning it off stops new provisioning only; existing LiteLLM users and keys stay. Local (internal) accounts are unchanged and still opt in on the GenAI tab.
   - After the workspace key exists, later logins make no LiteLLM calls; workspace creation keeps the key current (team changes, deleted keys), as before.
   - The personal key is not issued at login because it is shown only once. The GenAI tab shows "LiteLLM kullanıcınız mevcut" and the user can still create one.
   - `workspace_gateway_token` now gives a per-user key to any user with a `GenAiAccount`, not only to users with a personal key.

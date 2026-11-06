@@ -23,6 +23,7 @@ class GenAiSettingsUpdate(BaseModel):
     key_duration: str = ""
     default_team: str = Field(default="", max_length=255)
     team_priority: list[str] = Field(default_factory=list, max_length=20)
+    auto_provision_directory_users: bool = True
 
     @field_validator(
         "base_url", "ca_cert_file", "user_role", "budget_duration", "key_duration",
@@ -112,6 +113,7 @@ class GenAiSettingsOut(BaseModel):
     key_duration: str
     default_team: str = ""
     team_priority: list[str] = Field(default_factory=list)
+    auto_provision_directory_users: bool = True
     updated_at: datetime | None = None
 
 

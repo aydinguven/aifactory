@@ -383,6 +383,8 @@ async def workspace_gateway_token(db: AsyncSession, user_id: int) -> str:
 async def auto_provision(db: AsyncSession, user: User) -> None:
     """Give a directory (AD) user a LiteLLM user and a workspace key at login.
 
+    Admins turn this off with ``GenAiSettings.auto_provision_directory_users``.
+
     Runs once per user: after the workspace key exists, later logins make no
     LiteLLM calls (workspace creation keeps the key current). The personal key
     stays opt-in on the GenAI tab because it is shown only once. Never raises;
@@ -393,7 +395,7 @@ async def auto_provision(db: AsyncSession, user: User) -> None:
     user_pk, email = user.id, user.email
     try:
         record = await _settings(db)
-        if not is_configured(record):
+        if not is_configured(record) or not record.auto_provision_directory_users:
             return
         account = await _account(db, user)
         if account and account.encrypted_workspace_key:
