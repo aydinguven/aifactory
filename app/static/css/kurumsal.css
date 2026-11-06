@@ -2899,3 +2899,42 @@ code { color: #8d0022; }
   .skill-item { flex-direction: column; }
   .skill-item-actions { justify-content: flex-start; }
 }
+
+/* On/off settings: a native checkbox drawn as a switch (use with role="switch").
+ * The thumb is a background gradient so it renders the same in every browser.
+ * Selections and one-shot actions (clear key, unsigned update) stay checkboxes. */
+input.toggle {
+  -webkit-appearance: none;
+  appearance: none;
+  background-color: #c3ccdb;
+  background-image: radial-gradient(circle, #fff 0 0.42rem, rgba(255, 255, 255, 0) 0.47rem);
+  background-position: left center;
+  background-repeat: no-repeat;
+  background-size: 1.25rem 1.25rem;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  flex: none;
+  height: 1.25rem;
+  margin: 0;
+  transition: background-color 0.15s ease, background-position 0.15s ease;
+  vertical-align: middle;
+  width: 2.25rem;
+}
+input.toggle:hover { background-color: #aeb9cb; }
+input.toggle:checked {
+  background-color: var(--primary);
+  background-position: right center;
+}
+input.toggle:checked:hover { background-color: var(--primary-hover); }
+input.toggle:focus-visible {
+  outline: 3px solid rgba(213, 0, 50, 0.3);
+  outline-offset: 2px;
+}
+input.toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+@media (prefers-reduced-motion: reduce) {
+  input.toggle { transition: none; }
+}

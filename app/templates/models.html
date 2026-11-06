@@ -28,7 +28,7 @@
   {% endif %}
   <form id="mlflow-settings-form" data-tour="mlflow-personal-settings" autocomplete="off">
     <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;">
-      <label style="display:flex;gap:.5rem;align-items:center;"><input type="checkbox" name="enabled" {% if not mlflow_settings or mlflow_settings.enabled %}checked{% endif %}><span>Bu bağlantıyı kullan</span></label>
+      <label style="display:flex;gap:.5rem;align-items:center;"><input type="checkbox" class="toggle" role="switch" name="enabled" {% if not mlflow_settings or mlflow_settings.enabled %}checked{% endif %}><span>Bu bağlantıyı kullan</span></label>
     </div>
     <div class="grid grid-cols-2" style="gap:.75rem;margin-bottom:.75rem;">
       <label class="form-group" style="margin:0;"><span class="form-label">Kimlik doğrulama</span><select class="form-input" name="auth_type"><option value="none" {% if not mlflow_settings or mlflow_settings.auth_type == 'none' %}selected{% endif %}>Yok</option><option value="basic" {% if mlflow_settings and mlflow_settings.auth_type == 'basic' %}selected{% endif %}>Kullanıcı adı / parola</option><option value="bearer" {% if mlflow_settings and mlflow_settings.auth_type == 'bearer' %}selected{% endif %}>Bearer token</option></select></label>
