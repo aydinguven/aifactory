@@ -2472,6 +2472,7 @@ function initAdminGenAiSettings() {
     const budget = String(data.get("max_budget") || "").trim();
     const payload = {
       enabled: form.elements.enabled.checked,
+      auto_provision_directory_users: form.elements.auto_provision_directory_users.checked,
       base_url: String(data.get("base_url") || "").trim(),
       admin_key: form.elements.clear_admin_key.checked ? "" : (adminKey || null),
       validate_tls: form.elements.validate_tls.checked,

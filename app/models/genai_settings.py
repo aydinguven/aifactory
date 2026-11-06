@@ -32,6 +32,10 @@ class GenAiSettings(Base):
     # Team aliases/ids, highest tier first; keys bind to the first one the
     # user belongs to.
     team_priority_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
+    # Create the LiteLLM user and workspace key at every AD user's login.
+    auto_provision_directory_users: Mapped[bool] = mapped_column(
+        Boolean, default=True, nullable=False
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

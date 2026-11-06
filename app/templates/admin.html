@@ -951,6 +951,7 @@ cd devcloud
   </div>
   <form id="genai-settings-form" autocomplete="off">
     <label style="display:flex;gap:.5rem;align-items:center;margin-bottom:1rem;"><input type="checkbox" name="enabled" {% if genai_settings and genai_settings.enabled %}checked{% endif %}><span>GenAI sekmesinden kendi kendine anahtar oluşturmayı etkinleştir</span></label>
+    <label style="display:flex;gap:.5rem;align-items:center;margin-bottom:1rem;"><input type="checkbox" name="auto_provision_directory_users" {% if not genai_settings or genai_settings.auto_provision_directory_users %}checked{% endif %}><span>AD kullanıcılarına girişte LiteLLM kullanıcısı ve workspace anahtarı otomatik oluştur</span></label>
     <div class="grid grid-cols-2" style="gap:.75rem;margin-bottom:.75rem;">
       <label class="form-group" style="margin:0;"><span class="form-label">LiteLLM kök URL</span><input class="form-input" name="base_url" type="url" value="{{ genai_default_url }}" placeholder="http://litellm.internal:4000"><small class="form-help"><code>/ui</code> olmadan, kullanıcıların da erişebildiği adres.</small></label>
       <label class="form-group" style="margin:0;"><span class="form-label">Yönetici API anahtarı (proxy_admin)</span><input class="form-input" name="admin_key" type="password" autocomplete="new-password" placeholder="{% if genai_settings and genai_settings.encrypted_admin_key %}Kayıtlı anahtarı korumak için boş bırakın{% else %}aifactory kullanıcısının anahtarı{% endif %}"></label>
