@@ -33,6 +33,15 @@
 
 ## Decisions
 
+- 2026-11-06 (unreleased, no schema change): AD users get GenAI access without opting in. On every successful login of an `active_directory` user, `genai.auto_provision` (called from `POST /api/auth/login`) creates or adopts the LiteLLM user (default team, budget and role from the GenAI settings) and a `GenAiAccount`. When Workspace AI points at the same LiteLLM, it also issues the per-user workspace key right away. Before, both happened only after the user pressed "GenAI erişimi oluştur".
+  - It runs only when GenAI is enabled and configured. Local (internal) accounts are unchanged and still opt in on the GenAI tab.
+  - After the workspace key exists, later logins make no LiteLLM calls; workspace creation keeps the key current (team changes, deleted keys), as before.
+  - The personal key is not issued at login because it is shown only once. The GenAI tab shows "LiteLLM kullanıcınız mevcut" and the user can still create one.
+  - `workspace_gateway_token` now gives a per-user key to any user with a `GenAiAccount`, not only to users with a personal key.
+  - Failures are logged and never block the login; the next login retries. If LiteLLM accepts the connection but hangs, the first login can wait up to the LiteLLM timeout (default 15 s).
+  - Existing AD users are provisioned at their next login. There is no bulk backfill.
+  - One test added: `test_directory_login_provisions_litellm_user_and_workspace_key`.
+
 - 2026-11-04 (3.28.0, PR #83): two user reports.
   - **The AI Factory tab no longer turns into the IDE.** Since a55f89b (3.26.0), the create flow ran `window.location.assign` to the IDE, replacing the dashboard tab. Now the `done` event opens the IDE with `window.open(..., "_blank")` and reloads the dashboard. Browsers can block that tab after a long deployment, because it is no longer the user's click. In that case the modal shows "IDE'yi Yeni Sekmede Aç" and "Panele Dön". The Başlat button never navigated; it still only reloads the dashboard.
   - **The Kilo Code images bake in the Python tooling.** Since 3.18.0 the image held only the AI extension; the retired `vscode-python` image had `ms-python.python` and `ms-toolsai.jupyter`, installed unpinned with `|| true`. `vscode-kilo` and `vscode-cuda` now install the list in `extensions.txt` from Open VSX, SHA-256 pinned, and fail the build if one is missing. The list: Python 2026.4.0, Python Debugger 2026.6.0 (linux-x64), Python Environments 1.40.0, basedpyright 1.40.2, Ruff 2026.92.0 (linux-x64) and Jupyter 2025.9.1 with keymap, renderers, cell tags and slideshow. Pylance is not on Open VSX, so basedpyright is the language server and `python.languageServer` is `None`, both in the image and in the settings written at start. The install loop was run against the code-server 4.137.0 binary (all 10 installed, a bad checksum fails, a missing extension fails the check). No container build was possible in the sandbox.

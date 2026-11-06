@@ -850,3 +850,68 @@ async def test_stats_page_and_admin_user_usage_blocks_render(client, db_session,
     assert "data-genai-user=" in users_page.text
     assert "data-genai-group=" in users_page.text
     assert "/static/js/genai_admin_usage.js" in users_page.text
+
+
+@pytest.mark.asyncio
+async def test_directory_login_provisions_litellm_user_and_workspace_key(
+    client, db_session, fake_litellm, monkeypatch
+):
+    from app.auth.ldap import DirectoryIdentity, encrypt_directory_secret
+    from app.genai import workspace_gateway_token
+    from app.models.directory_settings import DirectorySettings
+
+    admin = await _register(client, db_session, "genai-admin", admin=True)
+    assert (await _configure(client, admin, **TEAM_SETTINGS)).status_code == 200
+    await _enable_workspace_ai(db_session)
+    db_session.add(
+        DirectorySettings(
+            id=1,
+            enabled=True,
+            server_host="ldap.test",
+            bind_dn="CN=svc,DC=example,DC=com",
+            encrypted_bind_password=encrypt_directory_secret("bind-secret"),
+            user_base_dn="OU=Users,DC=example,DC=com",
+        )
+    )
+    await db_session.commit()
+    monkeypatch.setattr(
+        "app.auth.ldap.authenticate_directory_user",
+        lambda config, username, password: DirectoryIdentity(
+            username="K015570",
+            email="k015570@example.com",
+            full_name="AD User",
+            team="",
+            directorate="",
+            user_dn="CN=K015570,OU=Users,DC=example,DC=com",
+            groups=(),
+            is_admin=False,
+        ),
+    )
+
+    async def login():
+        response = await client.post(
+            "/api/auth/login", json={"username": "K015570", "password": "ad-secret"}
+        )
+        assert response.status_code == 200, response.text
+        return response.json()["user"]["id"]
+
+    # LiteLLM down at the first login: the login still succeeds.
+    fake_litellm.unreachable = True
+    user_id = await login()
+    assert (await db_session.execute(select(GenAiAccount))).scalar_one_or_none() is None
+
+    fake_litellm.unreachable = False
+    await login()
+    assert "k015570" in fake_litellm.users
+    assert "k015570" in fake_litellm.teams["team-std"]["members"]
+    account = (await db_session.execute(select(GenAiAccount))).scalar_one()
+    assert account.litellm_user_id == "k015570"
+    assert account.personal_key_alias == ""
+    (key,) = fake_litellm.keys.values()
+    assert key["purpose"] == "workspace" and key["team_id"] == "team-std"
+    assert await workspace_gateway_token(db_session, user_id) == key["key"]
+
+    # Already provisioned: later logins make no LiteLLM calls.
+    fake_litellm.calls.clear()
+    await login()
+    assert fake_litellm.calls == []

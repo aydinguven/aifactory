@@ -342,12 +342,25 @@ def _same_gateway(left: str, right: str) -> bool:
     return bool(left and right) and normalize(left) == normalize(right)
 
 
+async def _workspace_ai_uses_genai_gateway(db: AsyncSession, record: GenAiSettings) -> bool:
+    workspace_ai = await db.get(JupyterAiSettings, 1)
+    if not workspace_ai or not workspace_ai.enabled:
+        return False
+    if not _same_gateway(workspace_ai.gateway_url, record.base_url):
+        logger.warning(
+            "GenAI and Workspace AI use different LiteLLM URLs; using the shared key."
+        )
+        return False
+    return True
+
+
 async def workspace_gateway_token(db: AsyncSession, user_id: int) -> str:
     """Return the user's own LiteLLM key for a new workspace, or "" for the shared key.
 
-    Only users who opted in on the GenAI tab get a personal workspace key, and
-    only when GenAI and Workspace AI point at the same LiteLLM. Any failure
-    falls back to the shared key; workspace creation never fails here.
+    Users with a GenAI account (opted in on the GenAI tab, or provisioned
+    automatically at directory login) get a personal workspace key, but only
+    when GenAI and Workspace AI point at the same LiteLLM. Any failure falls
+    back to the shared key; workspace creation never fails here.
     """
     try:
         record = await _settings(db)
@@ -356,21 +369,57 @@ async def workspace_gateway_token(db: AsyncSession, user_id: int) -> str:
         account = (
             await db.execute(select(GenAiAccount).where(GenAiAccount.user_id == user_id))
         ).scalar_one_or_none()
-        if account is None or not account.personal_key_alias:
+        if account is None:
             return ""
-        workspace_ai = await db.get(JupyterAiSettings, 1)
-        if not workspace_ai or not workspace_ai.enabled:
-            return ""
-        if not _same_gateway(workspace_ai.gateway_url, record.base_url):
-            logger.warning(
-                "GenAI and Workspace AI use different LiteLLM URLs; using the shared key."
-            )
+        if not await _workspace_ai_uses_genai_gateway(db, record):
             return ""
         async with _lock_for(user_id):
             return await _ensure_workspace_key(db, record, account)
     except Exception as exc:  # noqa: BLE001 - never block workspace creation
         logger.warning("Per-user workspace key unavailable, using the shared key: %s", exc)
         return ""
+
+
+async def auto_provision(db: AsyncSession, user: User) -> None:
+    """Give a directory (AD) user a LiteLLM user and a workspace key at login.
+
+    Runs once per user: after the workspace key exists, later logins make no
+    LiteLLM calls (workspace creation keeps the key current). The personal key
+    stays opt-in on the GenAI tab because it is shown only once. Never raises;
+    a LiteLLM problem must not block the login and is retried next time.
+    """
+    if user.auth_source != "active_directory":
+        return
+    user_pk, email = user.id, user.email
+    try:
+        record = await _settings(db)
+        if not is_configured(record):
+            return
+        account = await _account(db, user)
+        if account and account.encrypted_workspace_key:
+            return
+        async with _lock_for(user_pk):
+            account = await _account(db, user)
+            if account is None:
+                client = LiteLLMClient(config_from_record(record))
+                uid = litellm_user_id(user)
+                await _ensure_litellm_user(client, _Teams(client), uid, email)
+                account = GenAiAccount(user_id=user_pk, litellm_user_id=uid)
+                db.add(account)
+                try:
+                    await db.commit()
+                except IntegrityError:
+                    # Another login or the GenAI tab created it concurrently.
+                    await db.rollback()
+                    return
+                logger.info("Created LiteLLM user %s at directory login", uid)
+            elif account.encrypted_workspace_key:
+                return
+            if await _workspace_ai_uses_genai_gateway(db, record):
+                await _ensure_workspace_key(db, record, account)
+    except Exception as exc:  # noqa: BLE001 - never block the login
+        await db.rollback()
+        logger.warning("GenAI auto-provisioning failed for user %s: %s", user_pk, exc)
 
 
 async def _ensure_workspace_key(
