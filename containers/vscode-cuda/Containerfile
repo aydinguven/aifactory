@@ -59,7 +59,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Compute), plus cuDNN and NCCL. The packages register /usr/local/cuda and
 # their ld.so.conf.d entries; cuDNN and NCCL install into the system lib dir.
 # cuDNN and NCCL are held, as in NVIDIA's images, so a later `apt upgrade`
-# cannot pull builds for another CUDA release.
+# cannot pull builds for another CUDA release. The cuDNN headers package is
+# pinned too: libcudnn9-dev needs exactly its own version, and apt would
+# otherwise pick the newest headers and fail once NVIDIA publishes a new cuDNN.
 RUN cuda="$(printf '%s' "${CUDA_VERSION}" | tr . -)" \
     && cuda_major="${CUDA_VERSION%%.*}" \
     && curl -fsSL "${CUDA_KEYRING_URL}" -o /tmp/cuda-keyring.deb \
@@ -74,10 +76,12 @@ RUN cuda="$(printf '%s' "${CUDA_VERSION}" | tr . -)" \
         "cuda-nvml-dev-${cuda}" \
         "libcudnn9-cuda-${cuda_major}=${CUDNN_PACKAGE_VERSION}" \
         "libcudnn9-dev-cuda-${cuda_major}=${CUDNN_PACKAGE_VERSION}" \
+        "libcudnn9-headers-cuda-${cuda_major}=${CUDNN_PACKAGE_VERSION}" \
         "libnccl2=${NCCL_PACKAGE_VERSION}" \
         "libnccl-dev=${NCCL_PACKAGE_VERSION}" \
     && apt-mark hold \
-        "libcudnn9-cuda-${cuda_major}" "libcudnn9-dev-cuda-${cuda_major}" libnccl2 libnccl-dev \
+        "libcudnn9-cuda-${cuda_major}" "libcudnn9-dev-cuda-${cuda_major}" \
+        "libcudnn9-headers-cuda-${cuda_major}" libnccl2 libnccl-dev \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     && ldconfig \
