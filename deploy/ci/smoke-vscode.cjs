@@ -90,7 +90,7 @@ fs.writeFileSync(path.join(fixture, 'settings.json'), JSON.stringify({
     docker('exec', '--user', 'root', container, 'chown', '-R', 'coder:coder', '/home/coder/.config', `${userDir}/settings.json`);
     console.log(docker('exec', container, 'code-server', '--install-extension', '/tmp/smoke.vsix'));
     console.log(docker('exec', container, 'code-server', '--list-extensions', '--show-versions'));
-    // Image-level checks: the Linux agent CLI runs and resolves DevCloud's MCP
+    // Image-level checks: the Linux agent CLI runs and resolves AI Factory's MCP
     // servers, LanceDB's native binding loads and the catalog installer answers MCP.
     console.log(docker('exec', container, 'sh', '-c',
       'cli="$(ls -d /home/coder/.local/share/code-server/extensions/kilocode.kilo-code-*/bin/kilo)" && "$cli" --version'));

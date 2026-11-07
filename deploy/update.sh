@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# DevCloud Platform 1-Click Self-Update Script
+# AI Factory Platform 1-Click Self-Update Script
 # ==============================================================================
 set -Eeuo pipefail
 
@@ -34,7 +34,7 @@ flock -n 9 || fail "Another platform update is already running."
 # Fail before pulling if the service account cannot update the systemd unit.
 if [ "$(id -u)" -ne 0 ]; then
     sudo -n true >/dev/null 2>&1 || fail \
-        "Passwordless sudo is required for the DevCloud service account."
+        "Passwordless sudo is required for the AI Factory service account."
 fi
 
 command -v git >/dev/null 2>&1 || fail "Git is not installed."
@@ -66,7 +66,7 @@ echo "--> [2/5] Checking Python dependencies..."
 [ -x .venv/bin/python ] || fail "Python virtual environment is missing."
 .venv/bin/python -m pip install --disable-pip-version-check -r requirements.txt
 
-echo "--> [3/5] Installing the current DevCloud systemd unit..."
+echo "--> [3/5] Installing the current AI Factory systemd unit..."
 [ -f deploy/devcloud.service ] || fail "deploy/devcloud.service is missing."
 SERVICE_USER="${DEVCLOUD_SERVICE_USER:-}"
 if [ -z "${SERVICE_USER}" ]; then

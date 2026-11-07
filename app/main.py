@@ -113,7 +113,7 @@ async def lifespan(app: FastAPI):
     from app.migrations import require_current, upgrade
     from app.directory_sync import directory_sync_background_worker
 
-    logger.info("Initializing DevCloud Database...")
+    logger.info("Initializing AI Factory Database...")
     if settings.AUTO_MIGRATE:
         await upgrade()
     else:
@@ -123,7 +123,7 @@ async def lifespan(app: FastAPI):
     await recover_interrupted_workspace_operations()
     await recover_interrupted_mlflow_deployments()
     await seed_initial_admin()
-    logger.info("DevCloud controller ready; workspace execution is worker-only.")
+    logger.info("AI Factory controller ready; workspace execution is worker-only.")
 
     # Enforce runtime policies and advance durable model deployment jobs.
     reaper_task = asyncio.create_task(idle_reaper_background_worker(check_interval_seconds=60))
@@ -174,7 +174,7 @@ async def lifespan(app: FastAPI):
         directory_sync_task,
         return_exceptions=True,
     )
-    logger.info("DevCloud shutting down...")
+    logger.info("AI Factory shutting down...")
 
 
 app = FastAPI(

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Configure persistent SELinux labels for DevCloud workspace bind mounts.
+# Configure persistent SELinux labels for AI Factory workspace bind mounts.
 set -Eeuo pipefail
 
 WORKSPACES_DIR="${DEVCLOUD_STORAGE_ROOT:-/var/lib/devcloud/workspaces}"

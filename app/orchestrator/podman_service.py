@@ -89,7 +89,7 @@ def _skills_setup(target_dir: str) -> str:
         "{ { install -d -m 700 " + target_dir
         + " && printf '%s' \"$DEVCLOUD_SKILLS_TGZ\" | base64 -d"
         " | tar -xzf - --no-same-owner -C " + target_dir + ";"
-        " } || echo 'DevCloud: skill kütüphanesi yazılamadı.' >&2;"
+        " } || echo 'AI Factory: skill kütüphanesi yazılamadı.' >&2;"
         " unset DEVCLOUD_SKILLS_TGZ; }"
     )
 
@@ -399,7 +399,7 @@ class PodmanService:
             )
         is_jupyter = template.ide_type == "jupyter"
         is_service = template.ide_type == "service"
-        # Only images whose startup command DevCloud controls can build the
+        # Only images whose startup command AI Factory controls can build the
         # combined bundle before the IDE starts.
         ai_ca_bundle = (
             normalize_ca_bundle(ai_ca_bundle) if is_vscode or is_jupyter else ""

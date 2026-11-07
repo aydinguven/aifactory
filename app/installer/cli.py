@@ -113,7 +113,7 @@ def _worker_config_from_environment(
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="devcloud-setup",
-        description="Interactive installer and lifecycle manager for DevCloud",
+        description="Interactive installer and lifecycle manager for AI Factory",
     )
     parser.add_argument("--dry-run", action="store_true", help="show and record commands without changing the host")
     parser.add_argument("--yes", action="store_true", help="accept the displayed plan")
@@ -207,7 +207,7 @@ def _delegate_update(target_root: Path, args) -> int:
 def _config_from_state(engine: InstallerEngine) -> InstallConfig:
     state = engine.current_state(DEFAULT_STATE_ROOT)
     if state is None:
-        raise InstallerError("No managed DevCloud installation was found")
+        raise InstallerError("No managed AI Factory installation was found")
     return InstallConfig.from_dict({**state.configuration, "role": state.role})
 
 
@@ -234,7 +234,7 @@ def _interactive_command(ui: InstallerUI, installed: bool) -> str:
     ]
     if not installed:
         options = [options[0], options[-1]]
-    return ui.choose("DevCloud Setup", options)
+    return ui.choose("AI Factory Setup", options)
 
 
 def main(argv: list[str] | None = None) -> int:

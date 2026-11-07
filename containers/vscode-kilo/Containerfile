@@ -4,7 +4,7 @@
 # ships the native agent CLI as extension/bin/kilo, which the extension starts
 # on Linux.
 #
-# No keys or internal host names are baked in. DevCloud writes
+# No keys or internal host names are baked in. AI Factory writes
 # ~/.config/kilo/kilo.jsonc with the owner's AI Factory key and the Admin
 # catalog, skills and indexing settings every time the container starts.
 ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.13.1
@@ -21,7 +21,7 @@ ARG KILO_CODE_VSIX_URL=https://open-vsx.org/api/kilocode/kilo-code/linux-x64/${K
 # unverified extension can never reach a published image.
 ARG KILO_CODE_VSIX_SHA256=b438caf4be0c148050af1849db28c043b779ac89f38793c35d61e509211183c4
 
-LABEL org.opencontainers.image.title="DevCloud Kilo Code workspace"
+LABEL org.opencontainers.image.title="AI Factory Kilo Code workspace"
 
 USER root
 
@@ -58,7 +58,7 @@ RUN npm ci --prefix /opt/kilo/lancedb --omit=dev --ignore-scripts --no-audit --n
     && chmod -R a+rX /opt/kilo
 
 # Local stdio MCP server (kilo-install) that writes catalog items into the
-# open project's .kilo folder. DevCloud's kilo.jsonc starts it with bash.
+# open project's .kilo folder. AI Factory's kilo.jsonc starts it with bash.
 COPY LocalMCP.sh /opt/kilo/LocalMCP.sh
 RUN chmod 0755 /opt/kilo/LocalMCP.sh && bash -n /opt/kilo/LocalMCP.sh
 

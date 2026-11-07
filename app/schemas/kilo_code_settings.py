@@ -54,7 +54,7 @@ class KiloCodeSettingsUpdate(BaseModel):
         value = _http_url(value, "Katalog URL").rstrip("/")
         if value.lower().endswith("/mcp"):
             raise ValueError(
-                "Katalog URL /mcp ile bitmemelidir; DevCloud MCP adresini kendisi ekler."
+                "Katalog URL /mcp ile bitmemelidir; AI Factory MCP adresini kendisi ekler."
             )
         return value
 

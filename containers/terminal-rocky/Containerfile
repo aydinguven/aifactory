@@ -1,7 +1,7 @@
 # Terminal (Rocky Linux 10)
 # A native Rocky Linux shell delivered to the browser. ttyd serves HTTP and
-# WebSocket traffic on a single port, which is exactly what the DevCloud proxy
-# tunnels. DevCloud is the only authenticator, so ttyd runs without
+# WebSocket traffic on a single port, which is exactly what the AI Factory proxy
+# tunnels. AI Factory is the only authenticator, so ttyd runs without
 # credentials of its own, matching the `--auth none` posture of the VS Code
 # images.
 FROM docker.io/rockylinux/rockylinux:10.2@sha256:827d37bc128288ccf160ee318bb3cb92d591164cb217e92f8bc61e3982ae1834

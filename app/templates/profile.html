@@ -12,7 +12,7 @@
       </div>
       {% if user.auth_source == 'active_directory' %}<span class="badge badge-running">LDAP / AD</span>{% endif %}
     </div>
-    {% if user.auth_source == 'active_directory' %}<p class="text-muted">Bu bilgiler kurumsal dizinden alınır ve her başarılı girişte güncellenir. DevCloud üzerinden değiştirilemez.</p>{% else %}<p class="text-muted">Hesap bilgileri bu ekranda salt okunur gösterilir.</p>{% endif %}
+    {% if user.auth_source == 'active_directory' %}<p class="text-muted">Bu bilgiler kurumsal dizinden alınır ve her başarılı girişte güncellenir. AI Factory üzerinden değiştirilemez.</p>{% else %}<p class="text-muted">Hesap bilgileri bu ekranda salt okunur gösterilir.</p>{% endif %}
     <dl class="profile-data-list" data-tour="profile-details" style="display:grid;grid-template-columns:minmax(140px, .45fr) minmax(0, 1fr);gap:.75rem 1.5rem;margin:1.5rem 0 0;">
       <dt class="text-muted">Kullanıcı Adı</dt><dd><strong>{{ user.username }}</strong></dd>
       <dt class="text-muted">Ad Soyad</dt><dd>{{ user.full_name or '—' }}</dd>

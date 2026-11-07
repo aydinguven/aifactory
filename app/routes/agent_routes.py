@@ -337,7 +337,7 @@ async def worker_download_image(
         filename=f"{record.template_id}.tar",
         headers={
             "X-Content-Type-Options": "nosniff",
-            "X-DevCloud-SHA256": record.sha256,
+            "X-AIFactory-SHA256": record.sha256,
         },
     )
 

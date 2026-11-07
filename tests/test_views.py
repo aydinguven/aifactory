@@ -23,7 +23,7 @@ async def test_view_routes_render_html(client: AsyncClient):
     # 1. Login page
     login_resp = await client.get("/login")
     assert login_resp.status_code == 200
-    assert "DevCloud'a Hoş Geldiniz" in login_resp.text
+    assert "AI Factory'ye Hoş Geldiniz" in login_resp.text
     assert "Yeni Hesap Oluştur" in login_resp.text
     from app.config import settings
     assert '<html lang="tr">' in login_resp.text

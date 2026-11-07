@@ -2,8 +2,8 @@ ARG PYTHON_IMAGE=registry.access.redhat.com/ubi10/python-312-minimal:latest
 FROM ${PYTHON_IMAGE}
 
 ARG DEVCLOUD_VERSION=0.0.0
-LABEL org.opencontainers.image.title="DevCloud Controller" \
-      org.opencontainers.image.description="DevCloud management plane and worker tunnel controller" \
+LABEL org.opencontainers.image.title="AI Factory Controller" \
+      org.opencontainers.image.description="AI Factory management plane and worker tunnel controller" \
       org.opencontainers.image.version="${DEVCLOUD_VERSION}"
 
 USER 0

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# DevCloud Linux VM Deployment Script
+# AI Factory Linux VM Deployment Script
 set -e
 
-echo "=== Starting DevCloud Platform Setup on Linux VM ==="
+echo "=== Starting AI Factory Platform Setup on Linux VM ==="
 
 # 1. Detect Package Manager and Install Podman, crun & Python
 if command -v apt-get >/dev/null 2>&1; then
@@ -57,7 +57,7 @@ echo "Building local workspace container images..."
 bash containers/build_images.sh
 
 # 5. Setup Systemd Service
-echo "Installing DevCloud systemd service..."
+echo "Installing AI Factory systemd service..."
 SERVICE_FILE="/etc/systemd/system/devcloud.service"
 sudo sed -e "s|{{USER}}|$USER|g" \
          -e "s|{{PROJECT_DIR}}|$PROJECT_DIR|g" \
@@ -68,5 +68,5 @@ sudo systemctl enable devcloud
 sudo bash "${PROJECT_DIR}/deploy/install_ingress.sh" "$USER"
 bash "${PROJECT_DIR}/deploy/restart.sh"
 
-echo "=== DevCloud Platform Deployed Successfully! ==="
-echo "Access DevCloud in your browser at: http://$(hostname -I | awk '{print $1}')"
+echo "=== AI Factory Platform Deployed Successfully! ==="
+echo "Access AI Factory in your browser at: http://$(hostname -I | awk '{print $1}')"

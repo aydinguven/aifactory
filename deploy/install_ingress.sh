@@ -55,4 +55,4 @@ else
 fi
 systemctl daemon-reload
 systemctl enable --now devcloud-ingress.path
-echo "DevCloud Nginx ingress is ready on port 80."
+echo "AI Factory Nginx ingress is ready on port 80."

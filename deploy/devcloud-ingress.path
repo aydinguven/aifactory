@@ -1,5 +1,5 @@
 [Unit]
-Description=Watch for DevCloud ingress configuration requests
+Description=Watch for AI Factory ingress configuration requests
 
 [Path]
 PathChanged=/var/lib/devcloud/ingress/apply.request

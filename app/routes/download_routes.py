@@ -1,4 +1,4 @@
-"""Public, read-only delivery of verified DevCloud air-gap bundles."""
+"""Public, read-only delivery of verified AI Factory air-gap bundles."""
 
 from __future__ import annotations
 

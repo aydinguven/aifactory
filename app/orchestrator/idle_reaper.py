@@ -66,7 +66,7 @@ async def run_idle_reaper_cycle() -> int:
 
 async def idle_reaper_background_worker(check_interval_seconds: int = 60) -> None:
     """Enforce the configured runtime cap; historical function name is retained."""
-    logger.info("DevCloud Maximum Runtime Reaper background worker started.")
+    logger.info("AI Factory Maximum Runtime Reaper background worker started.")
     while True:
         try:
             await asyncio.sleep(check_interval_seconds)

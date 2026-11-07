@@ -2,7 +2,7 @@
 set -e
 
 echo "====================================================="
-echo "Building DevCloud Container Images with Podman"
+echo "Building AI Factory Container Images with Podman"
 echo "====================================================="
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,6 +22,6 @@ echo "4/4 Building devcloud-terminal-rocky..."
 podman build -t localhost/devcloud-terminal-rocky:latest "${SCRIPT_DIR}/terminal-rocky"
 
 echo "====================================================="
-echo "All DevCloud workspace images built successfully!"
+echo "All AI Factory workspace images built successfully!"
 echo "====================================================="
 podman images | grep devcloud

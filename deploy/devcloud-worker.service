@@ -1,5 +1,5 @@
 [Unit]
-Description=DevCloud Outbound Worker Agent
+Description=AI Factory Outbound Worker Agent
 After=network-online.target
 Wants=network-online.target
 

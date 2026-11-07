@@ -1,5 +1,5 @@
 [Unit]
-Description=Apply a queued DevCloud release
+Description=Apply a queued AI Factory release
 After=network-online.target
 
 [Service]

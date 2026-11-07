@@ -1,4 +1,4 @@
-# DevCloud container deployment
+# AI Factory container deployment
 
 ## Decision
 
@@ -66,7 +66,7 @@ Image'ları** from GHCR, another reachable OCI registry, or an OCI/Docker archiv
 The maintained VS Code image is `vscode-kilo`: code-server with Python 3, `uv`,
 Node.js 22 and Kilo Code (`kilocode.kilo-code` from Open VSX), with native
 Chat/Copilot and extension auto-updates disabled. The image contains no keys or
-internal host names; at every container start DevCloud writes
+internal host names; at every container start AI Factory writes
 `~/.config/kilo/kilo.jsonc` from the Workspace AI and Kilo Code Admin records,
 with the owner's AI Factory key for chat, the shared indexing key for
 embeddings, the skills URLs and, when a catalog URL is set, the `kilo-catalog`
@@ -117,7 +117,7 @@ Set `KILO_CODE_VERSION` and `KILO_CODE_VSIX_SHA256` in
 `containers/vscode-kilo/Containerfile` and, to the same values,
 `containers/vscode-cuda/Containerfile` (keep `lancedb/` and `LocalMCP.sh`
 identical too; the release smoke test checks both images against the
-vscode-kilo version), and release DevCloud as usual. The build refuses to run
+vscode-kilo version), and release AI Factory as usual. The build refuses to run
 while the checksum is empty.
 
 ### Updating the bundled extensions
@@ -187,10 +187,10 @@ keeps retrying in the background.
 ### Kubernetes image releases
 
 The **Kubernetes** target of the MLflow deploy modal publishes a model version
-to the deploy registry (Nexus) instead of running it on DevCloud. The platform
+to the deploy registry (Nexus) instead of running it on AI Factory. The platform
 team re-tags the image (`X.Y.Z-RC.N` for test, `X.Y.Z-N` for prod) and deploys
 it with Helm; database credentials reach the pod through Vault, External
-Secrets and `envFrom`, never through DevCloud or the image.
+Secrets and `envFrom`, never through AI Factory or the image.
 
 - Admin > Kubernetes holds the deploy registry (`host:port`, account, password,
   an optional "do not verify TLS" switch that also allows plain HTTP, and an
@@ -204,7 +204,7 @@ Secrets and `envFrom`, never through DevCloud or the image.
   code. An existing application only accepts the model it is bound to. Admins
   can disable an application, rebind it to another model, or delete it while
   it has no releases. A version already used by the application, or a tag
-  that already exists in the registry, is refused. DevCloud never deletes
+  that already exists in the registry, is refused. AI Factory never deletes
   anything in the deploy registry. It checks that the tag is free before the
   build and again right before the copy, but `skopeo copy` itself would replace
   a tag pushed in between: enable **Disable redeploy** on the Nexus hosted

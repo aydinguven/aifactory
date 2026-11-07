@@ -3,7 +3,7 @@
 Login only refreshes the user who logs in. The sync reads every directory
 person in one paged search with the service account, places each AD
 ``department`` (team) under its müdürlük and refreshes the organization fields
-of the existing DevCloud directory users. Nobody is created or deactivated.
+of the existing AI Factory directory users. Nobody is created or deactivated.
 
 A team's müdürlük is the majority of its members' manager chains, so a member
 whose own chain is broken still gets the team's müdürlük. A team whose chain
@@ -294,7 +294,7 @@ def fetch_directory_entries(config: DirectoryConfig) -> list[DirectoryEntry]:
             entries.append(to_entry(str(item.get("dn") or ""), found, in_scope=True))
 
         # Managers outside the search (another OU, or a filter that only
-        # returns DevCloud users) are read by DN so their reports' chains
+        # returns AI Factory users) are read by DN so their reports' chains
         # still reach the müdür.
         known = {entry.dn.strip().casefold() for entry in entries}
         looked_up = 0

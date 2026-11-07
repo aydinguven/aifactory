@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 SOCKET="${DEVCLOUD_PODMAN_SOCKET:-/run/podman/podman.sock}"
 [[ -S "${SOCKET}" ]] || {
-    echo "DevCloud worker cannot access the host Podman socket: ${SOCKET}" >&2
+    echo "AI Factory worker cannot access the host Podman socket: ${SOCKET}" >&2
     exit 1
 }
 

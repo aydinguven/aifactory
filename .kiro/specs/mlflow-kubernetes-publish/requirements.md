@@ -83,7 +83,7 @@ workflow, once the platform team says how.
    patch + 1, or `1.0.0` if there is none.
 3. A release is refused if the same application and version already has a
    release that is not failed, or if the tag already exists in the deploy
-   registry. DevCloud never overwrites a tag on purpose. The Nexus hosted
+   registry. AI Factory never overwrites a tag on purpose. The Nexus hosted
    repository must have "Disable redeploy" enabled, to rule out a push that
    lands between the check and the copy.
 4. The model version is read with the user's MLflow credentials, as AI

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build and verify a self-contained DevCloud air-gap bundle.
+"""Build and verify a self-contained AI Factory air-gap bundle.
 
 The builder deliberately packages only files tracked by Git. Generated wheels,
 container archives, runtime databases, workspaces, and secrets are never read
@@ -232,7 +232,7 @@ def normalize_python_version(version: str) -> tuple[str, str]:
         )
     major, minor = parts
     if major != "3" or int(minor) < 11:
-        raise PackageError("DevCloud requires a CPython version of 3.11 or newer")
+        raise PackageError("AI Factory requires a CPython version of 3.11 or newer")
     return f"{major}.{int(minor)}", f"{major}{int(minor)}"
 
 
@@ -1098,7 +1098,7 @@ def build_bundle(args: argparse.Namespace) -> tuple[Path, Path]:
     checksum_path.unlink(missing_ok=True)
 
     print("=" * 78)
-    print(f"Building DevCloud {bundle_role} air-gap bundle from Git commit {commit}")
+    print(f"Building AI Factory {bundle_role} air-gap bundle from Git commit {commit}")
     print("=" * 78)
 
     with tempfile.TemporaryDirectory(prefix="devcloud-airgap-") as temp_dir:

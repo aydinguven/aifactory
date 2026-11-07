@@ -1,5 +1,5 @@
 [Unit]
-Description=DevCloud private container network
+Description=AI Factory private container network
 
 [Network]
 NetworkName=devcloud

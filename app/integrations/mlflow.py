@@ -255,7 +255,7 @@ class MlflowClient:
     async def set_model_version_tag(
         self, name: str, version: str, key: str, value: str
     ) -> None:
-        """The one write DevCloud makes: record where a version was published."""
+        """The one write AI Factory makes: record where a version was published."""
         if not name.strip() or not version.isdigit() or int(version) < 1:
             raise MlflowConfigurationError(
                 "Model adı ve pozitif sayısal model versiyonu gereklidir."

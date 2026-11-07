@@ -17,7 +17,7 @@ All calls send `Authorization: Bearer <aifactory admin key>`.
 | Delete key | `POST /key/delete` `{keys: [<token hash>]}` |
 | Daily usage | `GET /user/daily/activity?start_date&end_date` (optional; if it fails, the section is hidden) |
 
-If `/user/new` reports that the user already exists, devcloud adopts that user.
+If `/user/new` reports that the user already exists, AI Factory adopts that user.
 Key aliases include a timestamp (`devcloud-k015570-202610061530`) so a new key
 never clashes with an old alias.
 
@@ -28,7 +28,7 @@ never clashes with an old alias.
 `timeout_seconds=15`, `user_role` (nullable), `allowed_models_json` (nullable),
 `max_budget` (nullable float), `budget_duration`, `key_duration`, `updated_at`.
 
-`genai_accounts` (one row per devcloud user):
+`genai_accounts` (one row per AI Factory user):
 `id`, `user_id` FK→users (unique, cascade), `litellm_user_id`,
 `personal_key_alias`, `personal_key_token` (hash, never the key),
 `workspace_key_alias`, `encrypted_workspace_key`, `workspace_key_token`,

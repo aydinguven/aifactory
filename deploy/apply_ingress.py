@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Apply DevCloud's fixed-path Nginx ingress configuration as root."""
+"""Apply AI Factory's fixed-path Nginx ingress configuration as root."""
 
 from __future__ import annotations
 
@@ -126,7 +126,7 @@ def render_nginx_config(
             f"    ssl_certificate {ACTIVE_CERTIFICATE};\n"
             f"    ssl_certificate_key {ACTIVE_PRIVATE_KEY};\n"
             "    ssl_protocols TLSv1.2 TLSv1.3;\n"
-            "    ssl_session_cache shared:DevCloudTLS:10m;\n"
+            "    ssl_session_cache shared:AIFactoryTLS:10m;\n"
             "    ssl_session_timeout 1d;\n\n"
             f"{proxy_location()}"
             "}\n"
@@ -226,7 +226,7 @@ def main() -> int:
         raise
 
     print(
-        f"DevCloud ingress applied: HTTP fallback={http_fallback_enabled}, "
+        f"AI Factory ingress applied: HTTP fallback={http_fallback_enabled}, "
         f"HTTPS={https_enabled}, hostname={hostname}"
     )
     atomic_write(

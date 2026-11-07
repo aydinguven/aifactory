@@ -249,7 +249,7 @@ TARGET_DIR="$(cd "${{TARGET_INPUT}}" && pwd -P)"
 [[ -f "${{TARGET_DIR}}/offline/MANIFEST.json" ]] || fail \
     "The target has no offline bundle manifest."
 [[ -f "${{TARGET_DIR}}/deploy/devcloud-setup.sh" ]] || fail \
-    "The target is not an extracted DevCloud bundle."
+    "The target is not an extracted AI Factory bundle."
 command -v sha256sum >/dev/null 2>&1 || fail "sha256sum is required."
 command -v python3 >/dev/null 2>&1 || fail "python3 is required to merge bundle manifests."
 

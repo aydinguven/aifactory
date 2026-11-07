@@ -1,5 +1,5 @@
 [Unit]
-Description=DevCloud rootful workspace worker container
+Description=AI Factory rootful workspace worker container
 After=network-online.target podman.socket
 Wants=network-online.target
 Requires=podman.socket

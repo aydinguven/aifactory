@@ -8,7 +8,7 @@ from app import __version__
 class Settings(BaseSettings):
     """Application settings and configuration."""
     
-    APP_NAME: str = "DevCloud Çalışma Alanı Yönetimi"
+    APP_NAME: str = "AI Factory Çalışma Alanı Yönetimi"
     APP_VERSION: ClassVar[str] = __version__
     ENV: str = "development"
     DEBUG: bool = True

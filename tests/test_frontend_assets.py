@@ -490,8 +490,8 @@ def test_linear_onboarding_tour_has_multiple_persistent_steps():
     assert 'state.status === "not_started" && state.auto_offer' in javascript
     assert "await startTour()" in javascript
     assert 'window.location.assign(route)' in javascript
-    assert "DevCloudWorkspaceCreateModal" in javascript
-    assert "DevCloudWorkspaceCreateModal" in app_javascript
+    assert "AIFactoryWorkspaceCreateModal" in javascript
+    assert "AIFactoryWorkspaceCreateModal" in app_javascript
     assert 'close({force: true})' in javascript
     assert "handleModalKeydown" in app_javascript
     assert 'event.key === "Escape"' in app_javascript

@@ -81,7 +81,7 @@ STARTING_PAGE_HTML = """<!DOCTYPE html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>__WORKSPACE_NAME__ başlatılıyor - DevCloud</title>
+    <title>__WORKSPACE_NAME__ başlatılıyor - AI Factory</title>
     <style>
         :root { color-scheme: light; font-family: "Segoe UI", Arial, sans-serif; color: #323a47; }
         * { box-sizing: border-box; }
@@ -269,7 +269,7 @@ def _forward_headers(request: Request, workspace: Workspace, custom_port: int | 
 
 
 def _workspace_websocket_query(websocket: WebSocket) -> str:
-    """Do not forward the DevCloud query-token credential into the container."""
+    """Do not forward the AI Factory query-token credential into the container."""
     raw = websocket.scope.get("query_string", b"").decode()
     return urlencode([(key, value) for key, value in parse_qsl(raw, keep_blank_values=True) if key != "token"])
 

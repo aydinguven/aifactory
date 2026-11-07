@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the independently distributable DevCloud workspace image pack."""
+"""Build the independently distributable AI Factory workspace image pack."""
 
 from __future__ import annotations
 

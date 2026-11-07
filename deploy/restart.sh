@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Reload DevCloud's Uvicorn workers without stopping Podman workspace containers.
+# Reload AI Factory's Uvicorn workers without stopping Podman workspace containers.
 set -Eeuo pipefail
 
 SERVICE_NAME="${DEVCLOUD_SERVICE_NAME:-devcloud.service}"
@@ -103,7 +103,7 @@ wait_for_start() {
         [[ "${state}" == "failed" ]] && break
 
         if [[ "${state}" == "active" && "${pid}" != "0" ]] && health_ready; then
-            log "DevCloud is healthy (main PID: ${pid}, URL: ${HEALTH_URL})."
+            log "AI Factory is healthy (main PID: ${pid}, URL: ${HEALTH_URL})."
             return 0
         fi
         sleep 0.5
@@ -144,7 +144,7 @@ if [[ "${STATE}" == "active" ]] && pid_is_alive "${OLD_MAIN_PID}"; then
 
             if [[ "${state}" == "active" && "${current_main_pid}" == "${OLD_MAIN_PID}" ]] &&
                 (( workers_reloaded == 1 )) && health_ready; then
-                log "DevCloud workers reloaded and healthy (main PID: ${current_main_pid}, URL: ${HEALTH_URL})."
+                log "AI Factory workers reloaded and healthy (main PID: ${current_main_pid}, URL: ${HEALTH_URL})."
                 exit 0
             fi
             [[ "${state}" == "failed" ]] && break

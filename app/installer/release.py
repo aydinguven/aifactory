@@ -103,7 +103,7 @@ def _source_root(extracted: Path) -> Path:
     ]
     if len(candidates) != 1:
         raise InstallerError(
-            "Release must contain one DevCloud source root with app/__init__.py"
+            "Release must contain one AI Factory source root with app/__init__.py"
         )
     return candidates[0]
 

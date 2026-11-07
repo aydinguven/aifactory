@@ -1,6 +1,6 @@
 # SELinux enforcing-mode deployment
 
-DevCloud supports SELinux enforcing mode on Rocky Linux, RHEL, CentOS Stream,
+AI Factory supports SELinux enforcing mode on Rocky Linux, RHEL, CentOS Stream,
 and Fedora. Workspace containers keep SELinux separation enabled; the project
 does not disable labels and does not require `setenforce 0` during normal use.
 
@@ -14,7 +14,7 @@ does not disable labels and does not require `setenforce 0` during normal use.
   `/var/lib/devcloud/workspaces` and applies the context without overwriting
   private MCS labels belonging to running containers.
 
-Clean installs also place Nginx in front of DevCloud. The installer does not
+Clean installs also place Nginx in front of AI Factory. The installer does not
 silently enable a broad httpd_can_network_connect SELinux boolean. If the UI
 loads but Nginx returns 502 on an enforcing host, inspect the AVC record and
 apply the organization's approved reverse-proxy policy before changing any
@@ -26,7 +26,7 @@ Do not switch directly from Disabled to Enforcing. Files created while SELinux
 was disabled can be unlabeled, so first boot permissive and allow a complete
 file-system relabel.
 
-### 1. Update DevCloud and install SELinux tools
+### 1. Update AI Factory and install SELinux tools
 
 ```bash
 cd /root/devcloud
@@ -75,7 +75,7 @@ terminal, create a file, then repeat with Jupyter and save a notebook.
 
 Containers originally created while SELinux was Disabled may not have private
 MCS labels. If an old workspace produces AVC denials, remove only its Podman
-container and use the DevCloud **Start** action to recreate it. Its host storage
+container and use the AI Factory **Start** action to recreate it. Its host storage
 directory and database record remain intact:
 
 ```bash

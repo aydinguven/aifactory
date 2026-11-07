@@ -1,5 +1,5 @@
 // ==============================================================================
-// DevCloud Client Application Logic
+// AI Factory Client Application Logic
 // ==============================================================================
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -1082,7 +1082,7 @@ function initWorkspaceCreationModal() {
   modalBackdrop.setAttribute("aria-hidden", "true");
   document.addEventListener("keydown", handleModalKeydown);
 
-  window.DevCloudWorkspaceCreateModal = {
+  window.AIFactoryWorkspaceCreateModal = {
     open: openModal,
     close: closeModal,
     isOpen: () => modalBackdrop.classList.contains("open"),
@@ -2981,7 +2981,7 @@ function initWorkspaceTabs() {
       if (targetTab) {
         targetTab.style.display = "block";
         if (btn.dataset.tab === "tab-files") {
-          DevCloudFileManager.init();
+          AIFactoryFileManager.init();
         }
       }
     });
@@ -2989,7 +2989,7 @@ function initWorkspaceTabs() {
 }
 
 // 8. In-Browser File Manager
-const DevCloudFileManager = {
+const AIFactoryFileManager = {
   workspaceId: null,
   currentPath: "",
 
@@ -3033,14 +3033,14 @@ const DevCloudFileManager = {
       data.items.forEach((item) => {
         const icon = item.is_dir ? "📁" : "📄";
         const nameLink = item.is_dir
-          ? `<a href="javascript:void(0)" onclick="DevCloudFileManager.loadDir('${item.path}')" style="color: #fff; font-weight: 600; text-decoration: none;">${icon} ${item.name}</a>`
+          ? `<a href="javascript:void(0)" onclick="AIFactoryFileManager.loadDir('${item.path}')" style="color: #fff; font-weight: 600; text-decoration: none;">${icon} ${item.name}</a>`
           : `<span style="color: #cbd5e1;">${icon} ${item.name}</span>`;
 
         const downloadBtn = !item.is_dir
           ? `<a href="/api/workspaces/${this.workspaceId}/files/download?path=${encodeURIComponent(item.path)}" class="btn btn-secondary btn-sm" style="padding: 0.2rem 0.5rem; font-size: 0.72rem;">⬇</a>`
           : "";
 
-        const deleteBtn = `<button class="btn btn-danger btn-sm" onclick="DevCloudFileManager.deleteItem('${item.path}')" style="padding: 0.2rem 0.5rem; font-size: 0.72rem;">🗑</button>`;
+        const deleteBtn = `<button class="btn btn-danger btn-sm" onclick="AIFactoryFileManager.deleteItem('${item.path}')" style="padding: 0.2rem 0.5rem; font-size: 0.72rem;">🗑</button>`;
 
         html += `
           <tr style="border-bottom: 1px solid var(--border-color);">
@@ -3060,7 +3060,7 @@ const DevCloudFileManager = {
   renderBreadcrumbs(curPath) {
     const el = document.getElementById("fm-breadcrumbs");
     if (!el) return;
-    let html = `<span style="cursor: pointer; color: var(--primary);" onclick="DevCloudFileManager.loadDir('')">root</span>`;
+    let html = `<span style="cursor: pointer; color: var(--primary);" onclick="AIFactoryFileManager.loadDir('')">root</span>`;
     if (curPath) {
       const parts = curPath.split("/");
       let accum = "";
@@ -3068,7 +3068,7 @@ const DevCloudFileManager = {
         if (!p) return;
         accum += (accum ? "/" : "") + p;
         const thisPath = accum;
-        html += ` <span style="color: var(--text-muted);">/</span> <span style="cursor: pointer; color: var(--primary);" onclick="DevCloudFileManager.loadDir('${thisPath}')">${p}</span>`;
+        html += ` <span style="color: var(--text-muted);">/</span> <span style="cursor: pointer; color: var(--primary);" onclick="AIFactoryFileManager.loadDir('${thisPath}')">${p}</span>`;
       });
     }
     el.innerHTML = html;
