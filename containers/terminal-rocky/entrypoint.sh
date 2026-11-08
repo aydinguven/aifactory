@@ -3,14 +3,18 @@
 set -euo pipefail
 
 HOME_DIR="${HOME:-/home/devuser}"
-SKELETON="/opt/devcloud-home-skel.tar"
-PORT="${DEVCLOUD_TERMINAL_PORT:-7681}"
-SENTINEL="${HOME_DIR}/.devcloud-home-seeded"
+SKELETON="/opt/aifactory-home-skel.tar"
+PORT="${AIFACTORY_TERMINAL_PORT:-7681}"
+SENTINEL="${HOME_DIR}/.aifactory-home-seeded"
 
 # AI Factory mounts persistent storage over the home directory, so on the very
 # first start the image's dotfiles are hidden behind an empty volume. Restore
 # them once and leave the marker behind; later starts keep whatever the user
 # has since changed.
+# Homes seeded by images before 3.49.1 carry the devcloud marker.
+if [[ -e "${HOME_DIR}/.devcloud-home-seeded" && ! -e "${SENTINEL}" ]]; then
+    mv "${HOME_DIR}/.devcloud-home-seeded" "${SENTINEL}"
+fi
 if [[ ! -e "${SENTINEL}" ]]; then
     if [[ -r "${SKELETON}" ]]; then
         tar -xf "${SKELETON}" -C "${HOME_DIR}"
@@ -31,4 +35,4 @@ exec ttyd \
     --client-option disableLeaveAlert=true \
     --client-option rendererType=canvas \
     --client-option titleFixed="AI Factory Terminal" \
-    tmux new-session -A -s devcloud
+    tmux new-session -A -s aifactory

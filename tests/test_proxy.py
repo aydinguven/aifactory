@@ -114,11 +114,11 @@ async def test_proxy_waiting_page_exposes_live_authenticated_diagnostics(
     assert "Son Container Çıktısı" in response.text
     assert "IDE Portu" in response.text
     assert "Kontrol" in response.text
-    assert f"/proxy/{workspace['id']}/_devcloud/status?tail=120" in response.text
+    assert f"/proxy/{workspace['id']}/_aifactory/status?tail=120" in response.text
     assert "http-equiv=\"refresh\"" not in response.text
 
     status_response = await client.get(
-        f"/proxy/{workspace['id']}/_devcloud/status?tail=120",
+        f"/proxy/{workspace['id']}/_aifactory/status?tail=120",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert status_response.status_code == 200
@@ -139,7 +139,7 @@ async def test_proxy_waiting_page_exposes_live_authenticated_diagnostics(
     )
     other_token = other_register.json()["access_token"]
     forbidden = await client.get(
-        f"/proxy/{workspace['id']}/_devcloud/status",
+        f"/proxy/{workspace['id']}/_aifactory/status",
         headers={"Authorization": f"Bearer {other_token}"},
     )
     assert forbidden.status_code == 403
@@ -281,7 +281,7 @@ async def test_proxy_preserves_content_encoding_for_raw_stream(client: AsyncClie
             "Authorization": f"Bearer {token}",
             "Accept-Encoding": "gzip",
             "Origin": "http://test",
-            "Cookie": f"devcloud_session={token}; _xsrf=workspace-xsrf",
+            "Cookie": f"aifactory_session={token}; _xsrf=workspace-xsrf",
         },
     )
 
@@ -469,7 +469,7 @@ async def test_proxy_negotiates_websocket_subprotocol(
     workspace = SimpleNamespace(
         id="ws-1",
         node_id="remote-node",
-        container_name="devcloud-1-shell-abcd1234",
+        container_name="aifactory-1-shell-abcd1234",
         host_port=7681,
         template_id="terminal-rocky",
         workspace_token="tok",
@@ -496,7 +496,7 @@ async def test_proxy_accepts_without_subprotocol_for_legacy_worker(monkeypatch):
     workspace = SimpleNamespace(
         id="ws-2",
         node_id="remote-node",
-        container_name="devcloud-1-shell-abcd1234",
+        container_name="aifactory-1-shell-abcd1234",
         host_port=7681,
         template_id="terminal-rocky",
         workspace_token="tok",

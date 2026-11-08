@@ -19,7 +19,7 @@ from app.schemas.directory import DirectorySettingsUpdate
 from app.schemas.user import UserCreate
 from app.security.secrets import SecretDecryptionError, decrypt_secret, encrypt_secret
 
-logger = logging.getLogger("devcloud.auth.ldap")
+logger = logging.getLogger("aifactory.auth.ldap")
 
 
 class DirectoryConfigurationError(ValueError):

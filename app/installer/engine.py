@@ -15,7 +15,7 @@ from urllib.parse import quote, urlsplit
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
 from app.installer.models import (
     ControllerRuntime,
@@ -26,6 +26,7 @@ from app.installer.models import (
     UpdateSourceType,
 )
 from app.installer.backup import create_backup, restore_backup
+from app.installer.layout import CURRENT, LEGACY, current_env_key
 from app.installer.progress import DEFAULT_QUEUE_ROOT, ProgressReporter
 from app.installer.platform import (
     CommandRunner,
@@ -39,11 +40,15 @@ from app.installer.platform import (
 from app.installer.state import InstallationState
 from app.platform_release import load_platform_release
 
+if TYPE_CHECKING:  # pragma: no cover
+    from app.installer.legacy_layout import LegacyMigration
+
 
 # Retention after a successful update: the current and previous release
 # (rollback target), their runtime images, and the newest backups.
 KEEP_RELEASES = 2
 KEEP_BACKUPS = 3
+RELEASE_MARKERS = (".aifactory-release-id", ".devcloud-release-id")
 # Head room an update needs beyond a second copy of the release tree.
 UPDATE_FREE_MARGIN_BYTES = 2 * 1024 ** 3
 
@@ -134,6 +139,9 @@ class InstallerEngine:
         self.release_id = self._source_release_id()
         self.previous_release: Path | None = None
         self.migration_applied = False
+        # Set while a devcloud host moves to the new names from inside the
+        # still running devcloud updater (see LegacyMigration).
+        self.defer_update_watcher = False
 
     def _source_version(self) -> str:
         version_file = self.project_root / "app" / "__init__.py"
@@ -216,7 +224,7 @@ class InstallerEngine:
     def state_path(self, config: InstallConfig) -> Path:
         return self.host_path(config.state_root) / "install-state.json"
 
-    def current_state(self, state_root: str = "/var/lib/devcloud/installer") -> InstallationState | None:
+    def current_state(self, state_root: str = CURRENT.state_root) -> InstallationState | None:
         return InstallationState.load(self.host_path(state_root) / "install-state.json")
 
     def preflight(self) -> None:
@@ -225,7 +233,7 @@ class InstallerEngine:
         if os.name != "posix":
             raise InstallerError("AI Factory installation is supported only on Linux hosts.")
         if os.geteuid() != 0:
-            raise InstallerError("Run devcloud-setup as root.")
+            raise InstallerError("Run aifactory-setup as root.")
         host = detect_platform(self.host_path("/etc/os-release"))
         validate_target(host)
         if not self.runner.exists("dnf"):
@@ -411,19 +419,25 @@ class InstallerEngine:
             ],
         )
 
-    def build_update_plan(self, config: InstallConfig) -> InstallPlan:
+    def build_update_plan(
+        self,
+        config: InstallConfig,
+        *,
+        migration: "LegacyMigration | None" = None,
+    ) -> InstallPlan:
+        """Update plan; ``migration`` first moves a devcloud host to the new names."""
         self._validate_config(config)
         # The admin panel and worker heartbeats read the step progress.
         self.progress = ProgressReporter.from_environment(
             None if self.runner.dry_run else self.host_path(DEFAULT_QUEUE_ROOT)
         )
         backup_step = []
-        if config.installs_controller:
+        if config.installs_controller and migration is None:
             state = self.current_state(config.state_root)
             current_version = state.version if state else "unknown"
             timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
             backup_path = self.host_path(
-                f"/var/lib/devcloud/backups/pre-update-v{current_version}-{timestamp}.tar.gz"
+                f"/var/lib/aifactory/backups/pre-update-v{current_version}-{timestamp}.tar.gz"
             )
             backup_step.append(
                 PlanStep(
@@ -439,7 +453,7 @@ class InstallerEngine:
                     ),
                 )
             )
-        return InstallPlan(
+        plan = InstallPlan(
             f"Update AI Factory to {self.release_version}",
             [
                 PlanStep(
@@ -448,10 +462,16 @@ class InstallerEngine:
                     lambda: (self.preflight(), self._check_update_disk_space(config)),
                 ),
                 *backup_step,
+                *(migration.steps() if migration else []),
                 PlanStep(
                     "release",
                     f"Stage immutable release {self.release_version} without removing the current release",
                     lambda: self._install_release(config),
+                ),
+                *(
+                    [migration.worker_storage_step()]
+                    if migration and config.installs_worker
+                    else []
                 ),
                 PlanStep(
                     "controller-images",
@@ -508,15 +528,22 @@ class InstallerEngine:
                     "Record the successfully applied release",
                     lambda: self._save_state(config),
                 ),
+                *([migration.commit_step()] if migration else []),
                 PlanStep(
                     "cleanup",
                     "Remove releases, runtime images and backups older than the rollback target",
                     lambda: self._safe_cleanup_after_update(config),
                 ),
+                *([migration.finish_step()] if migration else []),
             ],
-            on_failure=lambda: self._rollback_update(config),
+            on_failure=(
+                migration.undo if migration else lambda: self._rollback_update(config)
+            ),
             progress=self.progress,
         )
+        if migration is not None:
+            self.defer_update_watcher = migration.inside_update_service
+        return plan
 
     def build_uninstall_plan(
         self,
@@ -625,7 +652,7 @@ class InstallerEngine:
             ],
         )
 
-    def status(self, state_root: str = "/var/lib/devcloud/installer") -> dict:
+    def status(self, state_root: str = CURRENT.state_root) -> dict:
         state = self.current_state(state_root)
         if state is None:
             return {"installed": False, "services": {}}
@@ -633,16 +660,16 @@ class InstallerEngine:
         role = DeploymentRole(state.role)
         names = []
         if role in {DeploymentRole.CONTROLLER, DeploymentRole.ALL_IN_ONE}:
-            names.append("devcloud-controller.service")
+            names.append("aifactory-controller.service")
             if (
                 state.configuration.get("controller_runtime")
                 == ControllerRuntime.CONTAINER.value
                 and state.configuration.get("database_mode")
                 == DatabaseMode.BUNDLED_POSTGRESQL.value
             ):
-                names.append("devcloud-postgresql.service")
+                names.append("aifactory-postgresql.service")
         if role in {DeploymentRole.WORKER, DeploymentRole.ALL_IN_ONE}:
-            names.append("devcloud-worker.service")
+            names.append("aifactory-worker.service")
         for name in names:
             if self.runner.dry_run:
                 services[name] = "unknown"
@@ -680,9 +707,13 @@ class InstallerEngine:
             )
             if not value.is_absolute() or value == PurePosixPath("/"):
                 raise InstallerError(f"{field_name} must be a safe absolute path")
-            if not any("devcloud" in part.lower() for part in value.parts):
+            if not any(
+                name in part.lower()
+                for part in value.parts
+                for name in (CURRENT.name, LEGACY.name)
+            ):
                 raise InstallerError(
-                    f"{field_name} must be a dedicated directory whose path contains 'devcloud'"
+                    f"{field_name} must be a dedicated directory whose path contains 'aifactory'"
                 )
         path_policies = {
             "install_root": (PurePosixPath("/opt"), PurePosixPath("/var/lib")),
@@ -722,7 +753,7 @@ class InstallerEngine:
             ):
                 raise InstallerError(
                     "External registry must be an OCI image prefix such as "
-                    "registry.example.com/devcloud"
+                    "registry.example.com/aifactory"
                 )
         if config.installs_controller and config.update_source_type == UpdateSourceType.GIT:
             if (
@@ -739,9 +770,7 @@ class InstallerEngine:
             if not config.database_url.startswith(
                 ("postgresql+asyncpg://", "postgresql://")
             ):
-                existing = self._read_env(
-                    self.host_path("/etc/devcloud/controller.env")
-                )
+                existing = self._existing_env("controller.env")
                 if not existing.get("DATABASE_URL", "").startswith(
                     ("postgresql+asyncpg://", "postgresql://")
                 ):
@@ -750,25 +779,36 @@ class InstallerEngine:
                     )
         if config.role == DeploymentRole.WORKER:
             if not config.worker_id:
-                existing_worker = self._read_env(
-                    self.host_path("/etc/devcloud/worker.env")
-                )
-                if not existing_worker.get("DEVCLOUD_NODE_ID"):
+                existing_worker = self._existing_env("worker.env")
+                if not existing_worker.get("AIFACTORY_NODE_ID"):
                     raise InstallerError("Worker installation requires a worker ID")
             if (
                 not config.enrollment_token_file
-                and not self.host_path("/etc/devcloud/worker.env").is_file()
+                and not self._existing_env_path("worker.env").is_file()
                 and not self.runner.dry_run
             ):
                 raise InstallerError(
                     "Worker installation requires an enrollment token file"
                 )
         if config.installs_controller and not config.admin_password:
-            existing = self.host_path("/etc/devcloud/controller.env")
+            existing = self._existing_env_path("controller.env")
             if not existing.is_file():
                 raise InstallerError(
                     "A new controller installation requires an administrator password"
                 )
+
+    def _existing_env_path(self, name: str) -> Path:
+        """An installed environment file, before or after the devcloud move."""
+        current = self.host_path(f"{CURRENT.etc_dir}/{name}")
+        if current.is_file():
+            return current
+        return self.host_path(f"{LEGACY.etc_dir}/{name}")
+
+    def _existing_env(self, name: str) -> dict[str, str]:
+        return {
+            current_env_key(key): value
+            for key, value in self._read_env(self._existing_env_path(name)).items()
+        }
 
     def _install_packages(self, config: InstallConfig) -> None:
         packages = {
@@ -816,21 +856,21 @@ class InstallerEngine:
         ):
             return
         if config.containerized_controller:
-            env_path = self.host_path("/etc/devcloud/postgresql.env")
+            env_path = self.host_path("/etc/aifactory/postgresql.env")
             existing = self._read_env(env_path)
             password = existing.get("POSTGRESQL_PASSWORD", "") or secrets.token_urlsafe(36)
             self._write_env(
                 env_path,
                 {
-                    "POSTGRESQL_USER": "devcloud",
+                    "POSTGRESQL_USER": "aifactory",
                     "POSTGRESQL_PASSWORD": password,
-                    "POSTGRESQL_DATABASE": "devcloud",
+                    "POSTGRESQL_DATABASE": "aifactory",
                 },
                 podman=True,
             )
             config.database_url = (
-                "postgresql+asyncpg://devcloud:"
-                f"{quote(password, safe='')}@devcloud-postgresql/devcloud"
+                "postgresql+asyncpg://aifactory:"
+                f"{quote(password, safe='')}@aifactory-postgresql/aifactory"
             )
             return
         pg_version = self.host_path("/var/lib/pgsql/data/PG_VERSION")
@@ -845,7 +885,7 @@ class InstallerEngine:
                 "--",
                 "psql",
                 "-tAc",
-                "SELECT 1 FROM pg_roles WHERE rolname='devcloud'",
+                "SELECT 1 FROM pg_roles WHERE rolname='aifactory'",
             ],
             capture_output=True,
             check=False,
@@ -859,7 +899,7 @@ class InstallerEngine:
                     "--",
                     "createuser",
                     "--login",
-                    "devcloud",
+                    "aifactory",
                 ]
             )
         database = self.runner.run(
@@ -870,7 +910,7 @@ class InstallerEngine:
                 "--",
                 "psql",
                 "-tAc",
-                "SELECT 1 FROM pg_database WHERE datname='devcloud'",
+                "SELECT 1 FROM pg_database WHERE datname='aifactory'",
             ],
             capture_output=True,
             check=False,
@@ -888,8 +928,8 @@ class InstallerEngine:
                     "--",
                     "createdb",
                     "--owner",
-                    "devcloud",
-                    "devcloud",
+                    "aifactory",
+                    "aifactory",
                 ]
             )
 
@@ -900,7 +940,7 @@ class InstallerEngine:
                     "useradd",
                     "--system",
                     "--home-dir",
-                    "/var/lib/devcloud",
+                    "/var/lib/aifactory",
                     "--shell",
                     "/sbin/nologin",
                     config.service_user,
@@ -929,7 +969,7 @@ class InstallerEngine:
                     "useradd",
                     "--system",
                     "--home-dir",
-                    "/var/lib/devcloud",
+                    "/var/lib/aifactory",
                     "--shell",
                     "/sbin/nologin",
                     config.service_user,
@@ -992,23 +1032,23 @@ class InstallerEngine:
 
     def _ensure_directories(self, config: InstallConfig) -> None:
         owned = [
-            "/var/lib/devcloud",
+            "/var/lib/aifactory",
             config.install_root,
             config.state_root,
             config.releases_root,
-            "/var/lib/devcloud/database",
-            "/var/lib/devcloud/download-builds",
-            "/var/lib/devcloud/update-queue",
-            "/var/lib/devcloud/update-queue/uploads",
+            "/var/lib/aifactory/database",
+            "/var/lib/aifactory/download-builds",
+            "/var/lib/aifactory/update-queue",
+            "/var/lib/aifactory/update-queue/uploads",
         ]
         if config.installs_worker:
             owned.append(config.workspace_root)
         if config.installs_controller:
             owned.append(config.downloads_root)
         if config.containerized_controller:
-            owned.append("/var/lib/devcloud/ingress")
+            owned.append("/var/lib/aifactory/ingress")
             if config.database_mode == DatabaseMode.BUNDLED_POSTGRESQL:
-                owned.append("/var/lib/devcloud/postgresql")
+                owned.append("/var/lib/aifactory/postgresql")
         if self.runner.dry_run:
             for value in owned:
                 self.runner.run(
@@ -1034,7 +1074,7 @@ class InstallerEngine:
                     config.service_user,
                     "-m",
                     "0750",
-                    "/etc/devcloud",
+                    "/etc/aifactory",
                 ]
             )
             if config.installs_worker:
@@ -1048,7 +1088,7 @@ class InstallerEngine:
                         config.service_user,
                         "-m",
                         "0750",
-                        "/etc/devcloud/pki",
+                        "/etc/aifactory/pki",
                     ]
                 )
             return
@@ -1059,7 +1099,7 @@ class InstallerEngine:
                 self.runner.run(
                     ["chown", f"{config.service_user}:{config.service_user}", str(path)]
                 )
-        etc_dir = self.host_path("/etc/devcloud")
+        etc_dir = self.host_path("/etc/aifactory")
         etc_dir.mkdir(parents=True, exist_ok=True)
         if not self.runner.dry_run:
             self.runner.run(
@@ -1075,11 +1115,11 @@ class InstallerEngine:
             os.chmod(pki_dir, 0o750)
         if config.containerized_controller:
             controller_owned = [
-                "/var/lib/devcloud/database",
-                "/var/lib/devcloud/download-builds",
-                "/var/lib/devcloud/ingress",
-                "/var/lib/devcloud/update-queue",
-                "/var/lib/devcloud/update-queue/uploads",
+                "/var/lib/aifactory/database",
+                "/var/lib/aifactory/download-builds",
+                "/var/lib/aifactory/ingress",
+                "/var/lib/aifactory/update-queue",
+                "/var/lib/aifactory/update-queue/uploads",
                 config.downloads_root,
             ]
             for value in controller_owned:
@@ -1089,7 +1129,7 @@ class InstallerEngine:
                     [
                         "chown",
                         "26:26",
-                        str(self.host_path("/var/lib/devcloud/postgresql")),
+                        str(self.host_path("/var/lib/aifactory/postgresql")),
                     ]
                 )
 
@@ -1097,7 +1137,7 @@ class InstallerEngine:
         bundled_keyring = release_root / "release-keyring.gpg"
         if not bundled_keyring.is_file() or bundled_keyring.is_symlink():
             return
-        etc_dir = self.host_path("/etc/devcloud")
+        etc_dir = self.host_path("/etc/aifactory")
         etc_dir.mkdir(parents=True, exist_ok=True)
         keyring_target = etc_dir / "release-keyring.gpg"
         temporary_keyring = etc_dir / f".release-keyring-{uuid.uuid4().hex}.tmp"
@@ -1113,13 +1153,13 @@ class InstallerEngine:
         if self.runner.dry_run:
             self.runner.run(
                 [
-                    "devcloud-internal-install-release",
+                    "aifactory-internal-install-release",
                     str(self.project_root),
                     str(target),
                 ]
             )
             return
-        marker_name = ".devcloud-release-id"
+        marker_name = RELEASE_MARKERS[0]
         if target.exists():
             marker = target / marker_name
             if not marker.is_file() or marker.read_text(encoding="utf-8").strip() != self.release_id:
@@ -1168,7 +1208,7 @@ class InstallerEngine:
 
     def _rollback_release(self, config: InstallConfig) -> None:
         if self.runner.dry_run:
-            self.runner.run(["devcloud-internal-rollback-release"])
+            self.runner.run(["aifactory-internal-rollback-release"])
             return
         if self.migration_applied or self.previous_release is None:
             return
@@ -1192,7 +1232,7 @@ class InstallerEngine:
             raise InstallerError(
                 f"Not enough free disk space for the update in {releases_root}: about "
                 f"{needed / 1024 ** 3:.1f} GiB needed, {free / 1024 ** 3:.1f} GiB free. "
-                "Remove old backups (/var/lib/devcloud/backups) or unused images "
+                "Remove old backups (/var/lib/aifactory/backups) or unused images "
                 "(podman image prune) and retry."
             )
 
@@ -1225,7 +1265,9 @@ class InstallerEngine:
         if releases_root.is_dir():
             staged = [
                 path for path in releases_root.iterdir()
-                if path.is_dir() and not path.is_symlink() and (path / ".devcloud-release-id").is_file()
+                if path.is_dir()
+                and not path.is_symlink()
+                and any((path / marker).is_file() for marker in RELEASE_MARKERS)
             ]
             staged.sort(key=lambda path: path.stat().st_mtime, reverse=True)
             survivors = [path for path in staged if path.resolve() in keep_paths]
@@ -1239,7 +1281,7 @@ class InstallerEngine:
                 removed.append(path.name)
             for leftover in releases_root.glob(".*.staging-*"):
                 shutil.rmtree(leftover, ignore_errors=True)
-        backups = self.host_path("/var/lib/devcloud/backups")
+        backups = self.host_path("/var/lib/aifactory/backups")
         if backups.is_dir():
             archives = sorted(
                 backups.glob("pre-update-v*.tar.gz"), key=lambda path: path.stat().st_mtime, reverse=True
@@ -1248,7 +1290,12 @@ class InstallerEngine:
                 path.unlink(missing_ok=True)
                 removed.append(path.name)
         if self.runner.exists("podman"):
-            for repository in ("localhost/devcloud-controller", "localhost/devcloud-worker"):
+            for repository in (
+                "localhost/aifactory-controller",
+                "localhost/aifactory-worker",
+                "localhost/devcloud-controller",
+                "localhost/devcloud-worker",
+            ):
                 listing = self.runner.run(
                     ["podman", "images", "--format", "{{.Tag}}", repository],
                     capture_output=True,
@@ -1371,13 +1418,18 @@ class InstallerEngine:
         hosts_path = self.host_path("/etc/hosts")
         if not hosts_path.is_file() or self.runner.dry_run:
             return
-        marker = "# devcloud-controller-fallback"
+        marker = "# aifactory-controller-fallback"
+        markers = (marker, "# devcloud-controller-fallback")
         original = hosts_path.read_text(encoding="utf-8")
         lines = original.splitlines()
-        had_managed_entry = any(marker in line for line in lines)
+        had_managed_entry = any(
+            item in line for line in lines for item in markers
+        )
         if not had_managed_entry:
             return
-        retained = [line for line in lines if marker not in line]
+        retained = [
+            line for line in lines if not any(item in line for item in markers)
+        ]
         hostname = urlsplit(controller_url).hostname or ""
         if fallback_ipv4 and hostname:
             retained.append(
@@ -1395,13 +1447,13 @@ class InstallerEngine:
         if self.runner.dry_run:
             self.runner.run(
                 [
-                    "devcloud-internal-write-config",
+                    "aifactory-internal-write-config",
                     config.role.value,
-                    "/etc/devcloud",
+                    "/etc/aifactory",
                 ]
             )
             return
-        etc_dir = self.host_path("/etc/devcloud")
+        etc_dir = self.host_path("/etc/aifactory")
         etc_dir.mkdir(parents=True, exist_ok=True)
         controller_env_path = etc_dir / "controller.env"
         worker_env_path = etc_dir / "worker.env"
@@ -1411,10 +1463,10 @@ class InstallerEngine:
         local_worker_token = ""
         if config.role == DeploymentRole.ALL_IN_ONE:
             local_worker_id = existing_worker.get(
-                "DEVCLOUD_NODE_ID", ""
+                "AIFACTORY_NODE_ID", ""
             ) or str(uuid.uuid4())
             local_worker_token = existing_worker.get(
-                "DEVCLOUD_NODE_TOKEN", ""
+                "AIFACTORY_NODE_TOKEN", ""
             ) or secrets.token_urlsafe(32)
 
         if config.installs_controller:
@@ -1429,11 +1481,11 @@ class InstallerEngine:
                 if not password:
                     raise InstallerError(
                         "Managed PostgreSQL credentials are missing from "
-                        "/etc/devcloud/postgresql.env"
+                        "/etc/aifactory/postgresql.env"
                     )
                 config.database_url = (
-                    "postgresql+asyncpg://devcloud:"
-                    f"{quote(password, safe='')}@devcloud-postgresql/devcloud"
+                    "postgresql+asyncpg://aifactory:"
+                    f"{quote(password, safe='')}@aifactory-postgresql/aifactory"
                 )
             secret_key = existing.get("SECRET_KEY", "") or secrets.token_urlsafe(48)
             admin_password = (
@@ -1461,15 +1513,15 @@ class InstallerEngine:
                 "AUTO_MIGRATE": "False",
                 "STORAGE_ROOT": config.workspace_root,
                 "DOWNLOADS_ROOT": config.downloads_root,
-                "DOWNLOAD_BUILD_ROOT": "/var/lib/devcloud/download-builds",
+                "DOWNLOAD_BUILD_ROOT": "/var/lib/aifactory/download-builds",
                 "DOWNLOAD_PUBLIC_BASE_URL": config.public_url,
                 "HTTPS_DEFAULT_HOSTNAME": self._public_hostname(config.public_url),
                 "ADMIN_USERNAME": config.admin_username,
                 "ADMIN_EMAIL": config.admin_email,
                 "ADMIN_PASSWORD": admin_password,
-                "DEVCLOUD_DEPLOYMENT_ROLE": config.role.value,
-                "DEVCLOUD_REGISTRY_MODE": config.registry_mode.value,
-                "DEVCLOUD_REGISTRY_URL": config.registry_url,
+                "AIFACTORY_DEPLOYMENT_ROLE": config.role.value,
+                "AIFACTORY_REGISTRY_MODE": config.registry_mode.value,
+                "AIFACTORY_REGISTRY_URL": config.registry_url,
                 "UPDATE_SOURCE_TYPE": config.update_source_type.value,
                 "UPDATE_SOURCE": config.update_source,
                 "UPDATE_REF": config.update_ref,
@@ -1488,9 +1540,9 @@ class InstallerEngine:
             if local_worker_id:
                 controller_values.update(
                     {
-                        "DEVCLOUD_BOOTSTRAP_WORKER_ID": local_worker_id,
-                        "DEVCLOUD_BOOTSTRAP_WORKER_NAME": config.worker_name,
-                        "DEVCLOUD_BOOTSTRAP_WORKER_TOKEN_HASH": hashlib.sha256(
+                        "AIFACTORY_BOOTSTRAP_WORKER_ID": local_worker_id,
+                        "AIFACTORY_BOOTSTRAP_WORKER_NAME": config.worker_name,
+                        "AIFACTORY_BOOTSTRAP_WORKER_TOKEN_HASH": hashlib.sha256(
                             local_worker_token.encode("utf-8")
                         ).hexdigest(),
                     }
@@ -1519,43 +1571,43 @@ class InstallerEngine:
                 token = (
                     token_path.read_text(encoding="utf-8").strip()
                     if token_path is not None and token_path.is_file()
-                    else existing_worker.get("DEVCLOUD_NODE_TOKEN", "")
+                    else existing_worker.get("AIFACTORY_NODE_TOKEN", "")
                     or "dry-run-token"
                 )
                 worker_id = (
                     config.worker_id
-                    or existing_worker.get("DEVCLOUD_NODE_ID", "")
+                    or existing_worker.get("AIFACTORY_NODE_ID", "")
                 )
                 if token_path is not None:
                     controller_url = (
                         config.controller_url
-                        or existing_worker.get("DEVCLOUD_CONTROLLER_URL", "")
-                        or existing_worker.get("DEVCLOUD_MASTER_URL", "")
+                        or existing_worker.get("AIFACTORY_CONTROLLER_URL", "")
+                        or existing_worker.get("AIFACTORY_MASTER_URL", "")
                     )
                 else:
                     # Repair/update must preserve the enrolled worker's live
                     # endpoint instead of reverting to an older state default.
                     controller_url = (
-                        existing_worker.get("DEVCLOUD_CONTROLLER_URL", "")
-                        or existing_worker.get("DEVCLOUD_MASTER_URL", "")
+                        existing_worker.get("AIFACTORY_CONTROLLER_URL", "")
+                        or existing_worker.get("AIFACTORY_MASTER_URL", "")
                         or config.controller_url
                     )
                 if token_path is not None:
                     controller_fallback_ipv4 = (
                         config.controller_fallback_ipv4
-                        or existing_worker.get("DEVCLOUD_CONTROLLER_FALLBACK_IPV4", "")
+                        or existing_worker.get("AIFACTORY_CONTROLLER_FALLBACK_IPV4", "")
                     )
                     agent_ca_file = (
                         config.agent_ca_file
-                        or existing_worker.get("DEVCLOUD_AGENT_CA_FILE", "")
+                        or existing_worker.get("AIFACTORY_AGENT_CA_FILE", "")
                     )
                 else:
                     controller_fallback_ipv4 = (
-                        existing_worker.get("DEVCLOUD_CONTROLLER_FALLBACK_IPV4", "")
+                        existing_worker.get("AIFACTORY_CONTROLLER_FALLBACK_IPV4", "")
                         or config.controller_fallback_ipv4
                     )
                     agent_ca_file = (
-                        existing_worker.get("DEVCLOUD_AGENT_CA_FILE", "")
+                        existing_worker.get("AIFACTORY_AGENT_CA_FILE", "")
                         or config.agent_ca_file
                     )
             else:
@@ -1609,16 +1661,16 @@ class InstallerEngine:
                 controller_fallback_ipv4 = str(fallback_address)
 
             tls_paths = {
-                "DEVCLOUD_AGENT_CA_FILE": agent_ca_file,
-                "DEVCLOUD_AGENT_CERT_FILE": existing_worker.get(
-                    "DEVCLOUD_AGENT_CERT_FILE", ""
+                "AIFACTORY_AGENT_CA_FILE": agent_ca_file,
+                "AIFACTORY_AGENT_CERT_FILE": existing_worker.get(
+                    "AIFACTORY_AGENT_CERT_FILE", ""
                 ),
-                "DEVCLOUD_AGENT_KEY_FILE": existing_worker.get(
-                    "DEVCLOUD_AGENT_KEY_FILE", ""
+                "AIFACTORY_AGENT_KEY_FILE": existing_worker.get(
+                    "AIFACTORY_AGENT_KEY_FILE", ""
                 ),
             }
-            if bool(tls_paths["DEVCLOUD_AGENT_CERT_FILE"]) != bool(
-                tls_paths["DEVCLOUD_AGENT_KEY_FILE"]
+            if bool(tls_paths["AIFACTORY_AGENT_CERT_FILE"]) != bool(
+                tls_paths["AIFACTORY_AGENT_KEY_FILE"]
             ):
                 raise InstallerError(
                     "Worker client certificate and key must be configured together"
@@ -1630,17 +1682,17 @@ class InstallerEngine:
                 if not path.is_absolute():
                     raise InstallerError(f"{key} must contain an absolute path")
                 if config.containerized_worker and not path.is_relative_to(
-                    PurePosixPath("/etc/devcloud")
+                    PurePosixPath("/etc/aifactory")
                 ):
                     raise InstallerError(
-                        f"{key} must be under /etc/devcloud for the container worker"
+                        f"{key} must be under /etc/aifactory for the container worker"
                     )
                 host_tls_path = self.host_path(path_value)
                 if not self.runner.dry_run and not host_tls_path.is_file():
                     raise InstallerError(f"{key} file does not exist: {path_value}")
                 if self.runner.dry_run:
                     continue
-                managed_tls_path = path.is_relative_to(PurePosixPath("/etc/devcloud"))
+                managed_tls_path = path.is_relative_to(PurePosixPath("/etc/aifactory"))
                 if managed_tls_path:
                     self.runner.run(
                         [
@@ -1669,15 +1721,15 @@ class InstallerEngine:
                         )
 
             worker_values = {
-                "DEVCLOUD_CONTROLLER_URL": controller_url,
-                "DEVCLOUD_MASTER_URL": controller_url,
-                "DEVCLOUD_CONTROLLER_FALLBACK_IPV4": controller_fallback_ipv4,
-                "DEVCLOUD_AGENT_CA_FILE": agent_ca_file,
-                "DEVCLOUD_AGENT_CERT_FILE": tls_paths["DEVCLOUD_AGENT_CERT_FILE"],
-                "DEVCLOUD_AGENT_KEY_FILE": tls_paths["DEVCLOUD_AGENT_KEY_FILE"],
-                "DEVCLOUD_NODE_ID": worker_id,
-                "DEVCLOUD_NODE_TOKEN": token,
-                "DEVCLOUD_WORKER_NAME": config.worker_name,
+                "AIFACTORY_CONTROLLER_URL": controller_url,
+                "AIFACTORY_MASTER_URL": controller_url,
+                "AIFACTORY_CONTROLLER_FALLBACK_IPV4": controller_fallback_ipv4,
+                "AIFACTORY_AGENT_CA_FILE": agent_ca_file,
+                "AIFACTORY_AGENT_CERT_FILE": tls_paths["AIFACTORY_AGENT_CERT_FILE"],
+                "AIFACTORY_AGENT_KEY_FILE": tls_paths["AIFACTORY_AGENT_KEY_FILE"],
+                "AIFACTORY_NODE_ID": worker_id,
+                "AIFACTORY_NODE_TOKEN": token,
+                "AIFACTORY_WORKER_NAME": config.worker_name,
                 "STORAGE_ROOT": config.workspace_root,
             }
             # Preserve operator-managed Jupyter AI settings across repair and
@@ -1715,7 +1767,7 @@ class InstallerEngine:
         release = self.host_path(config.install_root) / "current"
         python = release / ".venv" / "bin" / "python"
         controller_env = self._read_env(
-            self.host_path("/etc/devcloud/controller.env")
+            self.host_path("/etc/aifactory/controller.env")
         )
         self.runner.run(
             [
@@ -1734,20 +1786,20 @@ class InstallerEngine:
         self.migration_applied = True
 
     def _controller_image(self) -> str:
-        return f"localhost/devcloud-controller:{self.release_version}"
+        return f"localhost/aifactory-controller:{self.release_version}"
 
     def _controller_source_image(self) -> str:
         return os.environ.get(
-            "DEVCLOUD_CONTROLLER_SOURCE_IMAGE",
+            "AIFACTORY_CONTROLLER_SOURCE_IMAGE",
             f"ghcr.io/aydinguven/devcloud:controller-{self.release_version}",
         )
 
     def _worker_image(self) -> str:
-        return f"localhost/devcloud-worker:{self.release_version}"
+        return f"localhost/aifactory-worker:{self.release_version}"
 
     def _worker_source_image(self) -> str:
         return os.environ.get(
-            "DEVCLOUD_WORKER_SOURCE_IMAGE",
+            "AIFACTORY_WORKER_SOURCE_IMAGE",
             f"ghcr.io/aydinguven/devcloud:worker-{self.release_version}",
         )
 
@@ -1786,10 +1838,10 @@ class InstallerEngine:
 
     @staticmethod
     def _postgresql_image() -> str:
-        return "localhost/devcloud-postgresql:16"
+        return "localhost/aifactory-postgresql:16"
 
     def _bundled_postgresql_ip(self) -> str:
-        """Return a fixed address for the bundled database on the devcloud network.
+        """Return a fixed address for the bundled database on the aifactory network.
 
         The controller reaches PostgreSQL through an /etc/hosts entry pinned to
         this address, so database access never depends on aardvark-dns (which
@@ -1797,18 +1849,18 @@ class InstallerEngine:
         An empty result keeps the previous DNS-only behaviour.
         """
         exists = self.runner.run(
-            ["podman", "network", "exists", "devcloud"], check=False
+            ["podman", "network", "exists", "aifactory"], check=False
         )
         if exists.returncode != 0:
             # Let netavark pick a free subnet exactly as Quadlet would; the
             # Quadlet network unit later adopts it via `network create --ignore`.
-            self.runner.run(["podman", "network", "create", "devcloud"], check=False)
+            self.runner.run(["podman", "network", "create", "aifactory"], check=False)
         inspect = self.runner.run(
             [
                 "podman",
                 "network",
                 "inspect",
-                "devcloud",
+                "aifactory",
                 "--format",
                 "{{range .Subnets}}{{.Subnet}} {{end}}",
             ],
@@ -1826,10 +1878,20 @@ class InstallerEngine:
             return str(subnet.broadcast_address - 5)
         return ""
 
+    def _adopt_legacy_image(self, image: str, legacy: str) -> bool:
+        """Tag an image that a devcloud release stored under its old name."""
+        if self.runner.dry_run:
+            return False
+        exists = self.runner.run(["podman", "image", "exists", legacy], check=False)
+        if exists.returncode != 0:
+            return False
+        self.runner.run(["podman", "tag", legacy, image])
+        return True
+
     @staticmethod
     def _postgresql_source_image() -> str:
         return os.environ.get(
-            "DEVCLOUD_POSTGRES_SOURCE_IMAGE",
+            "AIFACTORY_POSTGRES_SOURCE_IMAGE",
             "quay.io/sclorg/postgresql-16-c10s:latest",
         )
 
@@ -1870,6 +1932,10 @@ class InstallerEngine:
                 check=False,
             )
             if result.returncode == 0 and not self.runner.dry_run:
+                continue
+            if image == self._postgresql_image() and self._adopt_legacy_image(
+                image, "localhost/devcloud-postgresql:16"
+            ):
                 continue
             if image == self._postgresql_image() and not archives:
                 source = self._postgresql_source_image()
@@ -1925,13 +1991,13 @@ class InstallerEngine:
         if not self.runner.dry_run:
             systemd_dir.mkdir(parents=True, exist_ok=True)
         units: list[tuple[str, str]] = [
-            ("devcloud-update.service", "devcloud-update.service"),
-            ("devcloud-update.path", "devcloud-update.path"),
+            ("aifactory-update.service", "aifactory-update.service"),
+            ("aifactory-update.path", "aifactory-update.path"),
         ]
         if config.installs_controller and not config.containerized_controller:
-            units.append(("devcloud.service", "devcloud-controller.service"))
+            units.append(("aifactory.service", "aifactory-controller.service"))
         if config.installs_worker and not config.containerized_worker:
-            units.append(("devcloud-worker.service", "devcloud-worker.service"))
+            units.append(("aifactory-worker.service", "aifactory-worker.service"))
         python = host_python(self._host_platform())
         service_uid = (
             self._service_uid(config)
@@ -1972,8 +2038,8 @@ class InstallerEngine:
             if config.containerized_controller:
                 quadlets.extend(
                     [
-                        ("devcloud.network", "devcloud.network"),
-                        ("devcloud-controller.container", "devcloud-controller.container"),
+                        ("aifactory.network", "aifactory.network"),
+                        ("aifactory-controller.container", "aifactory-controller.container"),
                     ]
                 )
             if (
@@ -1981,11 +2047,11 @@ class InstallerEngine:
                 and config.database_mode == DatabaseMode.BUNDLED_POSTGRESQL
             ):
                 quadlets.append(
-                    ("devcloud-postgresql.container", "devcloud-postgresql.container")
+                    ("aifactory-postgresql.container", "aifactory-postgresql.container")
                 )
             if config.containerized_worker:
                 quadlets.append(
-                    ("devcloud-worker.container", "devcloud-worker.container")
+                    ("aifactory-worker.container", "aifactory-worker.container")
                 )
             database_ip = (
                 self._bundled_postgresql_ip()
@@ -2009,8 +2075,8 @@ class InstallerEngine:
                     "{{WORKER_IMAGE}}", self._worker_image()
                 ).replace("{{WORKSPACE_ROOT}}", config.workspace_root)
                 dependencies = (
-                    "After=devcloud-postgresql.service\n"
-                    "Requires=devcloud-postgresql.service"
+                    "After=aifactory-postgresql.service\n"
+                    "Requires=aifactory-postgresql.service"
                     if config.database_mode == DatabaseMode.BUNDLED_POSTGRESQL
                     else ""
                 )
@@ -2021,11 +2087,11 @@ class InstallerEngine:
                 # template placeholder: an older installer applying this
                 # release would copy an unknown placeholder verbatim, and
                 # Quadlet then silently drops the whole unit.
-                if database_ip and target_name == "devcloud-postgresql.container":
+                if database_ip and target_name == "aifactory-postgresql.container":
                     rendered = self._add_container_key(rendered, f"IP={database_ip}")
-                elif database_ip and target_name == "devcloud-controller.container":
+                elif database_ip and target_name == "aifactory-controller.container":
                     rendered = self._add_container_key(
-                        rendered, f"AddHost=devcloud-postgresql:{database_ip}"
+                        rendered, f"AddHost=aifactory-postgresql:{database_ip}"
                     )
                 leftover = re.search(r"\{\{[A-Z0-9_]+\}\}", rendered)
                 if leftover:
@@ -2068,10 +2134,10 @@ class InstallerEngine:
         names: list[str] = []
         if config.containerized_controller:
             if config.database_mode == DatabaseMode.BUNDLED_POSTGRESQL:
-                names.append("devcloud-postgresql.service")
-            names.append("devcloud-controller.service")
+                names.append("aifactory-postgresql.service")
+            names.append("aifactory-controller.service")
         if config.containerized_worker:
-            names.append("devcloud-worker.service")
+            names.append("aifactory-worker.service")
         return names
 
     def _verify_generated_units(self, config: InstallConfig) -> None:
@@ -2123,8 +2189,8 @@ class InstallerEngine:
         self.runner.run(
             ["bash", str(script)],
             env={
-                "DEVCLOUD_SERVICE_USER": config.service_user,
-                "DEVCLOUD_STORAGE_ROOT": str(self.host_path(config.workspace_root)),
+                "AIFACTORY_SERVICE_USER": config.service_user,
+                "AIFACTORY_STORAGE_ROOT": str(self.host_path(config.workspace_root)),
             },
         )
 
@@ -2174,7 +2240,7 @@ class InstallerEngine:
             config.service_user,
             "--",
             "env",
-            "HOME=/var/lib/devcloud",
+            "HOME=/var/lib/aifactory",
             f"XDG_RUNTIME_DIR={runtime_dir}",
         ]
         if archives and config.preload_images:
@@ -2199,8 +2265,8 @@ class InstallerEngine:
         self.runner.run(
             ["bash", str(script), owner],
             env={
-                "DEVCLOUD_HTTPS_HOSTNAME": self._public_hostname(config.public_url),
-                "DEVCLOUD_INGRESS_APPLY_INITIAL": "1" if apply_initial else "0",
+                "AIFACTORY_HTTPS_HOSTNAME": self._public_hostname(config.public_url),
+                "AIFACTORY_INGRESS_APPLY_INITIAL": "1" if apply_initial else "0",
             },
         )
 
@@ -2220,65 +2286,74 @@ class InstallerEngine:
     def _start_services(self, config: InstallConfig) -> None:
         self._enable_container_firewall_recovery(config)
         self.runner.run(
-            ["systemctl", "enable", "--now", "devcloud-update.path"]
+            ["systemctl", "enable", "--now", "aifactory-update.path"]
         )
         if (
             config.containerized_controller
             and config.database_mode == DatabaseMode.BUNDLED_POSTGRESQL
         ):
-            self.runner.run(["systemctl", "start", "devcloud-postgresql.service"])
+            self.runner.run(["systemctl", "start", "aifactory-postgresql.service"])
         if config.installs_controller:
             if config.containerized_controller:
-                self.runner.run(["systemctl", "start", "devcloud-controller.service"])
+                self.runner.run(["systemctl", "start", "aifactory-controller.service"])
             else:
                 self.runner.run(
-                    ["systemctl", "enable", "--now", "devcloud-controller.service"]
+                    ["systemctl", "enable", "--now", "aifactory-controller.service"]
                 )
         if config.installs_worker:
             if config.containerized_worker:
                 self.runner.run(["systemctl", "enable", "--now", "podman.socket"])
-                self.runner.run(["systemctl", "start", "devcloud-worker.service"])
+                self.runner.run(["systemctl", "start", "aifactory-worker.service"])
             else:
                 self.runner.run(
-                    ["systemctl", "enable", "--now", "devcloud-worker.service"]
+                    ["systemctl", "enable", "--now", "aifactory-worker.service"]
                 )
         self._verify_services(config)
 
+    def _enable_update_watcher(self) -> None:
+        if self.defer_update_watcher:
+            # The devcloud updater running this update still holds
+            # running.json; the new watcher would replay it. LegacyMigration
+            # starts the watcher after that updater exits.
+            self.runner.run(["systemctl", "enable", "aifactory-update.path"])
+            return
+        self.runner.run(
+            ["systemctl", "enable", "--now", "aifactory-update.path"]
+        )
+
     def _restart_services(self, config: InstallConfig) -> None:
         self._enable_container_firewall_recovery(config)
-        self.runner.run(
-            ["systemctl", "enable", "--now", "devcloud-update.path"]
-        )
+        self._enable_update_watcher()
         if (
             config.containerized_controller
             and config.database_mode == DatabaseMode.BUNDLED_POSTGRESQL
         ):
             self.runner.run(
-                ["systemctl", "restart", "devcloud-postgresql.service"]
+                ["systemctl", "restart", "aifactory-postgresql.service"]
             )
         if config.installs_controller:
             if not config.containerized_controller:
-                self.runner.run(["systemctl", "enable", "devcloud-controller.service"])
-            self.runner.run(["systemctl", "restart", "devcloud-controller.service"])
+                self.runner.run(["systemctl", "enable", "aifactory-controller.service"])
+            self.runner.run(["systemctl", "restart", "aifactory-controller.service"])
         if config.installs_worker:
             if config.containerized_worker:
                 self.runner.run(["systemctl", "enable", "--now", "podman.socket"])
             else:
-                self.runner.run(["systemctl", "enable", "devcloud-worker.service"])
-            self.runner.run(["systemctl", "restart", "devcloud-worker.service"])
+                self.runner.run(["systemctl", "enable", "aifactory-worker.service"])
+            self.runner.run(["systemctl", "restart", "aifactory-worker.service"])
         self._verify_services(config)
 
     def _verify_services(self, config: InstallConfig) -> None:
-        names = ["devcloud-update.path"]
+        names = [] if self.defer_update_watcher else ["aifactory-update.path"]
         if (
             config.containerized_controller
             and config.database_mode == DatabaseMode.BUNDLED_POSTGRESQL
         ):
-            names.append("devcloud-postgresql.service")
+            names.append("aifactory-postgresql.service")
         if config.installs_controller:
-            names.append("devcloud-controller.service")
+            names.append("aifactory-controller.service")
         if config.installs_worker:
-            names.append("devcloud-worker.service")
+            names.append("aifactory-worker.service")
         for name in names:
             self.runner.run(["systemctl", "is-active", "--quiet", name])
         if config.containerized_controller:
@@ -2287,7 +2362,7 @@ class InstallerEngine:
                 "inspect",
                 "--format",
                 "{{.State.Health.Status}}",
-                "devcloud-controller",
+                "aifactory-controller",
             ]
             if self.runner.dry_run:
                 self.runner.run(inspect, capture_output=True)
@@ -2303,7 +2378,7 @@ class InstallerEngine:
                         break
                     if attempt == 44:
                         logs = self.runner.run(
-                            ["podman", "logs", "--tail", "100", "devcloud-controller"],
+                            ["podman", "logs", "--tail", "100", "aifactory-controller"],
                             capture_output=True,
                             check=False,
                         )
@@ -2315,14 +2390,14 @@ class InstallerEngine:
         if config.installs_worker:
             release = self.host_path(config.install_root) / "current"
             worker_env = self._read_env(
-                self.host_path("/etc/devcloud/worker.env")
+                self.host_path("/etc/aifactory/worker.env")
             )
             if config.containerized_worker:
                 self.runner.run(
                     [
                         "podman",
                         "exec",
-                        "devcloud-worker",
+                        "aifactory-worker",
                         "python",
                         "-m",
                         "app.installer.verify_worker",
@@ -2349,24 +2424,24 @@ class InstallerEngine:
         *,
         include_database: bool = False,
     ) -> None:
-        managed_units = ["devcloud-update.path", "devcloud-update.service"]
+        managed_units = ["aifactory-update.path", "aifactory-update.service"]
         generated_units = []
         if config.installs_worker:
             target = (
                 generated_units if config.containerized_worker else managed_units
             )
-            target.append("devcloud-worker.service")
+            target.append("aifactory-worker.service")
         if config.installs_controller:
             target = (
                 generated_units if config.containerized_controller else managed_units
             )
-            target.append("devcloud-controller.service")
+            target.append("aifactory-controller.service")
         if (
             include_database
             and config.containerized_controller
             and config.database_mode == DatabaseMode.BUNDLED_POSTGRESQL
         ):
-            generated_units.append("devcloud-postgresql.service")
+            generated_units.append("aifactory-postgresql.service")
         for name in managed_units:
             self.runner.run(["systemctl", "disable", "--now", name])
         for name in generated_units:
@@ -2374,21 +2449,21 @@ class InstallerEngine:
 
     def _remove_service_units(self, config: InstallConfig) -> None:
         systemd_dir = self.host_path("/etc/systemd/system")
-        names = ["devcloud-update.service", "devcloud-update.path"]
+        names = ["aifactory-update.service", "aifactory-update.path"]
         if config.installs_controller:
-            names.append("devcloud-controller.service")
+            names.append("aifactory-controller.service")
         if config.installs_worker:
-            names.append("devcloud-worker.service")
+            names.append("aifactory-worker.service")
         for name in names:
             if not self.runner.dry_run:
                 (systemd_dir / name).unlink(missing_ok=True)
         if config.containerized_controller or config.containerized_worker:
             quadlet_dir = self.host_path("/etc/containers/systemd")
             for name in (
-                "devcloud.network",
-                "devcloud-controller.container",
-                "devcloud-postgresql.container",
-                "devcloud-worker.container",
+                "aifactory.network",
+                "aifactory-controller.container",
+                "aifactory-postgresql.container",
+                "aifactory-worker.container",
             ):
                 if not self.runner.dry_run:
                     (quadlet_dir / name).unlink(missing_ok=True)
@@ -2397,7 +2472,7 @@ class InstallerEngine:
     def _remove_active_release(self, config: InstallConfig) -> None:
         if self.runner.dry_run:
             self.runner.run(
-                ["devcloud-internal-remove-active-release", config.install_root]
+                ["aifactory-internal-remove-active-release", config.install_root]
             )
             return
         current = self.host_path(config.install_root) / "current"
@@ -2409,7 +2484,7 @@ class InstallerEngine:
             self.host_path(config.install_root),
             self.host_path(config.state_root),
             self.host_path(config.releases_root),
-            self.host_path("/etc/devcloud"),
+            self.host_path("/etc/aifactory"),
         }
         if config.installs_worker:
             targets.add(self.host_path(config.workspace_root))
@@ -2417,21 +2492,21 @@ class InstallerEngine:
             targets.update(
                 {
                     self.host_path(config.downloads_root),
-                    self.host_path("/var/lib/devcloud/database"),
-                    self.host_path("/var/lib/devcloud/download-builds"),
+                    self.host_path("/var/lib/aifactory/database"),
+                    self.host_path("/var/lib/aifactory/download-builds"),
                 }
             )
             if config.containerized_controller:
-                targets.add(self.host_path("/var/lib/devcloud/ingress"))
+                targets.add(self.host_path("/var/lib/aifactory/ingress"))
                 if config.database_mode == DatabaseMode.BUNDLED_POSTGRESQL:
-                    targets.add(self.host_path("/var/lib/devcloud/postgresql"))
+                    targets.add(self.host_path("/var/lib/aifactory/postgresql"))
         root = self.filesystem_root.resolve()
         for target in targets:
             resolved = target.resolve()
             if resolved == root or root not in resolved.parents:
                 raise InstallerError(f"Refusing unsafe purge target: {resolved}")
             if self.runner.dry_run:
-                self.runner.run(["devcloud-internal-purge", str(resolved)])
+                self.runner.run(["aifactory-internal-purge", str(resolved)])
                 continue
             if resolved.exists():
                 shutil.rmtree(resolved)
@@ -2440,7 +2515,7 @@ class InstallerEngine:
         if self.runner.dry_run:
             self.runner.run(
                 [
-                    "devcloud-internal-save-state",
+                    "aifactory-internal-save-state",
                     config.role.value,
                     self.release_version,
                 ]

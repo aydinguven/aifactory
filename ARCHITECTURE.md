@@ -98,7 +98,7 @@ there is exactly one unambiguous target worker.
 ## Releases and reconciliation
 
 Managed releases are immutable version-and-revision directories under
-/var/lib/devcloud/releases, selected by /opt/devcloud/current. Updates stage
+/var/lib/aifactory/releases, selected by /opt/aifactory/current. Updates stage
 the new release atomically, verify its
 manifest/signature, run migrations, refresh systemd units, and restart the
 selected services.
@@ -107,7 +107,7 @@ Authenticated administrators may select a Git release channel or upload a
 signed platform bundle. Git carries a checksum-pinned channel descriptor; the
 runtime artifact contains prebuilt controller and worker OCI archives and
 explicitly excludes workspace images. The web process only writes a queue;
-`devcloud-update.path` invokes a root-owned one-shot service to verify the
+`aifactory-update.path` invokes a root-owned one-shot service to verify the
 signature, back up controller state, apply the release, and publish it to
 workers. Workers obtain releases through node-authenticated endpoints, validate
 SHA-256, and use the same root-owned queue. Production web requests cannot

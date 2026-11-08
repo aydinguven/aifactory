@@ -64,7 +64,7 @@ async def test_podman_service_mock_lifecycle():
     svc = PodmanService()
     svc._mock_mode = True
 
-    container_name = "devcloud-1-test-ws-1234"
+    container_name = "aifactory-1-test-ws-1234"
     # 1. Create container
     cid, storage_path = await svc.create_workspace_container(
         workspace_id="test-ws-12345",
@@ -204,7 +204,7 @@ async def test_vscode_launch_uses_admin_managed_cline_profile(monkeypatch):
     await svc.create_workspace_container(
         workspace_id="12345678-1234-1234-1234-123456789abc",
         user_id=1,
-        container_name="devcloud-1-12345678",
+        container_name="aifactory-1-12345678",
         template_id="vscode-python",
         flavor_id="t1.micro",
         host_port=10100,
@@ -221,8 +221,8 @@ async def test_vscode_launch_uses_admin_managed_cline_profile(monkeypatch):
     assert "CLINE_DATA_DIR=/home/coder/.cline/data" in run_command
     assert "MLFLOW_TRACKING_URI=https://managed-mlflow.internal" in run_command
     assert "MLFLOW_TRACKING_TOKEN=personal-mlflow-token" in run_command
-    assert "DEVCLOUD_WORKSPACE_ID=12345678-1234-1234-1234-123456789abc" in run_command
-    assert "DEVCLOUD_USER_ID=1" in run_command
+    assert "AIFACTORY_WORKSPACE_ID=12345678-1234-1234-1234-123456789abc" in run_command
+    assert "AIFACTORY_USER_ID=1" in run_command
     assert "CLINE_DIR=/home/coder/.cline" in run_command
     assert (
         "VSCODE_USER_DIR=/home/coder/.local/share/code-server/User"
@@ -230,23 +230,23 @@ async def test_vscode_launch_uses_admin_managed_cline_profile(monkeypatch):
     )
     global_state = json.loads(
         next(
-            value.removeprefix("DEVCLOUD_CLINE_GLOBAL_STATE_JSON=")
+            value.removeprefix("AIFACTORY_CLINE_GLOBAL_STATE_JSON=")
             for value in run_command
-            if value.startswith("DEVCLOUD_CLINE_GLOBAL_STATE_JSON=")
+            if value.startswith("AIFACTORY_CLINE_GLOBAL_STATE_JSON=")
         )
     )
     secrets = json.loads(
         next(
-            value.removeprefix("DEVCLOUD_CLINE_SECRETS_JSON=")
+            value.removeprefix("AIFACTORY_CLINE_SECRETS_JSON=")
             for value in run_command
-            if value.startswith("DEVCLOUD_CLINE_SECRETS_JSON=")
+            if value.startswith("AIFACTORY_CLINE_SECRETS_JSON=")
         )
     )
     providers = json.loads(
         next(
-            value.removeprefix("DEVCLOUD_CLINE_PROVIDERS_JSON=")
+            value.removeprefix("AIFACTORY_CLINE_PROVIDERS_JSON=")
             for value in run_command
-            if value.startswith("DEVCLOUD_CLINE_PROVIDERS_JSON=")
+            if value.startswith("AIFACTORY_CLINE_PROVIDERS_JSON=")
         )
     )
     assert global_state["openAiBaseUrl"] == "https://llm-gateway.internal/v1"
@@ -254,15 +254,15 @@ async def test_vscode_launch_uses_admin_managed_cline_profile(monkeypatch):
     assert secrets["openAiApiKey"] == "shared-api-key"
     assert providers["lastUsedProvider"] == "openai-compatible"
     assert not any(
-        value.startswith("DEVCLOUD_VSCODE_CHAT_MODELS_JSON=")
+        value.startswith("AIFACTORY_VSCODE_CHAT_MODELS_JSON=")
         for value in run_command
     )
 
     vscode_settings = json.loads(
         next(
-            value.removeprefix("DEVCLOUD_VSCODE_SETTINGS_JSON=")
+            value.removeprefix("AIFACTORY_VSCODE_SETTINGS_JSON=")
             for value in run_command
-            if value.startswith("DEVCLOUD_VSCODE_SETTINGS_JSON=")
+            if value.startswith("AIFACTORY_VSCODE_SETTINGS_JSON=")
         )
     )
     assert vscode_settings["chat.disableAIFeatures"] is True
@@ -319,7 +319,7 @@ async def test_vscode_launch_ignores_legacy_disabled_cline_toggle(monkeypatch):
     await svc.create_workspace_container(
         workspace_id="12345678-1234-1234-1234-123456789abc",
         user_id=1,
-        container_name="devcloud-1-12345678",
+        container_name="aifactory-1-12345678",
         template_id="vscode-python",
         flavor_id="t1.micro",
         host_port=10100,
@@ -328,10 +328,10 @@ async def test_vscode_launch_ignores_legacy_disabled_cline_toggle(monkeypatch):
 
     run_command = next(args for args in commands if args[0] == "run")
     assert any(
-        value.startswith("DEVCLOUD_CLINE_") for value in run_command
+        value.startswith("AIFACTORY_CLINE_") for value in run_command
     )
     assert not any(
-        value.startswith("DEVCLOUD_VSCODE_CHAT_MODELS_JSON=")
+        value.startswith("AIFACTORY_VSCODE_CHAT_MODELS_JSON=")
         for value in run_command
     )
     image_index = run_command.index("localhost/devcloud-vscode-python:latest")
@@ -389,7 +389,7 @@ async def test_jupyter_launch_installs_gateway_ca_bundle(monkeypatch, tmp_path):
     await svc.create_workspace_container(
         workspace_id="12345678-1234-1234-1234-123456789abc",
         user_id=1,
-        container_name="devcloud-1-12345678",
+        container_name="aifactory-1-12345678",
         template_id="jupyter-python",
         flavor_id="t1.micro",
         host_port=10100,
@@ -398,7 +398,7 @@ async def test_jupyter_launch_installs_gateway_ca_bundle(monkeypatch, tmp_path):
     )
 
     run_command = next(args for args in commands if args[0] == "run")
-    assert f"DEVCLOUD_CA_BUNDLE_PEM={bundle}" in run_command
+    assert f"AIFACTORY_CA_BUNDLE_PEM={bundle}" in run_command
     for key, value in WORKSPACE_CA_ENVIRONMENT.items():
         assert f"{key}={value}" in run_command
     image_index = run_command.index("localhost/devcloud-jupyter-python:latest")
@@ -409,7 +409,7 @@ async def test_jupyter_launch_installs_gateway_ca_bundle(monkeypatch, tmp_path):
     setup = WORKSPACE_CA_SETUP.replace(WORKSPACE_CA_DIR, str(tmp_path / "ca"))
     subprocess.run(
         ["bash", "-c", setup],
-        env={"PATH": "/usr/bin:/bin", "DEVCLOUD_CA_BUNDLE_PEM": bundle},
+        env={"PATH": "/usr/bin:/bin", "AIFACTORY_CA_BUNDLE_PEM": bundle},
         check=True,
     )
     extra = (tmp_path / "ca" / "extra-ca.pem").read_text()
@@ -478,7 +478,7 @@ async def test_jupyter_launch_uses_secure_workspace_base_url(monkeypatch):
     await svc.create_workspace_container(
         workspace_id=workspace_id,
         user_id=1,
-        container_name="devcloud-1-12345678",
+        container_name="aifactory-1-12345678",
         template_id="jupyter-python",
         flavor_id="t1.micro",
         host_port=10100,
@@ -492,7 +492,7 @@ async def test_jupyter_launch_uses_secure_workspace_base_url(monkeypatch):
     assert "/workspace:/home/jovyan/work:Z,U" in run_command
     assert startup_command[:2] == ("bash", "-lc")
     assert "exec start-notebook.py \"$@\"" in startup_command[2]
-    assert startup_command[3] == "devcloud-jupyter"
+    assert startup_command[3] == "aifactory-jupyter"
     assert f"--ServerApp.base_url=/proxy/{workspace_id}/" in startup_command
     assert "--ServerApp.default_url=/lab" in startup_command
     assert "-e" in run_command
@@ -505,12 +505,12 @@ async def test_jupyter_launch_uses_secure_workspace_base_url(monkeypatch):
     assert "ANTHROPIC_DEFAULT_SONNET_MODEL=local-coder" in run_command
     assert "ANTHROPIC_DEFAULT_FABLE_MODEL=local-coder" in run_command
     assert "ANTHROPIC_DEFAULT_HAIKU_MODEL=local-coder" in run_command
-    assert "CLAUDE_CONFIG_DIR=/tmp/devcloud-claude" in run_command
+    assert "CLAUDE_CONFIG_DIR=/tmp/aifactory-claude" in run_command
     assert "CLAUDE_CODE_EXECUTABLE=/opt/conda/bin/claude" in run_command
     raw_claude_settings = next(
-        value.removeprefix("DEVCLOUD_CLAUDE_SETTINGS_JSON=")
+        value.removeprefix("AIFACTORY_CLAUDE_SETTINGS_JSON=")
         for value in run_command
-        if value.startswith("DEVCLOUD_CLAUDE_SETTINGS_JSON=")
+        if value.startswith("AIFACTORY_CLAUDE_SETTINGS_JSON=")
     )
     claude_settings = json.loads(raw_claude_settings)
     expected_model_ids = [model["model_id"] for model in catalog]
@@ -566,7 +566,7 @@ async def test_workspace_creation_refuses_unsynchronized_managed_image(monkeypat
         await svc.create_workspace_container(
             workspace_id="12345678-1234-1234-1234-123456789abc",
             user_id=1,
-            container_name="devcloud-1-12345678",
+            container_name="aifactory-1-12345678",
             template_id="vscode-python",
             flavor_id="t1.micro",
             host_port=10100,

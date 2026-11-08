@@ -47,7 +47,7 @@ async def test_worker_rejects_lifecycle_commands_for_unregistered_containers(
 async def test_worker_proxy_requires_workspace_container_match():
     agent = WorkerAgent()
     agent.registry = {
-        "devcloud-1-aabbccdd": {
+        "aifactory-1-aabbccdd": {
             "workspace_id": "workspace-a",
             "storage_path": "/tmp/workspace-a",
             "host_port": 10100,
@@ -58,7 +58,7 @@ async def test_worker_proxy_requires_workspace_container_match():
         await agent._target_url(
             {
                 "workspace_id": "workspace-b",
-                "container_name": "devcloud-1-aabbccdd",
+                "container_name": "aifactory-1-aabbccdd",
                 "host_port": 10100,
                 "path": "",
                 "query": "",
@@ -69,9 +69,9 @@ async def test_worker_proxy_requires_workspace_container_match():
 
 @pytest.mark.asyncio
 async def test_worker_agent_system_upgrade_initiates_upgrade(monkeypatch):
-    monkeypatch.setenv("DEVCLOUD_MASTER_URL", "https://master.devcloud.local")
-    monkeypatch.setenv("DEVCLOUD_NODE_ID", "node-upgrade-123")
-    monkeypatch.setenv("DEVCLOUD_NODE_TOKEN", "token-xyz")
+    monkeypatch.setenv("AIFACTORY_MASTER_URL", "https://master.aifactory.local")
+    monkeypatch.setenv("AIFACTORY_NODE_ID", "node-upgrade-123")
+    monkeypatch.setenv("AIFACTORY_NODE_TOKEN", "token-xyz")
 
     agent = WorkerAgent()
     # Stub _execute_upgrade to not run shell subprocess in test
@@ -153,7 +153,7 @@ def test_worker_explains_missing_signature_configuration(tmp_path, monkeypatch):
 
     assert status["state"] == "failed"
     assert "WORKER_OTA_ALLOW_UNSIGNED=true" in status["message"]
-    assert "devcloud-controller" in status["message"]
+    assert "aifactory-controller" in status["message"]
 
 
 def test_worker_closes_stale_same_version_failure(tmp_path, monkeypatch):

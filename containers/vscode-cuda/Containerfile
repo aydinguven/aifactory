@@ -136,9 +136,9 @@ RUN bash -lc 'nvcc --version' \
         '#include <cstdio>' \
         '__global__ void k() {}' \
         'int main() { k<<<1, 1>>>(); return cudaDeviceSynchronize() != cudaSuccess; }' \
-        > /tmp/devcloud-cuda-check.cu \
-    && bash -lc 'nvcc -o /tmp/devcloud-cuda-check /tmp/devcloud-cuda-check.cu' \
-    && rm -f /tmp/devcloud-cuda-check /tmp/devcloud-cuda-check.cu
+        > /tmp/aifactory-cuda-check.cu \
+    && bash -lc 'nvcc -o /tmp/aifactory-cuda-check /tmp/aifactory-cuda-check.cu' \
+    && rm -f /tmp/aifactory-cuda-check /tmp/aifactory-cuda-check.cu
 
 # code-server keeps the zip modes of a VSIX, so the execute bit is restored on
 # the bundled native tools (kilo, bwrap, ffmpeg, kilo-sandbox-seccomp) in case
@@ -165,9 +165,9 @@ RUN test -n "${KILO_CODE_VSIX_SHA256}" \
 # ms-python.python pull the latest version of their members from Open VSX,
 # so --force lets the pinned VSIX replace a newer one; the check below then
 # guarantees exactly the listed versions.
-COPY --chown=coder:coder extensions.txt /opt/devcloud/vscode-extensions.txt
+COPY --chown=coder:coder extensions.txt /opt/aifactory/vscode-extensions.txt
 RUN set -eu; \
-    list=/opt/devcloud/vscode-extensions.txt; \
+    list=/opt/aifactory/vscode-extensions.txt; \
     grep -v '^#' "${list}" | while read -r id version target sha256; do \
         [ -n "${id}" ] || continue; \
         publisher="${id%%.*}"; name="${id#*.}"; \

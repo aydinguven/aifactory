@@ -253,13 +253,13 @@ async def test_user_provisions_litellm_user_and_sees_key_once(client, db_session
     assert issued["api_key"] == "sk-generated-1"
     assert issued["litellm_user_id"] == "k015570"
     assert issued["base_url"] == "http://litellm.test:5003"
-    assert issued["key_alias"].startswith("devcloud-k015570-")
+    assert issued["key_alias"].startswith("aifactory-k015570-")
 
     new_user = next(body for method, path, body in fake_litellm.calls if path == "/user/new")
     assert new_user == {
         "user_id": "k015570",
         "auto_create_key": False,
-        "metadata": {"source": "devcloud"},
+        "metadata": {"source": "aifactory"},
         "user_email": "k015570@example.com",
         "user_role": "internal_user_viewer",
         "max_budget": 50.0,
@@ -569,7 +569,7 @@ async def test_container_uses_per_user_gateway_token(monkeypatch):
     monkeypatch.setattr(settings, "JUPYTER_AI_MODEL", "local-coder")
     monkeypatch.setattr(settings, "JUPYTER_AI_GATEWAY_TOKEN", "shared-ai-token")
 
-    for template_id, name in (("jupyter-python", "devcloud-1-aaaaaaaa"), ("vscode-python", "devcloud-1-bbbbbbbb")):
+    for template_id, name in (("jupyter-python", "aifactory-1-aaaaaaaa"), ("vscode-python", "aifactory-1-bbbbbbbb")):
         await svc.create_workspace_container(
             workspace_id="12345678-1234-1234-1234-123456789abc",
             user_id=1,
@@ -584,7 +584,7 @@ async def test_container_uses_per_user_gateway_token(monkeypatch):
     jupyter, vscode = runs
     assert "ANTHROPIC_AUTH_TOKEN=sk-user-own-key" in jupyter
     assert not any("shared-ai-token" in value for value in jupyter)
-    cline_secrets = next(v for v in vscode if v.startswith("DEVCLOUD_CLINE_SECRETS_JSON="))
+    cline_secrets = next(v for v in vscode if v.startswith("AIFACTORY_CLINE_SECRETS_JSON="))
     assert "sk-user-own-key" in cline_secrets
     assert not any("shared-ai-token" in value for value in vscode)
 
@@ -749,8 +749,8 @@ async def test_usage_stats_leaderboards_for_admin_and_users(client, db_session, 
     assert [row["username"] for row in stats["users"]][:2] == ["k030000", "k015570"]
     assert users["k015570"]["total_tokens"] == 1500
     assert users["k015570"]["daily_tokens"][-2:] == [1000, 500]
-    assert users["k015570"]["devcloud_user_id"] is not None
-    assert users["outsider"]["devcloud_user_id"] is None
+    assert users["k015570"]["aifactory_user_id"] is not None
+    assert users["outsider"]["aifactory_user_id"] is None
 
     groups = {row["name"]: row for row in stats["groups"]}
     assert groups["Veri Bilimi"]["members"] == 2  # spacing/case variants merge

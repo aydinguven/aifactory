@@ -24,4 +24,4 @@ podman build -t localhost/devcloud-terminal-rocky:latest "${SCRIPT_DIR}/terminal
 echo "====================================================="
 echo "All AI Factory workspace images built successfully!"
 echo "====================================================="
-podman images | grep devcloud
+podman images | grep aifactory

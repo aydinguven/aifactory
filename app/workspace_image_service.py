@@ -79,7 +79,7 @@ def _write_registry_authfile(ref: str, username: str, password: str) -> Path | N
         raise WorkspaceImageError("Registry reference has no valid registry host")
     encoded = base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")
     handle = tempfile.NamedTemporaryFile(
-        mode="w", prefix="devcloud-registry-auth-", suffix=".json", delete=False
+        mode="w", prefix="aifactory-registry-auth-", suffix=".json", delete=False
     )
     auth_path = Path(handle.name)
     try:

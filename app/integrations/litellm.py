@@ -209,7 +209,7 @@ class LiteLLMClient:
         body: dict = {
             "user_id": user_id,
             "auto_create_key": False,
-            "metadata": {"source": "devcloud"},
+            "metadata": {"source": "aifactory"},
         }
         if user_email:
             body["user_email"] = user_email
@@ -228,7 +228,7 @@ class LiteLLMClient:
         body: dict = {
             "user_id": user_id,
             "key_alias": key_alias,
-            "metadata": {"source": "devcloud", "purpose": purpose},
+            "metadata": {"source": "aifactory", "purpose": purpose},
         }
         if team_id:
             # Team model access, budgets and limits apply only to team keys.

@@ -64,7 +64,7 @@ async def test_share_scope_revocation_and_token_separation(client, db_session, s
     assert granted.headers['location'] == f'/proxy/{workspace_id}/port/3333/'
     assert 'HttpOnly' in granted.headers['set-cookie']
     assert (await client.get(granted.headers['location'] + 'nested/page')).json() == {'path': '/nested/page', 'port': 3333}
-    for path in [f'/proxy/{workspace_id}/', f'/proxy/{workspace_id}/_devcloud/status',
+    for path in [f'/proxy/{workspace_id}/', f'/proxy/{workspace_id}/_aifactory/status',
                  f'/proxy/{workspace_id}/port/3334/', api, '/api/auth/me']:
         assert (await client.get(path)).status_code in (401, 403)
     # Even replaying the grant by hand cannot widen its scope.
@@ -175,7 +175,11 @@ async def test_shared_websocket_revocation(client, db_session, shared_setup, mon
 
 def test_grant_cookie_is_never_forwarded():
     request = Request({'type': 'http', 'method': 'GET', 'path': '/', 'headers': [
-        (b'cookie', b'devcloud_session=login; devcloud_share_ws_3333=grant; app_cookie=ok'),
+        (
+            b'cookie',
+            b'devcloud_session=login; devcloud_share_ws_3333=grant; '
+            b'aifactory_session=login; aifactory_share_ws_3333=grant; app_cookie=ok',
+        ),
     ]})
     headers = proxy._forward_headers(request, SimpleNamespace(template_id='vscode-kilo'), 3333)
     assert headers['Cookie'] == 'app_cookie=ok'

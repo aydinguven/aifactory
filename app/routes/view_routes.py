@@ -65,7 +65,7 @@ from app.schemas.workspace import WorkspaceOut
 from app.workspace_catalog import configured_flavors, configured_templates, list_enabled_flavors, list_enabled_templates
 from app.static_assets import STATIC_ASSET_VERSION
 
-logger = logging.getLogger("devcloud.views")
+logger = logging.getLogger("aifactory.views")
 
 templates_dir = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(templates_dir))

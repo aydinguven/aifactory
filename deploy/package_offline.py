@@ -69,23 +69,28 @@ IMAGES = (
 CONTROLLER_IMAGE_ARCHIVE = "devcloud-controller"
 WORKER_IMAGE_ARCHIVE = "devcloud-worker"
 POSTGRESQL_IMAGE_ARCHIVE = "devcloud-postgresql-16"
-POSTGRESQL_IMAGE = "localhost/devcloud-postgresql:16"
+POSTGRESQL_IMAGE = "localhost/aifactory-postgresql:16"
 POSTGRESQL_SOURCE_IMAGE = os.getenv(
-    "DEVCLOUD_POSTGRES_SOURCE_IMAGE",
+    "AIFACTORY_POSTGRES_SOURCE_IMAGE",
     "quay.io/sclorg/postgresql-16-c10s:latest",
 )
 CONTROLLER_SOURCE_IMAGE = os.getenv(
-    "DEVCLOUD_CONTROLLER_SOURCE_IMAGE",
+    "AIFACTORY_CONTROLLER_SOURCE_IMAGE",
     "ghcr.io/aydinguven/devcloud:controller-{version}",
 )
 WORKER_SOURCE_IMAGE = os.getenv(
-    "DEVCLOUD_WORKER_SOURCE_IMAGE",
+    "AIFACTORY_WORKER_SOURCE_IMAGE",
     "ghcr.io/aydinguven/devcloud:worker-{version}",
 )
 
 
 class PackageError(RuntimeError):
     """A user-actionable packaging or verification failure."""
+
+
+def _archive_name_variants(paths: set[str]) -> list[set[str]]:
+    """Image archive names of bundles built before and after the aifactory rename."""
+    return [paths, {path.replace("/devcloud-", "/aifactory-") for path in paths}]
 
 
 def run(
@@ -149,14 +154,14 @@ def write_platform_release(
             "controller",
             controller_digest,
             bundle_root / f"offline/controller-images/{CONTROLLER_IMAGE_ARCHIVE}.tar",
-            f"localhost/devcloud-controller:{version}",
+            f"localhost/aifactory-controller:{version}",
             CONTROLLER_SOURCE_IMAGE.format(version=version),
         ),
         (
             "worker",
             worker_digest,
             bundle_root / f"offline/worker-images/{WORKER_IMAGE_ARCHIVE}.tar",
-            f"localhost/devcloud-worker:{version}",
+            f"localhost/aifactory-worker:{version}",
             WORKER_SOURCE_IMAGE.format(version=version),
         ),
     ):
@@ -261,7 +266,7 @@ def tracked_files(root_dir: Path) -> list[str]:
 
 def is_forbidden_tracked_path(relative_path: PurePosixPath) -> bool:
     value = relative_path.as_posix()
-    if value in {".env", "data/devcloud.db"}:
+    if value in {".env", "data/aifactory.db", "data/devcloud.db"}:
         return True
     if value.startswith("data/workspaces/") and value != "data/workspaces/.gitkeep":
         return True
@@ -545,7 +550,7 @@ def export_controller_images(
     """Export immutable controller runtime images for a registry-free install."""
     run([podman_bin, "--version"], capture_output=True)
     images_dir.mkdir(parents=True, exist_ok=True)
-    controller_image = f"localhost/devcloud-controller:{version}"
+    controller_image = f"localhost/aifactory-controller:{version}"
     if skip_build:
         run([podman_bin, "image", "exists", controller_image])
     else:
@@ -556,9 +561,9 @@ def export_controller_images(
                 "--platform",
                 CONTAINER_PLATFORM,
                 "--build-arg",
-                f"DEVCLOUD_VERSION={version}",
+                f"AIFACTORY_VERSION={version}",
                 "--file",
-                str(root_dir / "containers/devcloud-controller/Containerfile"),
+                str(root_dir / "containers/aifactory-controller/Containerfile"),
                 "--tag",
                 controller_image,
                 str(root_dir),
@@ -605,7 +610,7 @@ def export_worker_image(
     """Export the rootful worker runtime image for a registry-free install."""
     run([podman_bin, "--version"], capture_output=True)
     images_dir.mkdir(parents=True, exist_ok=True)
-    worker_image = f"localhost/devcloud-worker:{version}"
+    worker_image = f"localhost/aifactory-worker:{version}"
     if skip_build:
         run([podman_bin, "image", "exists", worker_image])
     else:
@@ -616,9 +621,9 @@ def export_worker_image(
                 "--platform",
                 CONTAINER_PLATFORM,
                 "--build-arg",
-                f"DEVCLOUD_VERSION={version}",
+                f"AIFACTORY_VERSION={version}",
                 "--file",
-                str(root_dir / "containers/devcloud-worker/Containerfile"),
+                str(root_dir / "containers/aifactory-worker/Containerfile"),
                 "--tag",
                 worker_image,
                 str(root_dir),
@@ -937,14 +942,14 @@ def verify_staged_bundle(
         if bundle_role == "server"
         else set()
     )
-    if controller_image_paths != expected_controller_images:
+    if controller_image_paths not in _archive_name_variants(expected_controller_images):
         raise PackageError(
             "The manifest does not contain the required controller images"
         )
     expected_worker_images = {
         f"offline/worker-images/{WORKER_IMAGE_ARCHIVE}.tar"
     }
-    if worker_image_paths != expected_worker_images:
+    if worker_image_paths not in _archive_name_variants(expected_worker_images):
         raise PackageError("The manifest does not contain the required worker image")
     if not wheel_paths:
         raise PackageError("The manifest does not contain Python wheels")
@@ -1101,7 +1106,7 @@ def build_bundle(args: argparse.Namespace) -> tuple[Path, Path]:
     print(f"Building AI Factory {bundle_role} air-gap bundle from Git commit {commit}")
     print("=" * 78)
 
-    with tempfile.TemporaryDirectory(prefix="devcloud-airgap-") as temp_dir:
+    with tempfile.TemporaryDirectory(prefix="aifactory-airgap-") as temp_dir:
         bundle_root = Path(temp_dir) / bundle_root_name
         copy_tracked_source(root_dir, bundle_root)
         if args.release_keyring:
@@ -1148,10 +1153,10 @@ def build_bundle(args: argparse.Namespace) -> tuple[Path, Path]:
                 version=version,
                 source_commit=commit,
                 controller_digest=image_digest(
-                    args.podman_bin, f"localhost/devcloud-controller:{version}"
+                    args.podman_bin, f"localhost/aifactory-controller:{version}"
                 ),
                 worker_digest=image_digest(
-                    args.podman_bin, f"localhost/devcloud-worker:{version}"
+                    args.podman_bin, f"localhost/aifactory-worker:{version}"
                 ),
             )
             write_release_manifest(

@@ -158,15 +158,15 @@ class InstallerUI:
         if config.installs_worker:
             if role == DeploymentRole.WORKER:
                 config.controller_url = self.ask(
-                    "Controller URL", "https://devcloud.example.com"
+                    "Controller URL", "https://aifactory.example.com"
                 ).rstrip("/")
                 config.worker_id = self.ask("Worker ID")
                 config.enrollment_token_file = self.ask(
-                    "Enrollment token file", "/root/devcloud-enrollment-token"
+                    "Enrollment token file", "/root/aifactory-enrollment-token"
                 )
-            config.worker_name = self.ask("Worker name", "devcloud-worker-01")
+            config.worker_name = self.ask("Worker name", "aifactory-worker-01")
             config.workspace_root = self.ask(
-                "Workspace storage", "/var/lib/devcloud/workspaces"
+                "Workspace storage", "/var/lib/aifactory/workspaces"
             )
             config.preload_images = False
 

@@ -39,7 +39,7 @@ def build_pack(args: argparse.Namespace) -> tuple[Path, Path]:
     output.unlink(missing_ok=True)
     output.with_name(output.name + ".sha256").unlink(missing_ok=True)
 
-    with tempfile.TemporaryDirectory(prefix="devcloud-workspace-images-") as temp_dir:
+    with tempfile.TemporaryDirectory(prefix="aifactory-workspace-images-") as temp_dir:
         pack_root = Path(temp_dir) / "devcloud-workspace-images"
         images_dir = pack_root / "images"
         export_images(

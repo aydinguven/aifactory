@@ -182,7 +182,7 @@ already shows the step bar once the new controller is up; the full view
 
 New managed installations use the root-run interactive lifecycle installer:
 
-    sudo bash deploy/devcloud-setup.sh
+    sudo bash deploy/aifactory-setup.sh
 
 It supports controller, all-in-one, and worker roles plus update, repair,
 status, backup, restore, and uninstall. See [INSTALL.md](INSTALL.md). The
@@ -215,9 +215,9 @@ remains disabled until a valid certificate and key are uploaded from Admin.
 Verify the clean installation:
 
 ```bash
-systemctl status devcloud nginx devcloud-ingress.path --no-pager
+systemctl status aifactory nginx aifactory-ingress.path --no-pager
 curl -I http://127.0.0.1:8000/login
-curl -I http://devcloud.example.com/login
+curl -I http://aifactory.example.com/login
 ```
 
 ### 2. Update a managed installation
@@ -230,10 +230,10 @@ channel descriptor.
 Apply a configured Git channel or a transferred bundle from the host:
 
 ```bash
-sudo bash /opt/devcloud/current/deploy/devcloud-setup.sh --yes update \
+sudo bash /opt/aifactory/current/deploy/aifactory-setup.sh --yes update \
   --source-type git --repository https://git.example/devcloud.git --ref stable
 
-sudo bash /opt/devcloud/current/deploy/devcloud-setup.sh --yes update \
+sudo bash /opt/aifactory/current/deploy/aifactory-setup.sh --yes update \
   --bundle /root/devcloud-platform-update-VERSION-COMMIT.tar.gz
 ```
 
@@ -259,7 +259,7 @@ active IDE sessions cannot exhaust controller database connections.
 Verify the result:
 
 ```bash
-systemctl status devcloud-controller devcloud-update.path --no-pager
+systemctl status aifactory-controller aifactory-update.path --no-pager
 podman ps
 curl -fsS http://127.0.0.1:8000/healthz
 ```
@@ -295,7 +295,7 @@ sudo dnf install -y pigz  # Optional; repository availability varies
 
 #### Step 2: Configure Workspace Storage Directory
 ```bash
-DEVCLOUD_SERVICE_USER="$USER" bash deploy/configure_selinux.sh
+AIFACTORY_SERVICE_USER="$USER" bash deploy/configure_selinux.sh
 ```
 
 #### Step 3: Add Workspace Images
@@ -353,7 +353,7 @@ Workspace AI to point at the same LiteLLM.
 **Admin > Skill Kütüphanesi** keeps a library of single-file skills: paste or
 upload a `SKILL.md` (YAML frontmatter with `name` and `description`, then the
 instructions). Every enabled skill is written into Kilo Code workspaces
-(`/home/coder/.devcloud/skills`, listed under `skills` in `kilo.jsonc`) and
+(`/home/coder/.aifactory/skills`, listed under `skills` in `kilo.jsonc`) and
 Jupyter workspaces (`$CLAUDE_CONFIG_DIR/skills`, Claude Code's user skills,
 which the Jupyter AI chat uses). The assistant sees each skill's name and
 description and loads the instructions when a request matches; users can also
@@ -429,12 +429,12 @@ keep the shared key, so workspace creation never fails because of this. Running
 workspaces keep the key they were created with until they are recreated.
 
 #### Step 4: Configure Systemd Service
-Copy and edit `deploy/devcloud.service` into `/etc/systemd/system/`:
+Copy and edit `deploy/aifactory.service` into `/etc/systemd/system/`:
 ```bash
-sudo cp deploy/devcloud.service /etc/systemd/system/devcloud.service
+sudo cp deploy/aifactory.service /etc/systemd/system/aifactory.service
 # Replace {{USER}} and {{PROJECT_DIR}} in the file
 sudo systemctl daemon-reload
-sudo systemctl enable --now devcloud
+sudo systemctl enable --now aifactory
 ```
 
 #### Step 5: Configure the Nginx Ingress
@@ -459,7 +459,7 @@ one at a time without stopping the systemd unit or its Podman workspace
 supervisors. It bounds the reload/start wait, verifies
 `http://127.0.0.1:8000/login`, and prints service logs if the application does
 not become healthy. The installed unit also supports `sudo systemctl reload
-devcloud` after `deploy/devcloud.service` has been copied into place.
+aifactory` after `deploy/aifactory.service` has been copied into place.
 
 ---
 
@@ -517,7 +517,7 @@ sha256sum -c devcloud-offline-*.tar.gz.sha256
 tar -xzf devcloud-offline-*.tar.gz
 cd devcloud
 
-sudo bash deploy/devcloud-setup.sh
+sudo bash deploy/aifactory-setup.sh
 ```
 
 On the first run, the installer verifies the bootstrap RPM repository, disables
@@ -529,7 +529,7 @@ activation-key workflow:
 ```bash
 subscription-manager register --org='YOUR_ORG' --activationkey='YOUR_KEY'
 dnf repolist
-sudo bash deploy/devcloud-setup.sh
+sudo bash deploy/aifactory-setup.sh
 ```
 
 The second run installs all remaining operating-system prerequisites from the
@@ -581,7 +581,7 @@ CA bundle for all later HTTPS/WSS traffic. An optional fallback IPv4 changes
 only routing: SNI, Host, and certificate validation continue to use the FQDN.
 
 For the planned deployment, the certificate SAN must contain
-devcloud.example.com, DNS must resolve that name to the controller, and clients
+aifactory.example.com, DNS must resolve that name to the controller, and clients
 and workers must trust the organization CA. Keep **Port 80 HTTP fallback**
 enabled while that trust is being rolled out. The fallback deliberately does
 not enable HSTS. Disabling fallback changes port 80 to a permanent redirect to
@@ -595,10 +595,10 @@ section is only needed if the host was upgraded using an older updater.
 Verify both the application and the workspace proxy after applying a
 certificate:
 
-    curl -I http://devcloud.example.com/login
-    curl --cacert /path/to/internal-ca.pem -I https://devcloud.example.com/login
+    curl -I http://aifactory.example.com/login
+    curl --cacert /path/to/internal-ca.pem -I https://aifactory.example.com/login
     sudo nginx -t
-    sudo systemctl status nginx devcloud-ingress.path --no-pager
+    sudo systemctl status nginx aifactory-ingress.path --no-pager
 
 See [AIRGAP.md](AIRGAP.md) for prerequisites, multi-version bundles, Git release
 publishing, SELinux notes, and validation commands.

@@ -2,15 +2,15 @@
 # Configure persistent SELinux labels for AI Factory workspace bind mounts.
 set -Eeuo pipefail
 
-WORKSPACES_DIR="${DEVCLOUD_STORAGE_ROOT:-/var/lib/devcloud/workspaces}"
-SERVICE_USER="${DEVCLOUD_SERVICE_USER:-${SUDO_USER:-${USER:-root}}}"
+WORKSPACES_DIR="${AIFACTORY_STORAGE_ROOT:-/var/lib/aifactory/workspaces}"
+SERVICE_USER="${AIFACTORY_SERVICE_USER:-${SUDO_USER:-${USER:-root}}}"
 
 log() {
-    printf '[devcloud-selinux] %s\n' "$*"
+    printf '[aifactory-selinux] %s\n' "$*"
 }
 
 fail() {
-    printf '[devcloud-selinux] ERROR: %s\n' "$*" >&2
+    printf '[aifactory-selinux] ERROR: %s\n' "$*" >&2
     exit 1
 }
 

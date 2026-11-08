@@ -263,7 +263,7 @@ async def test_build_redacts_registry_password_from_push_failure(monkeypatch, tm
         model_uri=MODEL_URI,
         image_tag=IMAGE_TAG,
         mlflow_environment=dict(TRACKING_ENVIRONMENT),
-        registry_username="devcloud",
+        registry_username="aifactory",
         registry_password="secret-registry-password",
     )
 
@@ -390,7 +390,7 @@ def test_deployment_detail_exposes_the_build_log():
 def test_worker_unit_exposes_the_virtualenv_console_scripts_on_path():
     """The worker shells out to virtualenv entry points such as ``mlflow``."""
     unit = (
-        Path(__file__).resolve().parents[1] / "deploy" / "devcloud-worker.service"
+        Path(__file__).resolve().parents[1] / "deploy" / "aifactory-worker.service"
     ).read_text(encoding="utf-8")
 
     path_line = next(

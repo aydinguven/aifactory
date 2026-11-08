@@ -16,6 +16,7 @@ from app.session_settings import session_timeout_minutes
 from app.database import get_db
 from app.models.user import User
 from app.models.directory_settings import DirectorySettings
+from app.auth.dependencies import session_cookie_names
 from app.auth.ldap import DirectoryLoginRejected, DirectoryUnavailableError
 from app.schemas.auth import TokenResponse
 from app.quotas import user_out_for
@@ -44,14 +45,19 @@ def set_session_cookie(
 
 
 def clear_session_cookie(response: Response, request: Request) -> None:
-    """Expire the session cookie using the same attributes used to set it."""
-    response.delete_cookie(
-        key=settings.COOKIE_NAME,
-        httponly=True,
-        samesite="lax",
-        secure=_secure_cookie(request),
-        path="/",
-    )
+    """Expire the session cookie using the same attributes used to set it.
+
+    Every name a session is read from is expired, so a cookie under the other
+    release's name cannot outlive a logout.
+    """
+    for name in session_cookie_names():
+        response.delete_cookie(
+            key=name,
+            httponly=True,
+            samesite="lax",
+            secure=_secure_cookie(request),
+            path="/",
+        )
 
 
 @auth_router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)

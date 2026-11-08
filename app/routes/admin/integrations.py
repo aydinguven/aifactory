@@ -182,7 +182,7 @@ async def _model_registry_current_for_update(
             if record
             else (
                 settings.MODEL_CONTAINER_REGISTRY_URL
-                or settings.DEVCLOUD_REGISTRY_URL
+                or settings.AIFACTORY_REGISTRY_URL
             )
         )
         return ModelContainerRegistryConfig(

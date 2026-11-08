@@ -275,7 +275,7 @@
   <form id="download-settings-form" class="responsive-form-grid responsive-form-grid--download">
     <label class="form-group" style="margin:0;">
       <span class="form-label">Worker kurulumunda kullanılacak Controller URL</span>
-      <input class="form-input" type="url" name="public_base_url" value="{{ download_public_base_url }}" placeholder="https://devcloud.example.com" required>
+      <input class="form-input" type="url" name="public_base_url" value="{{ download_public_base_url }}" placeholder="https://aifactory.example.com" required>
       <small style="color:var(--text-muted);">Worker kimliği olarak HTTPS FQDN kullanılır; WSS ve sertifika hostname doğrulaması bu adla korunur.</small>
     </label>
     <label class="form-group" style="margin:0;">
@@ -1038,7 +1038,7 @@ cd devcloud
     <div class="grid grid-cols-2" style="gap: 0.75rem; margin-bottom: 0.75rem;">
       <label class="form-group" style="margin: 0;">
         <span class="form-label">Bind kullanıcı / DN</span>
-        <input class="form-input" name="bind_dn" value="{{ directory_settings.bind_dn if directory_settings else '' }}" placeholder="CN=svc-devcloud,OU=Service Accounts,DC=..." required>
+        <input class="form-input" name="bind_dn" value="{{ directory_settings.bind_dn if directory_settings else '' }}" placeholder="CN=svc-aifactory,OU=Service Accounts,DC=..." required>
       </label>
       <label class="form-group" style="margin: 0;">
         <span class="form-label">Bind parolası</span>

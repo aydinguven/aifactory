@@ -4,10 +4,10 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 VERSION="$(cd "${ROOT_DIR}" && python3 -c 'from app import __version__; print(__version__)')"
 OUTPUT_DIR="${1:-${ROOT_DIR}/dist/container-images}"
-CONTROLLER_IMAGE="${DEVCLOUD_CONTROLLER_IMAGE:-localhost/devcloud-controller:${VERSION}}"
-WORKER_IMAGE="${DEVCLOUD_WORKER_IMAGE:-localhost/devcloud-worker:${VERSION}}"
-POSTGRES_IMAGE="${DEVCLOUD_POSTGRES_IMAGE:-localhost/devcloud-postgresql:16}"
-POSTGRES_SOURCE_IMAGE="${DEVCLOUD_POSTGRES_SOURCE_IMAGE:-quay.io/sclorg/postgresql-16-c10s:latest}"
+CONTROLLER_IMAGE="${AIFACTORY_CONTROLLER_IMAGE:-localhost/aifactory-controller:${VERSION}}"
+WORKER_IMAGE="${AIFACTORY_WORKER_IMAGE:-localhost/aifactory-worker:${VERSION}}"
+POSTGRES_IMAGE="${AIFACTORY_POSTGRES_IMAGE:-localhost/aifactory-postgresql:16}"
+POSTGRES_SOURCE_IMAGE="${AIFACTORY_POSTGRES_SOURCE_IMAGE:-quay.io/sclorg/postgresql-16-c10s:latest}"
 
 mkdir -p "${OUTPUT_DIR}"
 podman image exists "${CONTROLLER_IMAGE}" || {

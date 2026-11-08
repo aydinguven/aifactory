@@ -51,7 +51,7 @@ from app.models.directory_team import (
 from app.models.user import User
 from app.quotas import clean_name, team_key
 
-logger = logging.getLogger("devcloud.directory_sync")
+logger = logging.getLogger("aifactory.directory_sync")
 
 PAGE_SIZE = 500
 # Cap on managers read by DN outside the sync search.
@@ -397,7 +397,7 @@ async def apply_snapshot(
             for team in unassigned[:50]
         ],
         "unassigned_count": len(unassigned),
-        "devcloud_users": len(users),
+        "aifactory_users": len(users),
         "updated_users": len(updated),
         "missing_users": sorted(missing)[:50],
         "missing_count": len(missing),

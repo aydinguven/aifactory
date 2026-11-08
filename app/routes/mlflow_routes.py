@@ -405,7 +405,7 @@ async def get_mlflow_model(
         versions.append(
             {
                 **version,
-                "devcloud_run_url": f"/runs/{quote(run_id, safe='')}" if run_id else "",
+                "aifactory_run_url": f"/runs/{quote(run_id, safe='')}" if run_id else "",
                 "mlflow_run_url": (
                     _run_url(client, experiment_id, run_id)
                     if run_id and experiment_id

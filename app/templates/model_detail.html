@@ -44,7 +44,7 @@
       document.getElementById("model-versions").innerHTML = (data.versions || []).map(version => {
         const aliases = (version.aliases || []).map(escapeHtml).join(", ") || "—";
         const created = version.creation_timestamp ? new Date(Number(version.creation_timestamp)).toLocaleString("tr-TR") : "—";
-        const run = version.run_id ? `<a href="${escapeHtml(version.devcloud_run_url)}"><code>${escapeHtml(version.run_id)}</code></a>${version.mlflow_run_url ? ` · <a href="${escapeHtml(version.mlflow_run_url)}" target="_blank" rel="noopener noreferrer">MLflow ↗</a>` : ""}` : "—";
+        const run = version.run_id ? `<a href="${escapeHtml(version.aifactory_run_url)}"><code>${escapeHtml(version.run_id)}</code></a>${version.mlflow_run_url ? ` · <a href="${escapeHtml(version.mlflow_run_url)}" target="_blank" rel="noopener noreferrer">MLflow ↗</a>` : ""}` : "—";
         return `<tr><td><strong>v${escapeHtml(version.version)}</strong></td><td>${aliases}</td><td>${escapeHtml(version.status || "—")}</td><td class="data-value">${run}</td><td class="data-value"><code>${escapeHtml(version.source || "—")}</code></td><td>${created}</td><td class="deploy-button-group"><button type="button" class="btn btn-primary btn-sm" data-deploy-model data-model-name="${escapeHtml(version.name || root.dataset.modelName)}" data-model-version="${escapeHtml(version.version)}" data-run-id="${escapeHtml(version.run_id || "")}">Dağıt</button></td></tr>`;
       }).join("");
       status.textContent = "";

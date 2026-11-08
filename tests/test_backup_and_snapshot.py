@@ -32,7 +32,7 @@ async def test_download_backup_zip(client: AsyncClient, db_session):
     tmp_storage = tempfile.mkdtemp()
     try:
         with open(os.path.join(tmp_storage, "app.py"), "w") as f:
-            f.write("# sample devcloud app")
+            f.write("# sample aifactory app")
 
         ws = Workspace(
             id="test-ws-backup-1",
@@ -42,7 +42,7 @@ async def test_download_backup_zip(client: AsyncClient, db_session):
             node_id=TEST_WORKER_ID,
             template_id="vscode-python",
             flavor_id="t1.micro",
-            container_name="devcloud-1-test-ws-backup-1",
+            container_name="aifactory-1-test-ws-backup-1",
             host_port=10210,
             container_port=8080,
             storage_path=tmp_storage,
@@ -74,10 +74,10 @@ async def test_snapshot_workspace_to_template(client: AsyncClient, db_session):
         node_id=TEST_WORKER_ID,
         template_id="vscode-python",
         flavor_id="t1.micro",
-        container_name="devcloud-1-test-ws-snap-1",
+        container_name="aifactory-1-test-ws-snap-1",
         host_port=10211,
         container_port=8080,
-        storage_path="/tmp/devcloud_snap_test",
+        storage_path="/tmp/aifactory_snap_test",
         status=WorkspaceStatus.RUNNING,
     )
     db_session.add(ws)

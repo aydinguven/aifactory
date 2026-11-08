@@ -1,23 +1,23 @@
 ARG PYTHON_IMAGE=registry.access.redhat.com/ubi10/python-312-minimal:latest
 FROM ${PYTHON_IMAGE}
 
-ARG DEVCLOUD_VERSION=0.0.0
+ARG AIFACTORY_VERSION=0.0.0
 LABEL org.opencontainers.image.title="AI Factory Controller" \
       org.opencontainers.image.description="AI Factory management plane and worker tunnel controller" \
-      org.opencontainers.image.version="${DEVCLOUD_VERSION}"
+      org.opencontainers.image.version="${AIFACTORY_VERSION}"
 
 USER 0
-WORKDIR /opt/devcloud
+WORKDIR /opt/aifactory
 
 RUN microdnf install -y skopeo && microdnf clean all
 
-COPY requirements.txt /opt/devcloud/requirements.txt
+COPY requirements.txt /opt/aifactory/requirements.txt
 RUN python -m pip install --no-cache-dir --disable-pip-version-check \
-        -r /opt/devcloud/requirements.txt
+        -r /opt/aifactory/requirements.txt
 
-COPY app /opt/devcloud/app
-COPY deploy /opt/devcloud/deploy
-RUN chmod 0755 /opt/devcloud/deploy/container/controller-entrypoint.sh
+COPY app /opt/aifactory/app
+COPY deploy /opt/aifactory/deploy
+RUN chmod 0755 /opt/aifactory/deploy/container/controller-entrypoint.sh
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -25,4 +25,4 @@ ENV PYTHONUNBUFFERED=1 \
 
 EXPOSE 8000
 USER 10001:10001
-ENTRYPOINT ["/opt/devcloud/deploy/container/controller-entrypoint.sh"]
+ENTRYPOINT ["/opt/aifactory/deploy/container/controller-entrypoint.sh"]

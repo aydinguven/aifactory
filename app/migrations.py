@@ -81,10 +81,27 @@ def _rebuild_sqlite_workspaces(sync_conn) -> bool:
     return True
 
 
+# Releases before 3.50.1 keep writing the devcloud table name, so a host can
+# still roll back; 3.50.1 renames it. Both names are read.
+MIGRATIONS_TABLE = "aifactory_schema_migrations"
+LEGACY_MIGRATIONS_TABLE = "devcloud_schema_migrations"
+
+
+async def migrations_table(conn) -> str | None:
+    tables = await conn.run_sync(
+        lambda sync_conn: set(inspect(sync_conn).get_table_names())
+    )
+    for name in (MIGRATIONS_TABLE, LEGACY_MIGRATIONS_TABLE):
+        if name in tables:
+            return name
+    return None
+
+
 async def _record_version(conn, version: int, name: str) -> None:
+    table = await migrations_table(conn) or LEGACY_MIGRATIONS_TABLE
     await conn.execute(
         text(
-            "INSERT INTO devcloud_schema_migrations "
+            f"INSERT INTO {table} "
             "(version, name, applied_at) VALUES (:version, :name, :applied_at)"
         ),
         {
@@ -118,29 +135,30 @@ async def _expand_flavor_settings(conn) -> None:
 
 
 async def _applied_versions(conn) -> set[int]:
-    await conn.execute(
-        text(
-            "CREATE TABLE IF NOT EXISTS devcloud_schema_migrations ("
-            "version INTEGER PRIMARY KEY, "
-            "name VARCHAR(255) NOT NULL, "
-            "applied_at VARCHAR(64) NOT NULL)"
+    table = await migrations_table(conn)
+    if table is None:
+        table = LEGACY_MIGRATIONS_TABLE
+        await conn.execute(
+            text(
+                f"CREATE TABLE IF NOT EXISTS {table} ("
+                "version INTEGER PRIMARY KEY, "
+                "name VARCHAR(255) NOT NULL, "
+                "applied_at VARCHAR(64) NOT NULL)"
+            )
         )
-    )
-    rows = await conn.execute(
-        text("SELECT version FROM devcloud_schema_migrations")
-    )
+    rows = await conn.execute(text(f"SELECT version FROM {table}"))
     return {int(row[0]) for row in rows}
 
 
 async def _seed_bootstrap_worker(conn) -> None:
-    worker_id = settings.DEVCLOUD_BOOTSTRAP_WORKER_ID.strip()
-    token_hash = settings.DEVCLOUD_BOOTSTRAP_WORKER_TOKEN_HASH.strip()
+    worker_id = settings.AIFACTORY_BOOTSTRAP_WORKER_ID.strip()
+    token_hash = settings.AIFACTORY_BOOTSTRAP_WORKER_TOKEN_HASH.strip()
     if not worker_id:
         return
     if len(token_hash) != hashlib.sha256().digest_size * 2:
         raise MigrationError("Bootstrap worker token hash is invalid")
     worker_name = (
-        settings.DEVCLOUD_BOOTSTRAP_WORKER_NAME.strip() or "all-in-one-worker"
+        settings.AIFACTORY_BOOTSTRAP_WORKER_NAME.strip() or "all-in-one-worker"
     )
     exists = await conn.execute(
         text("SELECT id FROM nodes WHERE id = :id"), {"id": worker_id}
@@ -1205,13 +1223,11 @@ async def upgrade() -> None:
 
 async def current_version() -> int:
     async with engine.begin() as conn:
-        tables = await conn.run_sync(lambda sync_conn: inspect(sync_conn).get_table_names())
-        if "devcloud_schema_migrations" not in tables:
+        table = await migrations_table(conn)
+        if table is None:
             return 0
         value = (
-            await conn.execute(
-                text("SELECT MAX(version) FROM devcloud_schema_migrations")
-            )
+            await conn.execute(text(f"SELECT MAX(version) FROM {table}"))
         ).scalar_one_or_none()
         return int(value or 0)
 

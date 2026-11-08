@@ -74,7 +74,7 @@ def test_copy_release_keyring_embeds_public_key(tmp_path: Path):
 
 
 def test_manifest_verification_detects_tampered_artifact(tmp_path: Path):
-    bundle_root = tmp_path / "devcloud"
+    bundle_root = tmp_path / "aifactory"
     wheels_dir = bundle_root / "offline" / "wheels"
     images_dir = bundle_root / "offline" / "images"
     wheels_dir.mkdir(parents=True)
@@ -105,10 +105,10 @@ def test_manifest_verification_detects_tampered_artifact(tmp_path: Path):
 
 
 def test_server_bundle_manifests_support_controller_worker_bootstrap(tmp_path: Path):
-    bundle_root = tmp_path / "devcloud"
+    bundle_root = tmp_path / "aifactory"
     (bundle_root / "offline" / "wheels").mkdir(parents=True)
     (bundle_root / "requirements.txt").write_text("fastapi\n", encoding="utf-8")
-    (bundle_root / "app.py").write_text("print('devcloud')\n", encoding="utf-8")
+    (bundle_root / "app.py").write_text("print('aifactory')\n", encoding="utf-8")
     (bundle_root / "offline/wheels/fastapi-1-py3-none-any.whl").write_bytes(b"wheel")
     add_controller_images(bundle_root)
     package_offline.write_manifest(
@@ -143,7 +143,7 @@ def test_server_bundle_manifests_support_controller_worker_bootstrap(tmp_path: P
 
 
 def test_worker_manifest_role_is_verified(tmp_path: Path):
-    bundle_root = tmp_path / "devcloud-worker"
+    bundle_root = tmp_path / "aifactory-worker"
     wheels_dir = bundle_root / "offline" / "wheels"
     images_dir = bundle_root / "offline" / "images"
     wheels_dir.mkdir(parents=True)
@@ -229,7 +229,7 @@ def test_server_bundle_exports_controller_and_postgresql_oci_archives(
     assert (output / "devcloud-controller.tar").is_file()
     assert (output / "devcloud-postgresql-16.tar").is_file()
     assert any(
-        "localhost/devcloud-controller:9.9.9" in command for command in commands
+        "localhost/aifactory-controller:9.9.9" in command for command in commands
     )
     assert all(
         "--format" in command and "oci-archive" in command
@@ -258,7 +258,7 @@ def test_worker_bundle_exports_worker_oci_archive(tmp_path: Path, monkeypatch):
     )
 
     assert (output / "devcloud-worker.tar").is_file()
-    assert any("localhost/devcloud-worker:9.9.9" in command for command in commands)
+    assert any("localhost/aifactory-worker:9.9.9" in command for command in commands)
     assert all(
         "--format" in command and "oci-archive" in command
         for command in commands
@@ -372,7 +372,7 @@ def test_system_rpm_download_collects_dependency_closure_and_checksums(
 
 
 def test_manifest_verifies_system_rpm_profile_and_checksum_index(tmp_path: Path):
-    bundle_root = tmp_path / "devcloud"
+    bundle_root = tmp_path / "aifactory"
     wheels_dir = bundle_root / "offline" / "wheels"
     images_dir = bundle_root / "offline" / "images"
     rpm_root = bundle_root / "offline" / "system-rpms"
@@ -424,7 +424,7 @@ def test_manifest_verifies_system_rpm_profile_and_checksum_index(tmp_path: Path)
     )
 
 def test_outer_checksum_uses_portable_sha256sum_format(tmp_path: Path):
-    bundle = tmp_path / "devcloud-offline-test.tar"
+    bundle = tmp_path / "aifactory-offline-test.tar"
     bundle.write_bytes(b"bundle")
     checksum = package_offline.write_outer_checksum(bundle)
     digest, filename = checksum.read_text(encoding="ascii").strip().split("  ")
@@ -436,7 +436,7 @@ def test_bundle_archive_is_gzip_compressed(tmp_path: Path, monkeypatch):
     bundle_root = tmp_path / "source"
     bundle_root.mkdir()
     (bundle_root / "payload.txt").write_text("payload", encoding="utf-8")
-    output = tmp_path / "devcloud-offline-test.tar.gz"
+    output = tmp_path / "aifactory-offline-test.tar.gz"
     monkeypatch.setattr(package_offline.shutil, "which", lambda _: None)
 
     package_offline.create_archive(bundle_root, output)
@@ -452,13 +452,13 @@ async def test_podman_load_offline_images(tmp_path: Path):
     svc._mock_mode = True
     images_dir = tmp_path / "images"
     images_dir.mkdir()
-    (images_dir / "devcloud-vscode-empty.tar").write_bytes(b"dummy tar content")
-    (images_dir / "devcloud-vscode-python.tar").write_bytes(b"dummy tar content")
+    (images_dir / "aifactory-vscode-empty.tar").write_bytes(b"dummy tar content")
+    (images_dir / "aifactory-vscode-python.tar").write_bytes(b"dummy tar content")
 
     loaded = await svc.load_offline_images(images_dir)
     assert len(loaded) == 2
-    assert "devcloud-vscode-empty.tar" in loaded
-    assert "devcloud-vscode-python.tar" in loaded
+    assert "aifactory-vscode-empty.tar" in loaded
+    assert "aifactory-vscode-python.tar" in loaded
 
 
 @pytest.mark.asyncio

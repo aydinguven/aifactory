@@ -55,26 +55,26 @@ RUN curl -fsSL \
 
 RUN useradd --create-home --uid 1000 --shell /bin/bash devuser
 
-COPY devcloud-terminal.sh /etc/profile.d/devcloud-terminal.sh
-COPY entrypoint.sh /usr/local/bin/devcloud-terminal-entrypoint
-RUN chmod 0644 /etc/profile.d/devcloud-terminal.sh \
-    && chmod 0755 /usr/local/bin/devcloud-terminal-entrypoint
+COPY aifactory-terminal.sh /etc/profile.d/aifactory-terminal.sh
+COPY entrypoint.sh /usr/local/bin/aifactory-terminal-entrypoint
+RUN chmod 0644 /etc/profile.d/aifactory-terminal.sh \
+    && chmod 0755 /usr/local/bin/aifactory-terminal-entrypoint
 
 # The workspace volume is mounted over /home/devuser, which hides whatever the
 # image put there. Keep a copy of the skeleton so the entrypoint can seed an
 # empty volume on first start.
-RUN tar -cf /opt/devcloud-home-skel.tar -C /home/devuser . \
-    && chmod 0444 /opt/devcloud-home-skel.tar
+RUN tar -cf /opt/aifactory-home-skel.tar -C /home/devuser . \
+    && chmod 0444 /opt/aifactory-home-skel.tar
 
 ENV HOME=/home/devuser \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
     TERM=xterm-256color \
-    DEVCLOUD_TERMINAL_PORT=7681
+    AIFACTORY_TERMINAL_PORT=7681
 
 USER devuser
 WORKDIR /home/devuser
 
 EXPOSE 7681
 
-ENTRYPOINT ["/usr/local/bin/devcloud-terminal-entrypoint"]
+ENTRYPOINT ["/usr/local/bin/aifactory-terminal-entrypoint"]

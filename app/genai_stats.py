@@ -283,7 +283,7 @@ async def _shape(
                 "team_key": group_key,
                 "unit": person["unit"] if person else "",
                 "unit_key": member_unit_key,
-                "devcloud_user_id": person["user_id"] if person else None,
+                "aifactory_user_id": person["user_id"] if person else None,
                 **_rounded(metrics),
                 **series,
             }

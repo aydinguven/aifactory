@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -28,7 +28,8 @@ class InstallationState:
         if not path.is_file():
             return None
         data = json.loads(path.read_text(encoding="utf-8"))
-        return cls(**data)
+        known = {item.name for item in fields(cls)}
+        return cls(**{key: value for key, value in data.items() if key in known})
 
     def save(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)

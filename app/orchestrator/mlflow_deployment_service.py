@@ -70,7 +70,7 @@ from app.workspace_image_service import (
     import_registry_image,
 )
 
-logger = logging.getLogger("devcloud.mlflow.deployments")
+logger = logging.getLogger("aifactory.mlflow.deployments")
 _LEASE_OWNER = f"{socket.gethostname()}:{os.getpid()}"
 _LEASE_SECONDS = 300
 _ACTIVE_DEPLOYMENT_STATUSES = {

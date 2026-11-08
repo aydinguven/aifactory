@@ -79,7 +79,7 @@ The signing key must be usable non-interactively in the release job. During the
 current compatibility period, tag-triggered releases are unsigned and manual
 workflow runs can opt into signing. Signed runs export the public key as
 `devcloud-release-keyring.gpg`, embed it in installation/update archives, and
-install it as `/etc/devcloud/release-keyring.gpg` for subsequent updates.
+install it as `/etc/aifactory/release-keyring.gpg` for subsequent updates.
 
 The primary registry destination is `ghcr.io/aydinguven/devcloud`. Formal
 version tags also mirror release images to
@@ -145,7 +145,7 @@ Each generated archive is verified before publication: the platform bundle is
 opened through the real updater code path, and the offline bundles are
 verified while staged and integrity-checked once compressed. The `stable`
 branch is owned by the workflow and contains only
-`devcloud-update-channel.json`. Do not edit that branch manually.
+`aifactory-update-channel.json`. Do not edit that branch manually.
 
 ## Updating a controller
 
@@ -153,7 +153,7 @@ After a successful release, a connected controller can resolve the channel
 from GitHub:
 
 ```bash
-bash /opt/devcloud/current/deploy/devcloud-setup.sh \
+bash /opt/aifactory/current/deploy/aifactory-setup.sh \
   --yes update \
   --source-type git \
   --repository https://github.com/aydinguven/devcloud.git \
@@ -163,11 +163,11 @@ bash /opt/devcloud/current/deploy/devcloud-setup.sh \
 For temporary unsigned development releases, the installed controller must
 explicitly allow unsigned updates and the command must add
 `--allow-unsigned`. Production releases should enable signing and install the
-published public key as `/etc/devcloud/release-keyring.gpg`.
+published public key as `/etc/aifactory/release-keyring.gpg`.
 
 Unsigned worker OTA is independently gated by the controller environment. Set
-`WORKER_OTA_ALLOW_UNSIGNED=true` in `/etc/devcloud/controller.env` and restart
-`devcloud-controller` only after accepting checksum-only verification. The
+`WORKER_OTA_ALLOW_UNSIGNED=true` in `/etc/aifactory/controller.env` and restart
+`aifactory-controller` only after accepting checksum-only verification. The
 default is `false`. Set it back to `false` when signed releases are enabled.
 
 Hosts installed from an older unsigned release need a one-time trust bootstrap
@@ -177,7 +177,7 @@ fingerprint against the release environment's configured key, and install it:
 
 ```bash
 sudo install -D -o root -g root -m 0644 \
-  devcloud-release-keyring.gpg /etc/devcloud/release-keyring.gpg
+  devcloud-release-keyring.gpg /etc/aifactory/release-keyring.gpg
 ```
 
 New offline installs and successfully applied platform updates persist the

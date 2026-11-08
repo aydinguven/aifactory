@@ -30,7 +30,7 @@ from app.schemas.genai import (
 )
 from app.security.secrets import SecretDecryptionError, decrypt_secret, encrypt_secret
 
-logger = logging.getLogger("devcloud.genai")
+logger = logging.getLogger("aifactory.genai")
 
 _USER_ID = re.compile(r"^[a-z0-9][a-z0-9._@-]{0,127}$")
 _locks: dict[int, asyncio.Lock] = {}
@@ -88,7 +88,7 @@ async def _account(db: AsyncSession, user: User) -> GenAiAccount | None:
 
 def _key_alias(user_id: str) -> str:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-    return f"devcloud-{user_id}-{stamp}"
+    return f"aifactory-{user_id}-{stamp}"
 
 
 def _token_of(payload: dict) -> str:

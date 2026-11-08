@@ -199,12 +199,12 @@ def prepare_release(
     archive: Path,
     *,
     runner: CommandRunner,
-    keyring: Path = Path("/etc/devcloud/release-keyring.gpg"),
+    keyring: Path = Path("/etc/aifactory/release-keyring.gpg"),
     require_signature: bool = True,
 ) -> Iterator[PreparedRelease]:
     if not archive.is_file():
         raise InstallerError(f"Release archive does not exist: {archive}")
-    with tempfile.TemporaryDirectory(prefix="devcloud-release-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="aifactory-release-") as temporary:
         extracted = Path(temporary)
         if zipfile.is_zipfile(archive):
             _extract_zip(archive, extracted)

@@ -98,15 +98,15 @@ def test_worker_forwards_shared_gateway_to_all_workspace_ai_clients():
         "for k, v in template.env_vars.items():", 1
     )[0]
     assert "managed_cline_files" in vscode_branch
-    assert "DEVCLOUD_CLINE_SECRETS_JSON=" in vscode_branch
-    assert "DEVCLOUD_CLINE_PROVIDERS_JSON=" in vscode_branch
-    assert "DEVCLOUD_VSCODE_CHAT_MODELS_JSON=" not in vscode_branch
-    assert "DEVCLOUD_VSCODE_SETTINGS_JSON=" in vscode_branch
+    assert "AIFACTORY_CLINE_SECRETS_JSON=" in vscode_branch
+    assert "AIFACTORY_CLINE_PROVIDERS_JSON=" in vscode_branch
+    assert "AIFACTORY_VSCODE_CHAT_MODELS_JSON=" not in vscode_branch
+    assert "AIFACTORY_VSCODE_SETTINGS_JSON=" in vscode_branch
     assert "chatLanguageModels.json" not in vscode_branch
     assert "--uninstall-extension saoudrizwan.claude-dev" not in podman_service
     assert "--disable-extension saoudrizwan.claude-dev" not in podman_service
     assert "ANTHROPIC_AUTH_TOKEN" in jupyter_branch
     assert "ANTHROPIC_BASE_URL" in jupyter_branch
     assert "CLAUDE_CODE_EXECUTABLE=/opt/conda/bin/claude" in jupyter_branch
-    assert "DEVCLOUD_CLAUDE_SETTINGS_JSON=" in jupyter_branch
+    assert "AIFACTORY_CLAUDE_SETTINGS_JSON=" in jupyter_branch
     assert "CLAUDE_CODE_DISABLE_1M_CONTEXT=1" in jupyter_branch

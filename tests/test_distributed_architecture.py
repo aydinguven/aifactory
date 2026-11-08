@@ -48,7 +48,7 @@ async def test_worker_release_catalog_requires_enrollment_token(
 ):
     releases = tmp_path / "releases"
     releases.mkdir()
-    release = releases / "devcloud-release-v3.0.0-abcdef1.zip"
+    release = releases / "aifactory-release-v3.0.0-abcdef1.zip"
     release.write_bytes(b"verified-release")
     monkeypatch.setattr(settings, "DOWNLOADS_ROOT", str(tmp_path))
     monkeypatch.setattr(settings, "WORKER_OTA_ALLOW_UNSIGNED", True)
@@ -141,7 +141,7 @@ async def test_admin_git_release_channel_creates_root_updater_request(
         "/api/admin/system/release-source",
         headers=headers,
         data={
-            "repository": "https://git.aydin.cloud/platform/devcloud.git",
+            "repository": "https://git.aydin.cloud/platform/aifactory.git",
             "ref": "stable",
         },
     )
@@ -149,7 +149,7 @@ async def test_admin_git_release_channel_creates_root_updater_request(
     assert response.status_code == 202
     marker = json.loads((queue / "pending.json").read_text(encoding="utf-8"))
     assert marker["source_type"] == "git"
-    assert marker["repository"] == "https://git.aydin.cloud/platform/devcloud.git"
+    assert marker["repository"] == "https://git.aydin.cloud/platform/aifactory.git"
     assert marker["ref"] == "stable"
     assert marker["allow_unsigned"] is False
 
@@ -189,7 +189,7 @@ async def test_admin_checks_installed_and_published_release_before_queueing(
         assert ref == "stable"
         return ReleaseChannel(
             version="99.0.0",
-            filename="devcloud-platform-update-v99.0.0-test.tar.gz",
+            filename="aifactory-platform-update-v99.0.0-test.tar.gz",
             url="https://github.com/aydinguven/devcloud/releases/test.tar.gz",
             sha256="a" * 64,
             size=1024,
@@ -362,9 +362,9 @@ def test_controller_import_does_not_load_podman_runtime():
 def test_release_catalog_prefers_semantic_version_over_copy_time(tmp_path):
     releases = tmp_path / "releases"
     releases.mkdir()
-    newer_copy = releases / "devcloud-release-v2.9.9-abcdef1.zip"
+    newer_copy = releases / "aifactory-release-v2.9.9-abcdef1.zip"
     newer_copy.write_bytes(b"older-version")
-    higher_version = releases / "devcloud-release-v3.0.0-abcdef2.zip"
+    higher_version = releases / "aifactory-release-v3.0.0-abcdef2.zip"
     higher_version.write_bytes(b"higher-version")
 
     selected = latest_release(tmp_path)

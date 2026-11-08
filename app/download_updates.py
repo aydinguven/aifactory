@@ -26,9 +26,12 @@ BUNDLE_PREFIXES = {
     "server": "devcloud-offline",
     "worker": "devcloud-worker-offline",
 }
+# Bundles are still built with the devcloud prefix (see deploy/package_offline);
+# published ones under either prefix are recognized.
 BUNDLE_PATTERNS = {
     role: re.compile(
-        rf"^{prefix}-(?:v?[0-9]+\.[0-9]+\.[0-9]+-[0-9]{{8}}-)?([0-9a-f]{{12}})\.tar(?:\.gz)?$"
+        rf"^(?:{prefix}|{prefix.replace('devcloud', 'aifactory', 1)})"
+        rf"-(?:v?[0-9]+\.[0-9]+\.[0-9]+-[0-9]{{8}}-)?([0-9a-f]{{12}})\.tar(?:\.gz)?$"
     )
     for role, prefix in BUNDLE_PREFIXES.items()
 }

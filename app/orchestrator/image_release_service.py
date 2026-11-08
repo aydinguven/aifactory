@@ -52,7 +52,7 @@ from app.orchestrator.mlflow_deployment_service import (
 from app.task_health import task_health
 from app.workspace_image_service import copy_registry_image, registry_tag_digest
 
-logger = logging.getLogger("devcloud.mlflow.image_releases")
+logger = logging.getLogger("aifactory.mlflow.image_releases")
 
 MLFLOW_IMAGE_TAG = "aifactory.image"
 MLFLOW_DIGEST_TAG = "aifactory.image_digest"

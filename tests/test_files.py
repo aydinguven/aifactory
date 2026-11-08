@@ -33,7 +33,7 @@ async def test_file_manager_operations(client: AsyncClient, db_session, monkeypa
     try:
         # Create a sample file in the storage directory
         with open(os.path.join(tmp_storage, "hello.py"), "w") as f:
-            f.write("print('hello devcloud')\n")
+            f.write("print('hello aifactory')\n")
 
         ws = Workspace(
             id="test-ws-files-1",
@@ -43,7 +43,7 @@ async def test_file_manager_operations(client: AsyncClient, db_session, monkeypa
             node_id=TEST_WORKER_ID,
             template_id="vscode-python",
             flavor_id="t1.micro",
-            container_name="devcloud-1-test-ws-files-1",
+            container_name="aifactory-1-test-ws-files-1",
             host_port=10205,
             container_port=8080,
             storage_path=tmp_storage,

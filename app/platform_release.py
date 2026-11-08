@@ -14,8 +14,10 @@ from pathlib import Path, PurePosixPath
 from app.installer.platform import InstallerError
 
 
+# Releases up to 3.49.x are published as devcloud-platform-update-*; later
+# ones as aifactory-platform-update-*. Both are accepted.
 PLATFORM_BUNDLE_PATTERN = re.compile(
-    r"^devcloud-platform-update-v(?P<version>[0-9]+\.[0-9]+\.[0-9]+)"
+    r"^(?:aifactory|devcloud)-platform-update-v(?P<version>[0-9]+\.[0-9]+\.[0-9]+)"
     r"(?:-(?P<revision>[0-9a-f]{7,40}))?\.tar\.gz$"
 )
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
@@ -49,10 +51,10 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _safe_archive_path(raw: object, expected: str) -> str:
+def _safe_archive_path(raw: object, expected: set[str]) -> str:
     value = str(raw or "").replace("\\", "/")
     path = PurePosixPath(value)
-    if path.is_absolute() or ".." in path.parts or value != expected:
+    if path.is_absolute() or ".." in path.parts or value not in expected:
         raise InstallerError(f"Platform image archive path is invalid: {value}")
     return value
 
@@ -60,7 +62,10 @@ def _safe_archive_path(raw: object, expected: str) -> str:
 def _image(root: Path, value: object, role: str) -> PlatformImage:
     if not isinstance(value, dict):
         raise InstallerError(f"Platform manifest has no {role} image")
-    expected = f"offline/{role}-images/devcloud-{role}.tar"
+    expected = {
+        f"offline/{role}-images/{prefix}-{role}.tar"
+        for prefix in ("aifactory", "devcloud")
+    }
     archive_name = _safe_archive_path(value.get("archive"), expected)
     archive = root.joinpath(*PurePosixPath(archive_name).parts)
     checksum = str(value.get("sha256") or "")
@@ -133,7 +138,10 @@ def prune_published_bundles(release_root: Path, *, keep: int, protect: str = "")
     removed: list[Path] = []
     if not release_root.is_dir():
         return removed
-    for partial in release_root.glob(".devcloud-platform-update-*.partial"):
+    for partial in [
+        *release_root.glob(".aifactory-platform-update-*.partial"),
+        *release_root.glob(".devcloud-platform-update-*.partial"),
+    ]:
         partial.unlink(missing_ok=True)
         removed.append(partial)
     bundles = sorted(
@@ -248,6 +256,8 @@ def publish_platform_root(root: Path, downloads_root: Path) -> Path:
     files = _verified_release_files(root, release)
     release_root = downloads_root.resolve() / "releases"
     release_root.mkdir(parents=True, exist_ok=True)
+    # Workers up to 3.49.x check this name; the aifactory name follows once
+    # every host runs 3.49.1 or later.
     filename = (
         f"devcloud-platform-update-v{release.version}-"
         f"{release.source_commit[:12]}.tar.gz"

@@ -84,9 +84,9 @@ def environment_model_container_registry_config() -> ModelContainerRegistryConfi
         username = settings.MODEL_CONTAINER_REGISTRY_USERNAME.strip()
         password = settings.MODEL_CONTAINER_REGISTRY_PASSWORD
     else:
-        registry_url = settings.DEVCLOUD_REGISTRY_URL.strip().rstrip("/")
-        username = settings.DEVCLOUD_REGISTRY_USERNAME.strip()
-        password = settings.DEVCLOUD_REGISTRY_PASSWORD
+        registry_url = settings.AIFACTORY_REGISTRY_URL.strip().rstrip("/")
+        username = settings.AIFACTORY_REGISTRY_USERNAME.strip()
+        password = settings.AIFACTORY_REGISTRY_PASSWORD
     config = ModelContainerRegistryConfig(
         managed=False,
         enabled=bool(registry_url),

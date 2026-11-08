@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
@@ -52,15 +52,15 @@ class InstallConfig:
     registry_url: str = ""
     controller_runtime: ControllerRuntime = ControllerRuntime.CONTAINER
     worker_runtime: WorkerRuntime = WorkerRuntime.CONTAINER
-    service_user: str = "devcloud"
+    service_user: str = "aifactory"
     worker_name: str = ""
     worker_id: str = ""
     enrollment_token_file: str = ""
-    workspace_root: str = "/var/lib/devcloud/workspaces"
-    install_root: str = "/opt/devcloud"
-    state_root: str = "/var/lib/devcloud/installer"
-    releases_root: str = "/var/lib/devcloud/releases"
-    downloads_root: str = "/srv/devcloud-downloads"
+    workspace_root: str = "/var/lib/aifactory/workspaces"
+    install_root: str = "/opt/aifactory"
+    state_root: str = "/var/lib/aifactory/installer"
+    releases_root: str = "/var/lib/aifactory/releases"
+    downloads_root: str = "/srv/aifactory-downloads"
     labels: dict[str, str] = field(default_factory=dict)
     preload_images: bool = False
     enable_tls: bool = False
@@ -103,7 +103,7 @@ class InstallConfig:
 
     def effective_database_url(self) -> str:
         if self.database_mode == DatabaseMode.SQLITE:
-            return "sqlite+aiosqlite:////var/lib/devcloud/database/devcloud.db"
+            return "sqlite+aiosqlite:////var/lib/aifactory/database/aifactory.db"
         if self.database_mode == DatabaseMode.BUNDLED_POSTGRESQL:
             if self.controller_runtime == ControllerRuntime.CONTAINER:
                 if not self.database_url:
@@ -112,7 +112,7 @@ class InstallConfig:
                     )
                 return self.database_url
             return self.database_url or (
-                "postgresql+asyncpg://devcloud@/devcloud?host=/var/run/postgresql"
+                "postgresql+asyncpg://aifactory@/aifactory?host=/var/run/postgresql"
             )
         if not self.database_url:
             raise ValueError("External PostgreSQL requires database_url")
@@ -158,7 +158,10 @@ class InstallConfig:
         values["update_source_type"] = UpdateSourceType(
             values.get("update_source_type", UpdateSourceType.BUNDLE)
         )
-        return cls(**values)
+        # State written by a newer release may carry fields this one does not
+        # know; ignore them so a rollback can still read it.
+        known = {item.name for item in fields(cls)}
+        return cls(**{key: value for key, value in values.items() if key in known})
 
     @classmethod
     def from_json_file(cls, path: Path) -> "InstallConfig":

@@ -11,7 +11,7 @@ from app.orchestrator.admission import admission_transaction
 from app.task_health import task_health
 from app.time_utils import ensure_utc
 
-logger = logging.getLogger("devcloud.reaper")
+logger = logging.getLogger("aifactory.reaper")
 
 
 async def run_idle_reaper_cycle() -> int:

@@ -125,7 +125,7 @@ async def test_admin_catalog_and_authenticated_worker_download(
             name="Rust Custom",
             description="Managed custom template",
             category="Custom",
-            image_tag="registry.example/devcloud-rust:latest",
+            image_tag="registry.example/aifactory-rust:latest",
             default_port=8080,
             ide_type="vscode",
             containerfile="FROM scratch",
@@ -273,9 +273,9 @@ async def test_registry_import_can_create_workspace_template(
 @pytest.mark.asyncio
 async def test_worker_reconciles_and_verifies_controller_image(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "STORAGE_ROOT", str(tmp_path))
-    monkeypatch.setenv("DEVCLOUD_CONTROLLER_URL", "https://controller.example")
-    monkeypatch.setenv("DEVCLOUD_NODE_ID", "worker-1")
-    monkeypatch.setenv("DEVCLOUD_NODE_TOKEN", "token-1")
+    monkeypatch.setenv("AIFACTORY_CONTROLLER_URL", "https://controller.example")
+    monkeypatch.setenv("AIFACTORY_NODE_ID", "worker-1")
+    monkeypatch.setenv("AIFACTORY_NODE_TOKEN", "token-1")
     content = b"verified-workspace-image"
     checksum = hashlib.sha256(content).hexdigest()
     image_ref = "localhost/devcloud-vscode-python:latest"

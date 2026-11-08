@@ -40,13 +40,13 @@ from app.skills import (
     validated_bundle as validated_skills_bundle,
 )
 
-logger = logging.getLogger("devcloud.podman")
+logger = logging.getLogger("aifactory.podman")
 CDI_DEVICE_PATTERN = re.compile(r"^nvidia\.com/gpu=[A-Za-z0-9_.:/-]+$")
 _SENSITIVE_ENV_KEYS = {
     "PASSWORD",
     "JUPYTER_TOKEN",
-    "DEVCLOUD_CLINE_SECRETS_JSON",
-    "DEVCLOUD_KILO_CONFIG_JSON",
+    "AIFACTORY_CLINE_SECRETS_JSON",
+    "AIFACTORY_KILO_CONFIG_JSON",
     "MLFLOW_TRACKING_TOKEN",
     "MLFLOW_TRACKING_PASSWORD",
 }
@@ -57,7 +57,7 @@ _SENSITIVE_ENV_KEYS = {
 # Python (ssl, httpx), requests and curl replace their trust store with the
 # combined file, Node (Claude Code, code-server, Kilo Code) adds the extra CAs
 # to its built-in roots.
-WORKSPACE_CA_DIR = "/tmp/devcloud-ca"
+WORKSPACE_CA_DIR = "/tmp/aifactory-ca"
 WORKSPACE_CA_EXTRA_FILE = f"{WORKSPACE_CA_DIR}/extra-ca.pem"
 WORKSPACE_CA_BUNDLE_FILE = f"{WORKSPACE_CA_DIR}/ca-bundle.pem"
 WORKSPACE_CA_ENVIRONMENT = {
@@ -68,18 +68,18 @@ WORKSPACE_CA_ENVIRONMENT = {
 }
 WORKSPACE_CA_SETUP = (
     f"install -d -m 755 {WORKSPACE_CA_DIR}"
-    f" && printf '%s\\n' \"$DEVCLOUD_CA_BUNDLE_PEM\" > {WORKSPACE_CA_EXTRA_FILE}"
+    f" && printf '%s\\n' \"$AIFACTORY_CA_BUNDLE_PEM\" > {WORKSPACE_CA_EXTRA_FILE}"
     " && { for system_bundle in /etc/ssl/certs/ca-certificates.crt"
     " /etc/pki/tls/certs/ca-bundle.crt; do"
     " if [ -r \"$system_bundle\" ]; then cat \"$system_bundle\"; echo; break; fi;"
     f" done; cat {WORKSPACE_CA_EXTRA_FILE}; }} > {WORKSPACE_CA_BUNDLE_FILE}"
     f" && chmod 644 {WORKSPACE_CA_EXTRA_FILE} {WORKSPACE_CA_BUNDLE_FILE}"
-    " && unset DEVCLOUD_CA_BUNDLE_PEM"
+    " && unset AIFACTORY_CA_BUNDLE_PEM"
 )
 
 
 def _skills_setup(target_dir: str) -> str:
-    """Unpack the Admin skill library from DEVCLOUD_SKILLS_TGZ into ``target_dir``.
+    """Unpack the Admin skill library from AIFACTORY_SKILLS_TGZ into ``target_dir``.
 
     The worker has already checked that the archive only holds
     ``<name>/SKILL.md`` files. A failure is reported and the IDE still starts.
@@ -87,10 +87,10 @@ def _skills_setup(target_dir: str) -> str:
     # The outer group always succeeds, so it can sit in an ``&&`` chain.
     return (
         "{ { install -d -m 700 " + target_dir
-        + " && printf '%s' \"$DEVCLOUD_SKILLS_TGZ\" | base64 -d"
+        + " && printf '%s' \"$AIFACTORY_SKILLS_TGZ\" | base64 -d"
         " | tar -xzf - --no-same-owner -C " + target_dir + ";"
         " } || echo 'AI Factory: skill kütüphanesi yazılamadı.' >&2;"
-        " unset DEVCLOUD_SKILLS_TGZ; }"
+        " unset AIFACTORY_SKILLS_TGZ; }"
     )
 
 
@@ -100,10 +100,10 @@ def _redacted_command(cmd: list[str]) -> str:
         key, separator, _value = argument.partition("=")
         if separator and key in _SENSITIVE_ENV_KEYS:
             argument = f"{key}=<redacted>"
-        elif separator and key == "DEVCLOUD_CA_BUNDLE_PEM":
+        elif separator and key == "AIFACTORY_CA_BUNDLE_PEM":
             # Public, but several KB of base64 per log line.
             argument = f"{key}=<pem>"
-        elif separator and key == "DEVCLOUD_SKILLS_TGZ":
+        elif separator and key == "AIFACTORY_SKILLS_TGZ":
             # Not secret, but up to ~120 KB of base64.
             argument = f"{key}=<skills>"
         redacted.append(argument)
@@ -492,17 +492,17 @@ class PodmanService:
             ])
             if is_kilo_code:
                 cmd_args.extend([
-                    "-e", "DEVCLOUD_VSCODE_SETTINGS_JSON="
+                    "-e", "AIFACTORY_VSCODE_SETTINGS_JSON="
                     + kilo_code_vscode_settings(kilo_code_config),
                 ])
                 if kilo_code_config:
                     cmd_args.extend([
-                        "-e", f"DEVCLOUD_KILO_CONFIG_DIR={KILO_CODE_CONFIG_DIR}",
-                        "-e", "DEVCLOUD_KILO_CONFIG_JSON=" + kilo_code_config,
+                        "-e", f"AIFACTORY_KILO_CONFIG_DIR={KILO_CODE_CONFIG_DIR}",
+                        "-e", "AIFACTORY_KILO_CONFIG_JSON=" + kilo_code_config,
                     ])
             else:
                 cmd_args.extend([
-                    "-e", "DEVCLOUD_VSCODE_SETTINGS_JSON=" + managed_vscode_settings(),
+                    "-e", "AIFACTORY_VSCODE_SETTINGS_JSON=" + managed_vscode_settings(),
                 ])
                 cline_files = managed_cline_files(
                     settings.JUPYTER_AI_GATEWAY_URL,
@@ -513,11 +513,11 @@ class PodmanService:
                 cmd_args.extend([
                     "-e", "CLINE_DIR=/home/coder/.cline",
                     "-e", "CLINE_DATA_DIR=/home/coder/.cline/data",
-                    "-e", "DEVCLOUD_CLINE_GLOBAL_STATE_JSON="
+                    "-e", "AIFACTORY_CLINE_GLOBAL_STATE_JSON="
                     + cline_files["globalState.json"],
-                    "-e", "DEVCLOUD_CLINE_SECRETS_JSON="
+                    "-e", "AIFACTORY_CLINE_SECRETS_JSON="
                     + cline_files["secrets.json"],
-                    "-e", "DEVCLOUD_CLINE_PROVIDERS_JSON="
+                    "-e", "AIFACTORY_CLINE_PROVIDERS_JSON="
                     + cline_files["settings/providers.json"],
                 ])
         elif is_jupyter:
@@ -528,9 +528,9 @@ class PodmanService:
             cmd_args.extend([
                 "-e", f"JUPYTER_TOKEN={workspace_token}",
                 "-e", "JUPYTER_ENABLE_LAB=yes",
-                "-e", "CLAUDE_CONFIG_DIR=/tmp/devcloud-claude",
+                "-e", "CLAUDE_CONFIG_DIR=/tmp/aifactory-claude",
                 "-e", "CLAUDE_CODE_EXECUTABLE=/opt/conda/bin/claude",
-                "-e", "DEVCLOUD_CLAUDE_SETTINGS_JSON=" + json.dumps(
+                "-e", "AIFACTORY_CLAUDE_SETTINGS_JSON=" + json.dumps(
                     claude_settings(settings.JUPYTER_AI_MODEL, model_catalog),
                     ensure_ascii=False,
                     separators=(",", ":"),
@@ -565,11 +565,11 @@ class PodmanService:
             ])
 
         if ai_ca_bundle:
-            cmd_args.extend(["-e", f"DEVCLOUD_CA_BUNDLE_PEM={ai_ca_bundle}"])
+            cmd_args.extend(["-e", f"AIFACTORY_CA_BUNDLE_PEM={ai_ca_bundle}"])
             for key, value in WORKSPACE_CA_ENVIRONMENT.items():
                 cmd_args.extend(["-e", f"{key}={value}"])
         if ai_skills_bundle:
-            cmd_args.extend(["-e", f"DEVCLOUD_SKILLS_TGZ={ai_skills_bundle}"])
+            cmd_args.extend(["-e", f"AIFACTORY_SKILLS_TGZ={ai_skills_bundle}"])
 
         for k, v in template.env_vars.items():
             cmd_args.extend(["-e", f"{k}={v}"])
@@ -578,6 +578,9 @@ class PodmanService:
         for key, value in service_environment.items():
             cmd_args.extend(["-e", f"{key}={value}"])
         cmd_args.extend([
+            "-e", f"AIFACTORY_WORKSPACE_ID={workspace_id}",
+            "-e", f"AIFACTORY_USER_ID={user_id}",
+            # Names before 3.49.1, for user scripts that still read them.
             "-e", f"DEVCLOUD_WORKSPACE_ID={workspace_id}",
             "-e", f"DEVCLOUD_USER_ID={user_id}",
         ])
@@ -592,7 +595,7 @@ class PodmanService:
                 "-lc",
                 ca_setup
                 + "install -d -m 700 \"$CLAUDE_CONFIG_DIR\""
-                " && printf '%s' \"$DEVCLOUD_CLAUDE_SETTINGS_JSON\""
+                " && printf '%s' \"$AIFACTORY_CLAUDE_SETTINGS_JSON\""
                 " > \"$CLAUDE_CONFIG_DIR/settings.json\""
                 " && chmod 600 \"$CLAUDE_CONFIG_DIR/settings.json\""
                 # Claude Code's user-level skills folder.
@@ -602,7 +605,7 @@ class PodmanService:
                     else ""
                 )
                 + " && exec start-notebook.py \"$@\"",
-                "devcloud-jupyter",
+                "aifactory-jupyter",
                 "--ServerApp.ip=0.0.0.0",
                 f"--ServerApp.port={template.default_port}",
                 f"--ServerApp.root_dir={template.container_workdir}",
@@ -615,31 +618,31 @@ class PodmanService:
             setup_commands: list[str] = [
                 *([WORKSPACE_CA_SETUP] if ai_ca_bundle else []),
                 "install -d -m 700 \"$VSCODE_USER_DIR\"",
-                "printf '%s' \"$DEVCLOUD_VSCODE_SETTINGS_JSON\""
+                "printf '%s' \"$AIFACTORY_VSCODE_SETTINGS_JSON\""
                 " > \"$VSCODE_USER_DIR/settings.json\"",
                 "chmod 600 \"$VSCODE_USER_DIR/settings.json\"",
             ]
             if cline_files:
                 setup_commands.extend([
                     "install -d -m 700 \"$CLINE_DATA_DIR/settings\"",
-                    "printf '%s' \"$DEVCLOUD_CLINE_GLOBAL_STATE_JSON\""
+                    "printf '%s' \"$AIFACTORY_CLINE_GLOBAL_STATE_JSON\""
                     " > \"$CLINE_DATA_DIR/globalState.json\"",
-                    "printf '%s' \"$DEVCLOUD_CLINE_SECRETS_JSON\""
+                    "printf '%s' \"$AIFACTORY_CLINE_SECRETS_JSON\""
                     " > \"$CLINE_DATA_DIR/secrets.json\"",
-                    "printf '%s' \"$DEVCLOUD_CLINE_PROVIDERS_JSON\""
+                    "printf '%s' \"$AIFACTORY_CLINE_PROVIDERS_JSON\""
                     " > \"$CLINE_DATA_DIR/settings/providers.json\"",
                     "chmod 600 \"$CLINE_DATA_DIR/globalState.json\""
                     " \"$CLINE_DATA_DIR/secrets.json\""
                     " \"$CLINE_DATA_DIR/settings/providers.json\"",
                 ])
             if kilo_code_config:
-                config_path = f"$DEVCLOUD_KILO_CONFIG_DIR/{KILO_CODE_CONFIG_FILENAME}"
+                config_path = f"$AIFACTORY_KILO_CONFIG_DIR/{KILO_CODE_CONFIG_FILENAME}"
                 setup_commands.extend([
-                    "install -d -m 700 \"$DEVCLOUD_KILO_CONFIG_DIR\"",
-                    f"printf '%s' \"$DEVCLOUD_KILO_CONFIG_JSON\" > \"{config_path}\"",
+                    "install -d -m 700 \"$AIFACTORY_KILO_CONFIG_DIR\"",
+                    f"printf '%s' \"$AIFACTORY_KILO_CONFIG_JSON\" > \"{config_path}\"",
                     f"chmod 600 \"{config_path}\"",
                     # Keep the keys out of every editor terminal's environment.
-                    "unset DEVCLOUD_KILO_CONFIG_JSON",
+                    "unset AIFACTORY_KILO_CONFIG_JSON",
                 ])
             if ai_skills_bundle:
                 # kilo.jsonc lists this folder under "skills".
@@ -1057,7 +1060,7 @@ class PodmanService:
             logger.error("MLflow model image build cannot start: %s", exc)
             return False, f"{phase('mlflow cli')}\n{exc}"
 
-        with tempfile.TemporaryDirectory(prefix="devcloud-mlflow-build-") as tmpdir:
+        with tempfile.TemporaryDirectory(prefix="aifactory-mlflow-build-") as tmpdir:
             os.chmod(tmpdir, 0o700)
             temporary_root = Path(tmpdir)
             build_directory = temporary_root / "context"

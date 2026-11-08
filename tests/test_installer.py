@@ -80,7 +80,7 @@ def test_root_queued_updater_passes_explicit_unsigned_flag_for_git(
                 "source_type": "git",
                 "repository": "https://github.com/aydinguven/devcloud.git",
                 "ref": "stable",
-                "filename": "devcloud@stable",
+                "filename": "aifactory@stable",
                 "target_version": "3.4.5",
                 "allow_unsigned": True,
             }
@@ -97,7 +97,7 @@ def test_root_queued_updater_passes_explicit_unsigned_flag_for_git(
         stdout.write("updated\n")
         stdout.flush()
         captured["live_output"] = (queue / "output.log").read_text(encoding="utf-8")
-        captured["progress_env"] = env["DEVCLOUD_UPDATE_PROGRESS_FILE"]
+        captured["progress_env"] = env["AIFACTORY_UPDATE_PROGRESS_FILE"]
         return subprocess.CompletedProcess(command, 0)
 
     monkeypatch.setenv("UPDATE_QUEUE_ROOT", str(queue))
@@ -184,10 +184,10 @@ def test_all_in_one_dry_run_installs_controller_and_worker_services(tmp_path):
     engine.build_install_plan(candidate).execute()
 
     commands = [" ".join(command) for command in runner.commands]
-    assert any("devcloud-controller.service" in command for command in commands)
-    assert any("devcloud-worker.service" in command for command in commands)
+    assert any("aifactory-controller.service" in command for command in commands)
+    assert any("aifactory-worker.service" in command for command in commands)
     assert any("app.migrations upgrade" in command for command in commands)
-    assert not (tmp_path / "etc" / "devcloud").exists()
+    assert not (tmp_path / "etc" / "aifactory").exists()
 
 
 def test_all_in_one_writes_one_ordinary_enrolled_worker(tmp_path):
@@ -197,22 +197,22 @@ def test_all_in_one_writes_one_ordinary_enrolled_worker(tmp_path):
 
     engine._write_configuration(candidate)
 
-    controller = engine._read_env(tmp_path / "etc/devcloud/controller.env")
-    worker = engine._read_env(tmp_path / "etc/devcloud/worker.env")
-    assert worker["DEVCLOUD_CONTROLLER_URL"] == "http://127.0.0.1:8000"
-    assert worker["DEVCLOUD_NODE_ID"] == controller["DEVCLOUD_BOOTSTRAP_WORKER_ID"]
-    assert hashlib.sha256(worker["DEVCLOUD_NODE_TOKEN"].encode()).hexdigest() == (
-        controller["DEVCLOUD_BOOTSTRAP_WORKER_TOKEN_HASH"]
+    controller = engine._read_env(tmp_path / "etc/aifactory/controller.env")
+    worker = engine._read_env(tmp_path / "etc/aifactory/worker.env")
+    assert worker["AIFACTORY_CONTROLLER_URL"] == "http://127.0.0.1:8000"
+    assert worker["AIFACTORY_NODE_ID"] == controller["AIFACTORY_BOOTSTRAP_WORKER_ID"]
+    assert hashlib.sha256(worker["AIFACTORY_NODE_TOKEN"].encode()).hexdigest() == (
+        controller["AIFACTORY_BOOTSTRAP_WORKER_TOKEN_HASH"]
     )
 
 
 def test_all_in_one_update_preserves_jupyter_ai_worker_defaults(tmp_path):
     engine = InstallerEngine(filesystem_root=tmp_path, runner=CommandRunner())
-    env_path = tmp_path / "etc/devcloud/worker.env"
+    env_path = tmp_path / "etc/aifactory/worker.env"
     env_path.parent.mkdir(parents=True)
     env_path.write_text(
-        "DEVCLOUD_NODE_ID=existing-worker\n"
-        "DEVCLOUD_NODE_TOKEN=existing-token\n"
+        "AIFACTORY_NODE_ID=existing-worker\n"
+        "AIFACTORY_NODE_TOKEN=existing-token\n"
         "JUPYTER_AI_GATEWAY_URL=https://llm-gateway.internal\n"
         "JUPYTER_AI_MODEL=local-coder\n"
         "JUPYTER_AI_GATEWAY_TOKEN=shared-ai-token\n"
@@ -235,7 +235,7 @@ def test_all_in_one_update_preserves_jupyter_ai_worker_defaults(tmp_path):
 
 def test_controller_update_preserves_unsigned_worker_ota_opt_in(tmp_path):
     engine = InstallerEngine(filesystem_root=tmp_path, runner=CommandRunner())
-    env_path = tmp_path / "etc/devcloud/controller.env"
+    env_path = tmp_path / "etc/aifactory/controller.env"
     env_path.parent.mkdir(parents=True)
     env_path.write_text(
         "WORKER_OTA_ALLOW_UNSIGNED=true\n",
@@ -254,11 +254,11 @@ def test_worker_bootstrap_answers_can_cross_pre_python_shell_boundary(
     token_file = tmp_path / "token"
     token_file.write_text("worker-secret\n", encoding="utf-8")
     monkeypatch.setenv(
-        "DEVCLOUD_INSTALL_CONTROLLER_URL", "https://controller.example"
+        "AIFACTORY_INSTALL_CONTROLLER_URL", "https://controller.example"
     )
-    monkeypatch.setenv("DEVCLOUD_INSTALL_WORKER_ID", "worker-42")
-    monkeypatch.setenv("DEVCLOUD_INSTALL_TOKEN_FILE", str(token_file))
-    monkeypatch.setenv("DEVCLOUD_INSTALL_WORKER_NAME", "compute-42")
+    monkeypatch.setenv("AIFACTORY_INSTALL_WORKER_ID", "worker-42")
+    monkeypatch.setenv("AIFACTORY_INSTALL_TOKEN_FILE", str(token_file))
+    monkeypatch.setenv("AIFACTORY_INSTALL_WORKER_NAME", "compute-42")
 
     result = _worker_config_from_environment(DeploymentRole.WORKER)
 
@@ -273,11 +273,11 @@ def test_gpu_worker_bootstrap_selects_native_runtime(monkeypatch, tmp_path):
     token_file = tmp_path / "token"
     token_file.write_text("worker-secret\n", encoding="utf-8")
     monkeypatch.setenv(
-        "DEVCLOUD_INSTALL_CONTROLLER_URL", "https://controller.example"
+        "AIFACTORY_INSTALL_CONTROLLER_URL", "https://controller.example"
     )
-    monkeypatch.setenv("DEVCLOUD_INSTALL_WORKER_ID", "gpu-worker-42")
-    monkeypatch.setenv("DEVCLOUD_INSTALL_TOKEN_FILE", str(token_file))
-    monkeypatch.setenv("DEVCLOUD_INSTALL_WORKER_RUNTIME", "native")
+    monkeypatch.setenv("AIFACTORY_INSTALL_WORKER_ID", "gpu-worker-42")
+    monkeypatch.setenv("AIFACTORY_INSTALL_TOKEN_FILE", str(token_file))
+    monkeypatch.setenv("AIFACTORY_INSTALL_WORKER_RUNTIME", "native")
 
     result = _worker_config_from_environment(DeploymentRole.WORKER)
 
@@ -326,13 +326,13 @@ def test_install_release_persists_bundled_public_keyring(tmp_path):
     )
     engine._install_release_keyring(source)
 
-    installed = host / "etc/devcloud/release-keyring.gpg"
+    installed = host / "etc/aifactory/release-keyring.gpg"
     assert installed.read_bytes() == b"public-release-key"
 
 
 def test_installation_state_never_persists_secrets(tmp_path):
     candidate = config(DeploymentRole.WORKER)
-    candidate.database_url = "postgresql+asyncpg://user:secret@db/devcloud"
+    candidate.database_url = "postgresql+asyncpg://user:secret@db/aifactory"
     state = InstallationState.create(
         candidate.role.value, "9.9.9", candidate.public_dict()
     )
@@ -388,9 +388,9 @@ def test_manifest_rejects_unlisted_release_payload(tmp_path):
         ],
     }
     with zipfile.ZipFile(archive, "w") as output:
-        output.writestr("devcloud/app/__init__.py", app_init)
-        output.writestr("devcloud/requirements.txt", "injected-package\n")
-        output.writestr("devcloud/release.json", json.dumps(manifest))
+        output.writestr("aifactory/app/__init__.py", app_init)
+        output.writestr("aifactory/requirements.txt", "injected-package\n")
+        output.writestr("aifactory/release.json", json.dumps(manifest))
     with pytest.raises(InstallerError, match="unlisted artifact"):
         with prepare_release(
             archive,
@@ -422,7 +422,7 @@ def test_bundled_postgresql_plan_is_role_scoped(tmp_path):
     assert any("postgresql-server" in command for command in commands)
     assert any("postgresql-setup --initdb" in command for command in commands)
     assert any(
-        "runuser -u devcloud --" in command
+        "runuser -u aifactory --" in command
         and "app.migrations upgrade" in command
         for command in commands
     )
@@ -439,8 +439,8 @@ def test_container_controller_uses_quadlet_without_native_postgresql(tmp_path):
 
     commands = [" ".join(command) for command in runner.commands]
     assert any("podman" in command for command in commands)
-    assert any("devcloud-controller.container" in command for command in commands)
-    assert any("devcloud-postgresql.container" in command for command in commands)
+    assert any("aifactory-controller.container" in command for command in commands)
+    assert any("aifactory-postgresql.container" in command for command in commands)
     assert any(
         "podman pull quay.io/sclorg/postgresql-16-c10s:latest" in command
         for command in commands
@@ -452,11 +452,11 @@ def test_container_controller_uses_quadlet_without_native_postgresql(tmp_path):
     )
     assert any(
         "podman tag quay.io/sclorg/postgresql-16-c10s:latest "
-        "localhost/devcloud-postgresql:16" in command
+        "localhost/aifactory-postgresql:16" in command
         for command in commands
     )
     assert any(
-        "podman inspect --format {{.State.Health.Status}} devcloud-controller"
+        "podman inspect --format {{.State.Health.Status}} aifactory-controller"
         in command
         for command in commands
     )
@@ -473,13 +473,13 @@ def test_generated_quadlet_services_are_started_without_enable(tmp_path):
 
     engine._start_services(candidate)
 
-    assert ["systemctl", "start", "devcloud-postgresql.service"] in runner.commands
-    assert ["systemctl", "start", "devcloud-controller.service"] in runner.commands
-    assert ["systemctl", "start", "devcloud-worker.service"] in runner.commands
+    assert ["systemctl", "start", "aifactory-postgresql.service"] in runner.commands
+    assert ["systemctl", "start", "aifactory-controller.service"] in runner.commands
+    assert ["systemctl", "start", "aifactory-worker.service"] in runner.commands
     generated = {
-        "devcloud-postgresql.service",
-        "devcloud-controller.service",
-        "devcloud-worker.service",
+        "aifactory-postgresql.service",
+        "aifactory-controller.service",
+        "aifactory-worker.service",
     }
     assert not any(
         command[:2] == ["systemctl", "enable"]
@@ -497,9 +497,9 @@ def test_generated_quadlet_services_are_stopped_without_disable(tmp_path):
     engine._stop_services(candidate, include_database=True)
 
     generated = {
-        "devcloud-postgresql.service",
-        "devcloud-controller.service",
-        "devcloud-worker.service",
+        "aifactory-postgresql.service",
+        "aifactory-controller.service",
+        "aifactory-worker.service",
     }
     for unit in generated:
         assert ["systemctl", "stop", unit] in runner.commands
@@ -517,7 +517,7 @@ def test_controller_public_url_drives_ingress_and_https_default(tmp_path):
     candidate.public_url = "http://10.253.6.174"
 
     engine._write_configuration(candidate)
-    controller = engine._read_env(tmp_path / "etc/devcloud/controller.env")
+    controller = engine._read_env(tmp_path / "etc/aifactory/controller.env")
     assert controller["HTTPS_DEFAULT_HOSTNAME"] == "10.253.6.174"
 
     calls = []
@@ -530,8 +530,8 @@ def test_controller_public_url_drives_ingress_and_https_default(tmp_path):
     engine._install_ingress(candidate, apply_initial=False)
 
     assert calls[0][1]["env"] == {
-        "DEVCLOUD_HTTPS_HOSTNAME": "10.253.6.174",
-        "DEVCLOUD_INGRESS_APPLY_INITIAL": "0",
+        "AIFACTORY_HTTPS_HOSTNAME": "10.253.6.174",
+        "AIFACTORY_INGRESS_APPLY_INITIAL": "0",
     }
 
 
@@ -544,13 +544,13 @@ def test_container_environment_files_do_not_preserve_quote_characters(tmp_path):
     engine._write_configuration(candidate)
 
     postgresql = (
-        tmp_path / "etc/devcloud/postgresql.env"
+        tmp_path / "etc/aifactory/postgresql.env"
     ).read_text(encoding="utf-8")
     controller = (
-        tmp_path / "etc/devcloud/controller.env"
+        tmp_path / "etc/aifactory/controller.env"
     ).read_text(encoding="utf-8")
-    assert "POSTGRESQL_USER=devcloud\n" in postgresql
-    assert 'POSTGRESQL_USER="devcloud"' not in postgresql
+    assert "POSTGRESQL_USER=aifactory\n" in postgresql
+    assert 'POSTGRESQL_USER="aifactory"' not in postgresql
     assert "DEBUG=False\n" in controller
     assert 'DEBUG="False"' not in controller
     assert "DATABASE_URL=postgresql+asyncpg://" in controller
@@ -569,7 +569,7 @@ def _loaded_units_runner(missing=()):
                 command,
                 1,
                 "",
-                "quadlet-generator[1]: converting \"devcloud-postgresql.container\": "
+                "quadlet-generator[1]: converting \"aifactory-postgresql.container\": "
                 "unsupported key 'IP' in group 'Container'\n",
             )
         return subprocess.CompletedProcess(command, 0, "", "")
@@ -582,7 +582,7 @@ def test_install_services_fails_early_when_quadlet_skips_a_unit(tmp_path):
     generator = tmp_path / "usr/libexec/podman/quadlet"
     generator.parent.mkdir(parents=True)
     generator.write_text("", encoding="utf-8")
-    runner = _loaded_units_runner(missing={"devcloud-postgresql.service"})
+    runner = _loaded_units_runner(missing={"aifactory-postgresql.service"})
     engine = InstallerEngine(filesystem_root=tmp_path, runner=runner)
     candidate = config(DeploymentRole.CONTROLLER)
     candidate.database_mode = DatabaseMode.BUNDLED_POSTGRESQL
@@ -591,7 +591,7 @@ def test_install_services_fails_early_when_quadlet_skips_a_unit(tmp_path):
         engine._install_services(candidate)
 
     message = str(raised.value)
-    assert "did not generate devcloud-postgresql.service" in message
+    assert "did not generate aifactory-postgresql.service" in message
     assert "unsupported key 'IP'" in message
     assert not any(command[:2] == ["systemctl", "restart"] for command in runner.commands)
 
@@ -654,11 +654,11 @@ def test_bundled_database_address_is_injected_into_container_sections(tmp_path):
     engine._install_services(candidate)
 
     quadlets = tmp_path / "etc/containers/systemd"
-    database = (quadlets / "devcloud-postgresql.container").read_text(encoding="utf-8")
-    controller = (quadlets / "devcloud-controller.container").read_text(encoding="utf-8")
+    database = (quadlets / "aifactory-postgresql.container").read_text(encoding="utf-8")
+    controller = (quadlets / "aifactory-controller.container").read_text(encoding="utf-8")
     for unit, line in (
         (database, "IP=10.89.0.250"),
-        (controller, "AddHost=devcloud-postgresql:10.89.0.250"),
+        (controller, "AddHost=aifactory-postgresql:10.89.0.250"),
     ):
         assert "{{" not in unit
         container = unit.split("[Container]", 1)[1].split("\n[", 1)[0]
@@ -674,7 +674,7 @@ def test_update_runs_the_target_release_installer(tmp_path, monkeypatch):
     (target / "app/installer").mkdir(parents=True)
     (target / "app/installer/cli.py").write_text("", encoding="utf-8")
     args = SimpleNamespace(dry_run=False, yes=True, filesystem_root="/")
-    monkeypatch.delenv("DEVCLOUD_INSTALLER_DELEGATED", raising=False)
+    monkeypatch.delenv("AIFACTORY_INSTALLER_DELEGATED", raising=False)
     assert cli._should_delegate(target, args) is True
     own_root = Path(cli.__file__).resolve().parents[2]
     assert cli._should_delegate(own_root, args) is False
@@ -693,8 +693,8 @@ def test_update_runs_the_target_release_installer(tmp_path, monkeypatch):
         "-m", "app.installer", "--yes", "update", "--prepared-root", str(target.resolve())
     ]
     assert kwargs["env"]["PYTHONPATH"] == str(target.resolve())
-    assert kwargs["env"]["DEVCLOUD_INSTALLER_DELEGATED"] == "1"
-    monkeypatch.setenv("DEVCLOUD_INSTALLER_DELEGATED", "1")
+    assert kwargs["env"]["AIFACTORY_INSTALLER_DELEGATED"] == "1"
+    monkeypatch.setenv("AIFACTORY_INSTALLER_DELEGATED", "1")
     assert cli._should_delegate(target, args) is False
 
 
@@ -707,15 +707,15 @@ def test_container_quadlets_render_image_and_database_dependencies(tmp_path):
     engine._install_services(candidate)
 
     unit = (
-        tmp_path / "etc/containers/systemd/devcloud-controller.container"
+        tmp_path / "etc/containers/systemd/aifactory-controller.container"
     ).read_text(encoding="utf-8")
     assert "{{" not in unit
-    assert f"Image=localhost/devcloud-controller:{engine.release_version}" in unit
-    assert "Requires=devcloud-postgresql.service" in unit
+    assert f"Image=localhost/aifactory-controller:{engine.release_version}" in unit
+    assert "Requires=aifactory-postgresql.service" in unit
     database_unit = (
-        tmp_path / "etc/containers/systemd/devcloud-postgresql.container"
+        tmp_path / "etc/containers/systemd/aifactory-postgresql.container"
     ).read_text(encoding="utf-8")
-    assert "Image=localhost/devcloud-postgresql:16" in database_unit
+    assert "Image=localhost/aifactory-postgresql:16" in database_unit
 
 
 def test_old_install_state_defaults_to_native_controller_runtime():
@@ -797,9 +797,9 @@ def test_offline_bundle_installs_required_packages_from_configured_repositories(
 def test_external_postgresql_url_is_normalized_for_async_controller(tmp_path):
     candidate = config(DeploymentRole.CONTROLLER)
     candidate.database_mode = DatabaseMode.EXTERNAL_POSTGRESQL
-    candidate.database_url = "postgresql://devcloud:secret@db.example/devcloud"
+    candidate.database_url = "postgresql://aifactory:secret@db.example/aifactory"
     assert candidate.effective_database_url() == (
-        "postgresql+asyncpg://devcloud:secret@db.example/devcloud"
+        "postgresql+asyncpg://aifactory:secret@db.example/aifactory"
     )
 
     runner = CommandRunner(dry_run=True)
@@ -815,7 +815,7 @@ def test_installer_rejects_dangerous_managed_paths_and_root_service(tmp_path):
         filesystem_root=tmp_path, runner=CommandRunner(dry_run=True)
     )
     dangerous = config(DeploymentRole.WORKER)
-    dangerous.workspace_root = "/etc/devcloud-workspaces"
+    dangerous.workspace_root = "/etc/aifactory-workspaces"
     with pytest.raises(InstallerError, match="supported managed roots"):
         engine.build_install_plan(dangerous)
 
@@ -831,7 +831,7 @@ def test_installer_rejects_registry_urls_with_a_transport_scheme(tmp_path):
     )
     candidate = config(DeploymentRole.CONTROLLER)
     candidate.registry_mode = RegistryMode.EXTERNAL
-    candidate.registry_url = "https://registry.example.com/devcloud"
+    candidate.registry_url = "https://registry.example.com/aifactory"
 
     with pytest.raises(InstallerError, match="OCI image prefix"):
         engine.build_install_plan(candidate)
@@ -847,7 +847,7 @@ def test_worker_plan_provisions_rootless_subordinate_ids(tmp_path):
 
     commands = [" ".join(command) for command in runner.commands]
     assert any(
-        "usermod --add-subuids 100000-165535 --add-subgids 100000-165535 devcloud"
+        "usermod --add-subuids 100000-165535 --add-subgids 100000-165535 aifactory"
         in command
         for command in commands
     )
@@ -855,7 +855,7 @@ def test_worker_plan_provisions_rootless_subordinate_ids(tmp_path):
 
 
 def test_worker_images_are_loaded_into_service_users_rootless_store(tmp_path):
-    image_dir = tmp_path / "opt/devcloud/current/offline/images"
+    image_dir = tmp_path / "opt/aifactory/current/offline/images"
     image_dir.mkdir(parents=True)
     image_archive = image_dir / "workspace.tar"
     image_archive.touch()
@@ -875,14 +875,14 @@ def test_worker_images_are_loaded_into_service_users_rootless_store(tmp_path):
 
     engine._prepare_images(candidate)
 
-    assert ["id", "-u", "devcloud"] in runner.commands
+    assert ["id", "-u", "aifactory"] in runner.commands
     assert [
         "runuser",
         "-u",
-        "devcloud",
+        "aifactory",
         "--",
         "env",
-        "HOME=/var/lib/devcloud",
+        "HOME=/var/lib/aifactory",
         "XDG_RUNTIME_DIR=/run/user/SERVICE_UID",
         "podman",
         "load",
@@ -891,13 +891,13 @@ def test_worker_images_are_loaded_into_service_users_rootless_store(tmp_path):
     ] in runner.commands
     assert any(
         command[-3:] == ["load", "-i", str(image_archive)]
-        and cwd == tmp_path / "opt/devcloud/current"
+        and cwd == tmp_path / "opt/aifactory/current"
         for command, cwd in calls
     )
 
 
 def test_container_worker_uses_rootful_store_for_preloaded_images(tmp_path):
-    image_dir = tmp_path / "opt/devcloud/current/offline/images"
+    image_dir = tmp_path / "opt/aifactory/current/offline/images"
     image_dir.mkdir(parents=True)
     image_archive = image_dir / "workspace.tar"
     image_archive.touch()
@@ -920,7 +920,7 @@ def test_connected_container_worker_pulls_versioned_ghcr_image(tmp_path):
     engine._prepare_worker_image(candidate)
 
     source = f"ghcr.io/aydinguven/devcloud:worker-{engine.release_version}"
-    target = f"localhost/devcloud-worker:{engine.release_version}"
+    target = f"localhost/aifactory-worker:{engine.release_version}"
     assert ["podman", "pull", source] in runner.commands
     assert ["podman", "tag", source, target] in runner.commands
 
@@ -955,7 +955,7 @@ def test_ui_collects_worker_connection_details():
 
 def test_sqlite_backup_is_verified_and_restorable(tmp_path):
     root = tmp_path / "host"
-    database = root / "var/lib/devcloud/database/devcloud.db"
+    database = root / "var/lib/aifactory/database/aifactory.db"
     database.parent.mkdir(parents=True)
     connection = sqlite3.connect(database)
     try:
@@ -964,13 +964,13 @@ def test_sqlite_backup_is_verified_and_restorable(tmp_path):
         connection.commit()
     finally:
         connection.close()
-    etc = root / "etc/devcloud"
+    etc = root / "etc/aifactory"
     etc.mkdir(parents=True)
     etc.joinpath("controller.env").write_text(
-        'DATABASE_URL="sqlite+aiosqlite:////var/lib/devcloud/database/devcloud.db"\n',
+        'DATABASE_URL="sqlite+aiosqlite:////var/lib/aifactory/database/aifactory.db"\n',
         encoding="utf-8",
     )
-    state = root / "var/lib/devcloud/installer"
+    state = root / "var/lib/aifactory/installer"
     state.mkdir(parents=True)
     state.joinpath("install-state.json").write_text("{}\n", encoding="utf-8")
     install = config(DeploymentRole.CONTROLLER)
@@ -1009,10 +1009,10 @@ def test_sqlite_backup_is_verified_and_restorable(tmp_path):
 
 def test_container_postgresql_backup_runs_dump_inside_database_container(tmp_path):
     root = tmp_path / "host"
-    etc = root / "etc/devcloud"
+    etc = root / "etc/aifactory"
     etc.mkdir(parents=True)
     etc.joinpath("controller.env").write_text(
-        'DATABASE_URL="postgresql+asyncpg://devcloud:secret@devcloud-postgresql/devcloud"\n',
+        'DATABASE_URL="postgresql+asyncpg://aifactory:secret@aifactory-postgresql/aifactory"\n',
         encoding="utf-8",
     )
     candidate = config(DeploymentRole.CONTROLLER)
@@ -1042,7 +1042,7 @@ def test_container_postgresql_backup_runs_dump_inside_database_container(tmp_pat
         == [
             "podman",
             "exec",
-            "devcloud-postgresql",
+            "aifactory-postgresql",
             "pg_dump",
             "--format=custom",
         ]
@@ -1052,7 +1052,7 @@ def test_container_postgresql_backup_runs_dump_inside_database_container(tmp_pat
 
 
 def test_backup_rejects_tampered_member(tmp_path):
-    root = tmp_path / "archive-root" / "devcloud-backup"
+    root = tmp_path / "archive-root" / "aifactory-backup"
     payload = root / "payload"
     payload.mkdir(parents=True)
     member = payload / "value.txt"
@@ -1076,7 +1076,7 @@ def test_backup_rejects_tampered_member(tmp_path):
     )
     archive = tmp_path / "tampered.tar.gz"
     with tarfile.open(archive, "w:gz") as output:
-        output.add(root, arcname="devcloud-backup")
+        output.add(root, arcname="aifactory-backup")
     with pytest.raises(InstallerError, match="verification failed"):
         restore_backup(
             config=config(DeploymentRole.CONTROLLER),
@@ -1087,7 +1087,7 @@ def test_backup_rejects_tampered_member(tmp_path):
 
 
 def test_backup_rejects_unlisted_restore_payload(tmp_path):
-    root = tmp_path / "archive-root" / "devcloud-backup"
+    root = tmp_path / "archive-root" / "aifactory-backup"
     payload = root / "payload"
     payload.mkdir(parents=True)
     payload.joinpath("unlisted.env").write_text("SECRET=value\n", encoding="utf-8")
@@ -1104,7 +1104,7 @@ def test_backup_rejects_unlisted_restore_payload(tmp_path):
     )
     archive = tmp_path / "unlisted.tar.gz"
     with tarfile.open(archive, "w:gz") as output:
-        output.add(root, arcname="devcloud-backup")
+        output.add(root, arcname="aifactory-backup")
 
     with pytest.raises(InstallerError, match="unlisted member"):
         restore_backup(
@@ -1117,10 +1117,10 @@ def test_backup_rejects_unlisted_restore_payload(tmp_path):
 
 def test_postgresql_cli_url_hides_password_from_process_arguments():
     url, environment = _postgres_cli_connection(
-        "postgresql+asyncpg://devcloud:s3cret@db.example/devcloud"
+        "postgresql+asyncpg://aifactory:s3cret@db.example/aifactory"
     )
 
-    assert url == "postgresql://devcloud@db.example/devcloud"
+    assert url == "postgresql://aifactory@db.example/aifactory"
     assert "s3cret" not in url
     assert environment == {"PGPASSWORD": "s3cret"}
 
@@ -1129,7 +1129,7 @@ def test_update_path_recovers_a_running_marker_after_reboot():
     unit = (
         Path(__file__).resolve().parents[1]
         / "deploy"
-        / "devcloud-update.path"
+        / "aifactory-update.path"
     ).read_text(encoding="utf-8")
 
     assert "pending.json" in unit

@@ -58,7 +58,7 @@ def build(
     output = output_dir / (
         f"devcloud-release-v{release_version}-{commit[:12]}.zip"
     )
-    with tempfile.TemporaryDirectory(prefix="devcloud-release-build-") as temp:
+    with tempfile.TemporaryDirectory(prefix="aifactory-release-build-") as temp:
         stage = Path(temp) / f"devcloud-{release_version}"
         stage.mkdir()
         for raw in files:

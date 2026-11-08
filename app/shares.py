@@ -12,6 +12,8 @@ from app.models.workspace import Workspace, WorkspaceStatus
 from app.models.workspace_share import WorkspaceShare
 
 COOKIE_PREFIX = "devcloud_share_"
+# Every prefix a release may have set; all are read and never forwarded.
+COOKIE_PREFIXES = ("devcloud_share_", "aifactory_share_")
 
 
 class ShareAccessError(HTTPException):
@@ -79,6 +81,10 @@ def cookie_name(workspace_id: str, port: int) -> str:
     return f"{COOKIE_PREFIX}{workspace_id}_{port}"
 
 
+def share_cookie_names(workspace_id: str, port: int) -> tuple[str, ...]:
+    return tuple(f"{prefix}{workspace_id}_{port}" for prefix in COOKIE_PREFIXES)
+
+
 async def share_workspace_and_owner(
     db: AsyncSession,
     record: WorkspaceShare,
@@ -110,7 +116,14 @@ async def share_workspace_and_owner(
 async def shared_workspace(
     db: AsyncSession, cookies, workspace_id: str, port: int
 ) -> Workspace:
-    token = cookies.get(cookie_name(workspace_id, port), "")
+    token = next(
+        (
+            cookies[name]
+            for name in share_cookie_names(workspace_id, port)
+            if cookies.get(name)
+        ),
+        "",
+    )
     record = await read_share(db, token, "share-grant")
     if record.workspace_id != workspace_id or record.port != port:
         raise ShareAccessError(

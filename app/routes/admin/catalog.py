@@ -281,9 +281,9 @@ async def build_custom_template_stream(
             from app.orchestrator.flavors import get_flavor
             from app.orchestrator.scheduler import select_worker_node
 
-            if not settings.DEVCLOUD_REGISTRY_URL and not settings.USE_MOCK_PODMAN:
+            if not settings.AIFACTORY_REGISTRY_URL and not settings.USE_MOCK_PODMAN:
                 raise RuntimeError(
-                    "Custom image builds require DEVCLOUD_REGISTRY_URL so every "
+                    "Custom image builds require AIFACTORY_REGISTRY_URL so every "
                     "worker can pull the result."
                 )
             normalized_template_id = template_id.strip().lower()
@@ -291,7 +291,7 @@ async def build_custom_template_stream(
                 raise RuntimeError("Şablon ID yalnızca küçük harf, sayı, nokta, tire ve alt çizgi içerebilir.")
             if normalized_template_id in BUILTIN_TEMPLATE_IDS or await db.get(CustomTemplate, normalized_template_id):
                 raise RuntimeError("Bu şablon ID zaten kullanılıyor.")
-            prefix = settings.DEVCLOUD_REGISTRY_URL.rstrip("/")
+            prefix = settings.AIFACTORY_REGISTRY_URL.rstrip("/")
             image_tag = (
                 f"{prefix}/devcloud-{normalized_template_id}:latest"
                 if prefix

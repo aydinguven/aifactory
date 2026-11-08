@@ -29,7 +29,7 @@ import yaml
 MIN_AGENT_VERSION = "3.27.0"
 # Kilo Code's copy, outside the folders Kilo scans by default (~/.kilo,
 # ~/.agents, ~/.claude, ~/.config/kilo) so no skill is discovered twice.
-SKILLS_DIR = "/home/coder/.devcloud/skills"
+SKILLS_DIR = "/home/coder/.aifactory/skills"
 SKILL_FILENAME = "SKILL.md"
 NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 MAX_NAME_LENGTH = 64

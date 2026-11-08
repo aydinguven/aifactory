@@ -606,7 +606,7 @@ async def test_admin_worker_upgrade_skips_same_version(
     headers = await _admin_headers(client)
     releases = tmp_path / "releases"
     releases.mkdir()
-    bundle = releases / f"devcloud-platform-update-v{__version__}-abcdef1.tar.gz"
+    bundle = releases / f"aifactory-platform-update-v{__version__}-abcdef1.tar.gz"
     bundle.write_bytes(b"same-version-release")
     monkeypatch.setattr(settings, "DOWNLOADS_ROOT", str(tmp_path))
     worker = await db_session.get(Node, TEST_WORKER_ID)
@@ -635,7 +635,7 @@ async def test_admin_worker_upgrade_check_compares_versions(
     headers = await _admin_headers(client)
     releases = tmp_path / "releases"
     releases.mkdir()
-    bundle = releases / "devcloud-platform-update-v99.0.0-abcdef1.tar.gz"
+    bundle = releases / "aifactory-platform-update-v99.0.0-abcdef1.tar.gz"
     bundle.write_bytes(b"future-release")
     monkeypatch.setattr(settings, "DOWNLOADS_ROOT", str(tmp_path))
     worker = await db_session.get(Node, TEST_WORKER_ID)
