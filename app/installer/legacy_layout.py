@@ -109,9 +109,7 @@ WORKER_STATE_NAMES = (
     (".devcloud-image-state.json", ".aifactory-image-state.json"),
     (".devcloud-image-cache", ".aifactory-image-cache"),
 )
-POSTGRESQL_HELPER_CONTAINER = "aifactory-migration-postgresql"
-LEGACY_POSTGRESQL_IMAGE = "localhost/devcloud-postgresql:16"
-CURRENT_POSTGRESQL_IMAGE = "localhost/aifactory-postgresql:16"
+LEGACY_POSTGRESQL_UNIT = "devcloud-postgresql.service"
 
 
 def legacy_state_file(host_path) -> Path:
@@ -397,58 +395,39 @@ class LegacyMigration:
             except PermissionError:
                 pass
 
-    def _postgresql_image(self) -> str:
-        for image in (LEGACY_POSTGRESQL_IMAGE, CURRENT_POSTGRESQL_IMAGE):
-            exists = self.runner.run(
-                ["podman", "image", "exists", image], check=False
-            )
-            if exists.returncode == 0:
-                return image
-        raise InstallerError(
-            "The bundled PostgreSQL image is missing; cannot rename the database"
-        )
+    def _rename_container_database(self, source: str, target: str) -> None:
+        """Rename role and database inside the installed devcloud-postgresql container.
 
-    def _rename_container_database(self, data_dir: Path, source: str, target: str) -> None:
-        """Rename role and database with a short-lived copy of the database container.
-
-        The image starts in admin-only mode, so its start script does not
-        depend on which of the two role names currently exists; the throwaway
-        superuser password is removed again in the same session.
+        The Quadlet unit is started through systemd: a container started with
+        ``podman run`` from inside the updater service fails on some hosts
+        (crun cannot install its eBPF device filter). ``podman exec`` works
+        there, as the pre-update backup shows. The controller is stopped, so
+        nothing else holds a session on the database being renamed.
         """
-        self._require_stopped_database()
-        image = self._postgresql_image()
-        env_file = self.journal.root / "postgresql-helper.env"
-        if not self.runner.dry_run:
-            # A file keeps the password out of the process list.
-            env_file.write_text(
-                f"POSTGRESQL_ADMIN_PASSWORD={uuid.uuid4().hex}\n", encoding="utf-8"
-            )
-            os.chmod(env_file, 0o600)
-        name = POSTGRESQL_HELPER_CONTAINER
-        self.runner.run(["podman", "rm", "-f", name], check=False)
+        unit = LEGACY_POSTGRESQL_UNIT
+        container = LEGACY.postgresql_container
+        self.runner.run(["systemctl", "daemon-reload"], check=False)
+        self.runner.run(["systemctl", "start", unit])
         try:
-            self.runner.run(
-                [
-                    "podman", "run", "-d", "--name", name,
-                    "--network", "none",
-                    "--env-file", str(env_file),
-                    "-v", f"{data_dir}:/var/lib/pgsql/data:Z",
-                    image,
-                ]
-            )
-            self._wait_for_container_database(name)
-            self.runner.run(
-                [
-                    "podman", "exec", name, "psql", "-v", "ON_ERROR_STOP=1",
-                    "-d", "postgres",
-                    "-c", _rename_sql(source, target),
-                    "-c", "ALTER ROLE postgres PASSWORD NULL",
-                ]
-            )
+            self._wait_for_container_database(container)
+            command = [
+                "podman", "exec", container, "psql", "-v", "ON_ERROR_STOP=1",
+                "-d", "postgres", "-c", _rename_sql(source, target),
+            ]
+            # The unit's health check opens short sessions on the database;
+            # ALTER DATABASE refuses while one is open, so retry briefly.
+            for attempt in range(10):
+                result = self.runner.run(command, capture_output=True, check=False)
+                if result.returncode == 0:
+                    break
+                if attempt == 9:
+                    raise InstallerError(
+                        "Renaming the PostgreSQL role and database failed: "
+                        + (result.stderr or result.stdout or "").strip()
+                    )
+                time.sleep(2)
         finally:
-            self.runner.run(["podman", "stop", "-t", "30", name], check=False)
-            self.runner.run(["podman", "rm", "-f", name], check=False)
-            env_file.unlink(missing_ok=True)
+            self.runner.run(["systemctl", "stop", unit], check=False)
 
     def _wait_for_container_database(self, name: str) -> None:
         if self.runner.dry_run:
@@ -456,13 +435,6 @@ class LegacyMigration:
         # The image's start script runs a temporary server first; PID 1 is
         # postgres only once the final server accepts connections.
         for _attempt in range(120):
-            running = self.runner.run(
-                ["podman", "container", "inspect", "--format", "{{.State.Running}}", name],
-                capture_output=True,
-                check=False,
-            )
-            if running.returncode != 0 or running.stdout.strip() != "true":
-                break
             process = self.runner.run(
                 ["podman", "exec", name, "cat", "/proc/1/comm"],
                 capture_output=True,
@@ -482,21 +454,6 @@ class LegacyMigration:
             "The database did not start for the rename. "
             + (logs.stdout or logs.stderr or "").strip()
         )
-
-    def _require_stopped_database(self) -> None:
-        """Never start a second server on the data directory in use."""
-        if self.runner.dry_run:
-            return
-        if self._unit_running("devcloud-postgresql.service"):
-            raise InstallerError("devcloud-postgresql.service is still running")
-        for name in (LEGACY.postgresql_container, CURRENT.postgresql_container):
-            exists = self.runner.run(
-                ["podman", "container", "exists", name], check=False
-            )
-            if exists.returncode == 0:
-                raise InstallerError(
-                    f"The {name} container still exists; stop it and retry"
-                )
 
     def _rename_native_database(self, source: str, target: str) -> None:
         self.runner.run(
@@ -631,20 +588,9 @@ class LegacyMigration:
         ):
             return
         if config.controller_runtime == ControllerRuntime.CONTAINER:
-            password = self.engine._read_env(
-                self.host_path(f"{LEGACY.etc_dir}/postgresql.env")
-            ).get("POSTGRESQL_PASSWORD", "")
-            if not password and not self.runner.dry_run:
-                raise InstallerError(
-                    f"{LEGACY.etc_dir}/postgresql.env has no PostgreSQL password"
-                )
             if not self.runner.dry_run:
                 self.journal.record({"type": "database", "mode": "container"})
-            self._rename_container_database(
-                self.host_path(f"{LEGACY.var_dir}/postgresql"),
-                LEGACY.database,
-                CURRENT.database,
-            )
+            self._rename_container_database(LEGACY.database, CURRENT.database)
         else:
             if not self.runner.dry_run:
                 self.journal.record({"type": "database", "mode": "native"})
@@ -1025,11 +971,8 @@ class LegacyMigration:
                 )
         elif kind == "database":
             if action.get("mode") == "container":
-                self._rename_container_database(
-                    self.host_path(f"{LEGACY.var_dir}/postgresql"),
-                    CURRENT.database,
-                    LEGACY.database,
-                )
+                # The devcloud unit files are back at this point of the undo.
+                self._rename_container_database(CURRENT.database, LEGACY.database)
             else:
                 self._rename_native_database(CURRENT.database, LEGACY.database)
         elif kind == "fcontext":

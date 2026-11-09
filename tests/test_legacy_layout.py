@@ -295,3 +295,37 @@ def test_a_committed_move_is_never_undone(tmp_path):
     assert snapshot(tmp_path) == {
         path: value for path, value in after.items() if not path.startswith("var/lib/aifactory-migration")
     }
+
+
+def test_journal_left_by_a_failed_database_rename_is_recovered(tmp_path):
+    """3.49.1 on a controller: podman run failed in the rename and in its undo."""
+    from app.installer.legacy_layout import Journal, recover_interrupted_migration
+
+    legacy_all_in_one(tmp_path)
+    before = snapshot(tmp_path)
+    runner = FakeHost()
+    engine, migration = _migration(tmp_path, runner)
+    journal = Journal(engine.host_path("/var/lib/aifactory-migration"))
+    journal.start("3.49.1")
+    journal.record(
+        {"type": "units", "active": sorted(ACTIVE_UNITS), "enabled": sorted(ENABLED_UNITS)}
+    )
+    journal.record({"type": "database", "mode": "container"})
+    journal.data["state"] = "undo-failed"
+    journal.save()
+
+    assert recover_interrupted_migration(
+        engine, lambda: (migration.legacy_config, migration.config)
+    )
+
+    assert not (tmp_path / "var/lib/aifactory-migration").exists()
+    assert snapshot(tmp_path) == before
+    commands = [" ".join(command) for command in runner.commands]
+    # The database container is started by its systemd unit, never podman run.
+    assert not any(command.startswith("podman run") for command in commands)
+    assert any(
+        command.startswith("podman exec devcloud-postgresql psql")
+        and "ALTER DATABASE aifactory RENAME TO devcloud" in command
+        for command in commands
+    )
+    assert "systemctl start devcloud-controller.service" in commands

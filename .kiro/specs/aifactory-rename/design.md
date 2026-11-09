@@ -135,16 +135,16 @@ tree.
   with persistent storage (`workspace_routes.py:615`).
 
 **migrate-database.**
-- Bundled container database: checks that the database unit is stopped and
-  no database container exists. Then it runs a temporary copy of the sclorg
-  image in admin-only mode (`POSTGRESQL_ADMIN_PASSWORD` only, from a 0600 env
-  file) without `--rm`.
-  - It waits until PID 1 is `postgres`, and stops waiting if the container
-    exits.
-  - It runs an idempotent `DO` block that renames the database and the role,
-    then `ALTER ROLE postgres PASSWORD NULL`.
-  - Because of admin-only mode, the start does not depend on which role name
-    currently exists. The same helper works for undo.
+- Bundled container database: starts the installed `devcloud-postgresql`
+  Quadlet unit through systemd and waits until PID 1 in the container is
+  `postgres`. It then runs an idempotent `DO` block through
+  `podman exec … psql -d postgres` that renames the database and the role,
+  retrying briefly while a health-check session is open, and stops the unit.
+  The undo does the same in reverse.
+  - 3.49.1 used a temporary `podman run` helper instead. On the production
+    controller, that failed from inside the updater service with
+    `crun: systemd failed to install eBPF device filter`, and so did its undo.
+    `podman exec` and systemd-started containers work there.
 - Native PostgreSQL: the same SQL through `runuser -u postgres psql`.
 - SQLite and external databases are not touched here.
 
