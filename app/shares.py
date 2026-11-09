@@ -11,7 +11,7 @@ from app.models.user import User
 from app.models.workspace import Workspace, WorkspaceStatus
 from app.models.workspace_share import WorkspaceShare
 
-COOKIE_PREFIX = "devcloud_share_"
+COOKIE_PREFIX = "aifactory_share_"
 # Every prefix a release may have set; all are read and never forwarded.
 COOKIE_PREFIXES = ("devcloud_share_", "aifactory_share_")
 

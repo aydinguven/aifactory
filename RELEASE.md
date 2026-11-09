@@ -60,7 +60,7 @@ releases and packages. GitHub-hosted runners must be enabled for the
 repository.
 
 GHCR publication uses the built-in `GITHUB_TOKEN`; no registry secret is
-required. New GHCR packages are private by default, so make the `devcloud`
+required. New GHCR packages are private by default, so make the `aifactory`
 container package public after its first publication so connected hosts can
 pull anonymously.
 
@@ -78,10 +78,10 @@ Optional release-signing secrets:
 The signing key must be usable non-interactively in the release job. During the
 current compatibility period, tag-triggered releases are unsigned and manual
 workflow runs can opt into signing. Signed runs export the public key as
-`devcloud-release-keyring.gpg`, embed it in installation/update archives, and
+`aifactory-release-keyring.gpg`, embed it in installation/update archives, and
 install it as `/etc/aifactory/release-keyring.gpg` for subsequent updates.
 
-The primary registry destination is `ghcr.io/aydinguven/devcloud`. Formal
+The primary registry destination is `ghcr.io/aydinguven/aifactory`. Formal
 version tags also mirror release images to
 `quay.io/aaslangoren/devcloud`; manual development releases keep Quay
 publication opt-in.
@@ -156,7 +156,7 @@ from GitHub:
 bash /opt/aifactory/current/deploy/aifactory-setup.sh \
   --yes update \
   --source-type git \
-  --repository https://github.com/aydinguven/devcloud.git \
+  --repository https://github.com/aydinguven/aifactory.git \
   --ref stable
 ```
 
@@ -172,12 +172,12 @@ default is `false`. Set it back to `false` when signed releases are enabled.
 
 Hosts installed from an older unsigned release need a one-time trust bootstrap
 before their first signed worker OTA. Download
-`devcloud-release-keyring.gpg` from the matching GitHub Release, verify its
+`aifactory-release-keyring.gpg` from the matching GitHub Release, verify its
 fingerprint against the release environment's configured key, and install it:
 
 ```bash
 sudo install -D -o root -g root -m 0644 \
-  devcloud-release-keyring.gpg /etc/aifactory/release-keyring.gpg
+  aifactory-release-keyring.gpg /etc/aifactory/release-keyring.gpg
 ```
 
 New offline installs and successfully applied platform updates persist the

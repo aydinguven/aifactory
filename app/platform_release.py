@@ -256,15 +256,13 @@ def publish_platform_root(root: Path, downloads_root: Path) -> Path:
     files = _verified_release_files(root, release)
     release_root = downloads_root.resolve() / "releases"
     release_root.mkdir(parents=True, exist_ok=True)
-    # Workers up to 3.49.x check this name; the aifactory name follows once
-    # every host runs 3.49.1 or later.
     filename = (
-        f"devcloud-platform-update-v{release.version}-"
+        f"aifactory-platform-update-v{release.version}-"
         f"{release.source_commit[:12]}.tar.gz"
     )
     target = release_root / filename
     temporary = release_root / f".{filename}.{uuid.uuid4().hex}.partial"
-    archive_root = f"devcloud-{release.version}"
+    archive_root = f"aifactory-{release.version}"
     try:
         with tarfile.open(temporary, "w:gz") as archive:
             for path in files:

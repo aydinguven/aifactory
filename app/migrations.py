@@ -19,7 +19,7 @@ from app.config import settings
 from app.database import engine, init_db
 
 
-CURRENT_SCHEMA_VERSION = 38
+CURRENT_SCHEMA_VERSION = 39
 # ai_config_digest of the workspaces migration 33 moved off TCMB Code.
 TCMB_CODE_MIGRATED_DIGEST = "tcmb-code-migrated"
 
@@ -81,8 +81,8 @@ def _rebuild_sqlite_workspaces(sync_conn) -> bool:
     return True
 
 
-# Releases before 3.50.1 keep writing the devcloud table name, so a host can
-# still roll back; 3.50.1 renames it. Both names are read.
+# Releases before 3.50.1 use the devcloud table name; upgrade() renames it.
+# Both names are read, so 3.49.x (which also reads both) can still roll back.
 MIGRATIONS_TABLE = "aifactory_schema_migrations"
 LEGACY_MIGRATIONS_TABLE = "devcloud_schema_migrations"
 
@@ -98,7 +98,7 @@ async def migrations_table(conn) -> str | None:
 
 
 async def _record_version(conn, version: int, name: str) -> None:
-    table = await migrations_table(conn) or LEGACY_MIGRATIONS_TABLE
+    table = await migrations_table(conn) or MIGRATIONS_TABLE
     await conn.execute(
         text(
             f"INSERT INTO {table} "
@@ -137,7 +137,7 @@ async def _expand_flavor_settings(conn) -> None:
 async def _applied_versions(conn) -> set[int]:
     table = await migrations_table(conn)
     if table is None:
-        table = LEGACY_MIGRATIONS_TABLE
+        table = MIGRATIONS_TABLE
         await conn.execute(
             text(
                 f"CREATE TABLE IF NOT EXISTS {table} ("
@@ -706,6 +706,40 @@ async def _add_directory_sync_fields(conn) -> None:
             )
 
 
+async def _rename_migrations_table(conn) -> None:
+    if await migrations_table(conn) == LEGACY_MIGRATIONS_TABLE:
+        await conn.execute(
+            text(f"ALTER TABLE {LEGACY_MIGRATIONS_TABLE} RENAME TO {MIGRATIONS_TABLE}")
+        )
+
+
+LEGACY_IMAGE_PREFIX = "localhost/devcloud-"
+CURRENT_IMAGE_PREFIX = "localhost/aifactory-"
+LEGACY_STORAGE_PREFIX = "/var/lib/devcloud/"
+CURRENT_STORAGE_PREFIX = "/var/lib/aifactory/"
+
+
+async def _rename_devcloud_values(conn) -> None:
+    """Point stored image tags and workspace storage at the aifactory names.
+
+    Workers tag their loaded images under the new name (app.worker_agent),
+    and the 3.49 move renamed /var/lib/devcloud on every host. Registry
+    references keep their names: those images already exist under them.
+    """
+    for table, column, old, new in (
+        ("workspace_images", "image_ref", LEGACY_IMAGE_PREFIX, CURRENT_IMAGE_PREFIX),
+        ("custom_templates", "image_tag", LEGACY_IMAGE_PREFIX, CURRENT_IMAGE_PREFIX),
+        ("workspaces", "storage_path", LEGACY_STORAGE_PREFIX, CURRENT_STORAGE_PREFIX),
+    ):
+        await conn.execute(
+            text(
+                f"UPDATE {table} SET {column} = :new || SUBSTR({column}, :start) "
+                f"WHERE SUBSTR({column}, 1, :length) = :old"
+            ),
+            {"new": new, "old": old, "start": len(old) + 1, "length": len(old)},
+        )
+
+
 async def _add_genai_auto_provision(conn) -> None:
     """Add the switch for LiteLLM provisioning at AD login (on by default)."""
     existing = await conn.run_sync(
@@ -1096,6 +1130,7 @@ async def upgrade() -> None:
     # pre-versioned installations.
     await init_db()
     async with engine.begin() as conn:
+        await _rename_migrations_table(conn)
         applied = await _applied_versions(conn)
         if 1 not in applied:
             await _record_version(conn, 1, "version existing schema")
@@ -1219,6 +1254,9 @@ async def upgrade() -> None:
         if 38 not in applied:
             await _add_genai_auto_provision(conn)
             await _record_version(conn, 38, "GenAI auto-provisioning at AD login")
+        if 39 not in applied:
+            await _rename_devcloud_values(conn)
+            await _record_version(conn, 39, "aifactory image tags and storage paths")
 
 
 async def current_version() -> int:

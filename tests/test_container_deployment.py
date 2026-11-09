@@ -150,7 +150,7 @@ def test_terminal_template_matches_its_image_contract():
     assert template.ide_type == "terminal"
     assert template.default_port == 7681
     assert template.container_workdir == "/home/devuser"
-    assert template.image_tag == "localhost/devcloud-terminal-rocky:latest"
+    assert template.image_tag == "localhost/aifactory-terminal-rocky:latest"
     # Persistent home requires the workspace volume to be mounted.
     assert template.mount_workspace is True
     # ttyd answers 200 on /, so readiness uses an HTTP probe.

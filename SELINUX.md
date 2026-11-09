@@ -29,7 +29,7 @@ file-system relabel.
 ### 1. Update AI Factory and install SELinux tools
 
 ```bash
-cd /root/devcloud
+cd /root/aifactory
 git pull --ff-only origin main
 sudo dnf install -y policycoreutils-python-utils selinux-policy-targeted
 sudo AIFACTORY_SERVICE_USER=root bash deploy/configure_selinux.sh
@@ -64,7 +64,7 @@ After the VM returns:
 
 ```bash
 getenforce
-cd /root/devcloud
+cd /root/aifactory
 sudo AIFACTORY_SERVICE_USER=root bash deploy/configure_selinux.sh
 bash deploy/restart.sh
 sudo ausearch -m AVC,USER_AVC -ts boot

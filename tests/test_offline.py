@@ -196,13 +196,13 @@ def test_workspace_image_pack_is_independent_and_checksummed(tmp_path, monkeypat
     assert output.is_file()
     assert checksum.is_file()
     with tarfile.open(output, "r:gz") as archive:
-        manifest_file = archive.extractfile("devcloud-workspace-images/MANIFEST.json")
+        manifest_file = archive.extractfile("aifactory-workspace-images/MANIFEST.json")
         assert manifest_file is not None
         manifest = json.load(manifest_file)
         names = set(archive.getnames())
     assert manifest["workspace_image_pack_format"] == 1
     assert len(manifest["images"]) == len(package_workspace_images.IMAGES)
-    assert "devcloud-workspace-images/images/devcloud-controller.tar" not in names
+    assert "aifactory-workspace-images/images/aifactory-controller.tar" not in names
 
 
 def test_server_bundle_exports_controller_and_postgresql_oci_archives(
@@ -226,8 +226,8 @@ def test_server_bundle_exports_controller_and_postgresql_oci_archives(
         version="9.9.9",
     )
 
-    assert (output / "devcloud-controller.tar").is_file()
-    assert (output / "devcloud-postgresql-16.tar").is_file()
+    assert (output / "aifactory-controller.tar").is_file()
+    assert (output / "aifactory-postgresql-16.tar").is_file()
     assert any(
         "localhost/aifactory-controller:9.9.9" in command for command in commands
     )
@@ -257,7 +257,7 @@ def test_worker_bundle_exports_worker_oci_archive(tmp_path: Path, monkeypatch):
         version="9.9.9",
     )
 
-    assert (output / "devcloud-worker.tar").is_file()
+    assert (output / "aifactory-worker.tar").is_file()
     assert any("localhost/aifactory-worker:9.9.9" in command for command in commands)
     assert all(
         "--format" in command and "oci-archive" in command
@@ -443,7 +443,7 @@ def test_bundle_archive_is_gzip_compressed(tmp_path: Path, monkeypatch):
 
     assert output.read_bytes()[:2] == b"\x1f\x8b"
     with tarfile.open(output, "r:gz") as archive:
-        assert archive.extractfile("devcloud/payload.txt").read() == b"payload"
+        assert archive.extractfile("aifactory/payload.txt").read() == b"payload"
 
 
 @pytest.mark.asyncio

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.image_refs import same_image_ref
 from app.agents.manager import agent_manager
 from app.models.node import Node, NodeStatus
 from app.models.workspace import (
@@ -154,7 +155,7 @@ def _has_workspace_image(
     images = capabilities.get("workspace_images")
     return isinstance(images, list) and any(
         isinstance(item, dict)
-        and item.get("image_ref") == image_ref
+        and same_image_ref(item.get("image_ref"), image_ref)
         and (
             required_sha256 is None
             or item.get("sha256") == required_sha256

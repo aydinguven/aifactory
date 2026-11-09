@@ -15,6 +15,7 @@ from typing import Protocol
 
 from sqlalchemy import func, or_, select, update
 
+from app.image_refs import same_image_ref
 from app.agents.manager import AgentCommandError, AgentUnavailable, agent_manager
 from app.config import settings
 from app.database import AsyncSessionLocal
@@ -442,7 +443,7 @@ async def garbage_collect_model_build(
         except ValueError:
             capabilities = {}
         reported = any(
-            isinstance(item, dict) and item.get("image_ref") == image_ref
+            isinstance(item, dict) and same_image_ref(item.get("image_ref"), image_ref)
             for item in (capabilities.get("workspace_images") or [])
         )
         if not reported:
@@ -859,7 +860,7 @@ def _image_sync_snapshot(
         images = capabilities.get("workspace_images")
         if isinstance(images, list) and any(
             isinstance(item, dict)
-            and item.get("image_ref") == image_ref
+            and same_image_ref(item.get("image_ref"), image_ref)
             and item.get("sha256") == image_sha256
             for item in images
         ):

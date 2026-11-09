@@ -20,7 +20,7 @@ def _write_bundle_pair(
     legacy_plain_tar: bool = False,
 ) -> tuple[Path, Path]:
     root.mkdir(parents=True, exist_ok=True)
-    prefix = "devcloud-worker-offline" if bundle_role == "worker" else "devcloud-offline"
+    prefix = "aifactory-worker-offline" if bundle_role == "worker" else "aifactory-offline"
     suffix = ".tar" if legacy_plain_tar else ".tar.gz"
     archive = root / f"{prefix}-v2.0.0-20260825-{revision}{suffix}"
     archive.write_bytes(content)

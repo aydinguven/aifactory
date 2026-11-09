@@ -216,7 +216,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           image="${{ matrix.image }}"
-          local_image="localhost/devcloud-${image}:${AIFACTORY_VERSION}"
+          local_image="localhost/aifactory-${image}:${AIFACTORY_VERSION}"
           docker build --pull --platform linux/amd64 \
             --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
             --file "containers/${image}/Containerfile" \
@@ -231,7 +231,7 @@ jobs:
           npm install --prefix "${RUNNER_TEMP}/vscode-smoke" playwright@1.58.2
           "${RUNNER_TEMP}/vscode-smoke/node_modules/.bin/playwright" install --with-deps chromium
           NODE_PATH="${RUNNER_TEMP}/vscode-smoke/node_modules" \
-            node deploy/ci/smoke-vscode.cjs "localhost/devcloud-${{ matrix.image }}:${AIFACTORY_VERSION}"
+            node deploy/ci/smoke-vscode.cjs "localhost/aifactory-${{ matrix.image }}:${AIFACTORY_VERSION}"
 
       - name: Save failed Kilo Code browser check
         if: failure() && startsWith(matrix.image, 'vscode-')
@@ -261,7 +261,7 @@ jobs:
           }
           trap cleanup EXIT
           image="${{ matrix.image }}"
-          local_image="localhost/devcloud-${image}:${AIFACTORY_VERSION}"
+          local_image="localhost/aifactory-${image}:${AIFACTORY_VERSION}"
           repositories=("${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}")
 
           if [[ "${PUBLISH_QUAY}" == "true" ]]; then
@@ -292,8 +292,8 @@ jobs:
         run: |
           set -Eeuo pipefail
           image="${{ matrix.image }}"
-          local_image="localhost/devcloud-${image}:${AIFACTORY_VERSION}"
-          archive="${RUNNER_TEMP}/devcloud-workspace-${image}-v${AIFACTORY_VERSION}-${SHORT_SHA}.tar.gz"
+          local_image="localhost/aifactory-${image}:${AIFACTORY_VERSION}"
+          archive="${RUNNER_TEMP}/aifactory-workspace-${image}-v${AIFACTORY_VERSION}-${SHORT_SHA}.tar.gz"
           # pigz writes standard gzip using every runner core.
           if ! command -v pigz >/dev/null 2>&1; then
             sudo apt-get update -qq
@@ -351,7 +351,7 @@ jobs:
           asset_dir="${RUNNER_TEMP}/aifactory-release-assets"
           rm -rf -- "${asset_dir}"
           install -d -m 0755 "${asset_dir}"
-          platform_filename="devcloud-platform-update-v${AIFACTORY_VERSION}-${SHORT_SHA}.tar.gz"
+          platform_filename="aifactory-platform-update-v${AIFACTORY_VERSION}-${SHORT_SHA}.tar.gz"
           {
             echo "ASSET_DIR=${asset_dir}"
             echo "PLATFORM_FILENAME=${platform_filename}"
@@ -406,9 +406,6 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          # Hosts before 3.49.1 read the devcloud channel name.
-          cp "${ASSET_DIR}/aifactory-update-channel.json" \
-            "${ASSET_DIR}/devcloud-update-channel.json"
           mapfile -d '' release_assets < <(
             find "${ASSET_DIR}" -maxdepth 1 -type f -print0 | sort -z
           )
@@ -524,11 +521,11 @@ jobs:
             git switch --orphan stable
           fi
 
-          git rm -r --ignore-unmatch .
+          # devcloud-update-channel.json stays frozen at 3.49.x: hosts before
+          # 3.49.1 read only that name and must pass through 3.49.x first.
+          git rm -r --ignore-unmatch -- . ':!devcloud-update-channel.json'
           cp "${channel_copy}" aifactory-update-channel.json
-          # Hosts before 3.49.1 read only the devcloud name.
-          cp "${channel_copy}" devcloud-update-channel.json
-          git add aifactory-update-channel.json devcloud-update-channel.json
+          git add aifactory-update-channel.json
 
           if git diff --cached --quiet; then
             echo "Stable channel already references this release."

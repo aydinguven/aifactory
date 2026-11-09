@@ -59,7 +59,7 @@
       <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 0.75rem;">
         Dosya aktarımı sırasında bozulma veya eksiklik olmadığını doğrulamak için paketin yanındaki <code>.sha256</code> dosyasıyla kontrol edin:
       </p>
-      <pre class="terminal-window" style="font-size: 0.85rem; padding: 0.85rem 1rem;">sha256sum -c devcloud-offline-*.tar.gz.sha256</pre>
+      <pre class="terminal-window" style="font-size: 0.85rem; padding: 0.85rem 1rem;">sha256sum -c aifactory-offline-*.tar.gz.sha256</pre>
       <small style="color: var(--color-success); font-size: 0.8rem; margin-top: 0.35rem; display: block;">&check; Çıktıda <code>...: OK</code> mesajını görmelisiniz.</small>
     </div>
 
@@ -70,10 +70,10 @@
         <h3 style="font-size: 1.05rem; font-weight: 600; color: #fff; margin: 0;">Arşivi Açma ve Dizine Geçiş</h3>
       </div>
       <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 0.75rem;">
-        Tarball arşivini açın ve oluşturulan <code>devcloud</code> klasörüne geçin:
+        Tarball arşivini açın ve oluşturulan <code>aifactory</code> klasörüne geçin:
       </p>
-      <pre class="terminal-window" style="font-size: 0.85rem; padding: 0.85rem 1rem;">tar -xzf devcloud-offline-*.tar.gz
-cd devcloud</pre>
+      <pre class="terminal-window" style="font-size: 0.85rem; padding: 0.85rem 1rem;">tar -xzf aifactory-offline-*.tar.gz
+cd aifactory</pre>
     </div>
 
     <!-- Step 3 -->
@@ -131,9 +131,9 @@ echo "$ID $VERSION_ID $(uname -m)"</pre>
     </div>
     <div style="background:rgba(255,255,255,.02);border:1px solid var(--border-color);border-radius:var(--radius-md);padding:1.25rem;">
       <h3 style="font-size:1.05rem;color:#fff;margin:0 0 .75rem;">Manuel seçenek: paketi doğrulayın ve açın</h3>
-      <pre class="terminal-window" style="font-size:.85rem;padding:.85rem 1rem;">sha256sum -c devcloud-worker-offline-*.tar.gz.sha256
-tar -xzf devcloud-worker-offline-*.tar.gz
-cd devcloud-worker</pre>
+      <pre class="terminal-window" style="font-size:.85rem;padding:.85rem 1rem;">sha256sum -c aifactory-worker-offline-*.tar.gz.sha256
+tar -xzf aifactory-worker-offline-*.tar.gz
+cd aifactory-worker</pre>
     </div>
     <div style="background:rgba(255,255,255,.02);border:1px solid var(--border-color);border-radius:var(--radius-md);padding:1.25rem;">
       <h3 style="font-size:1.05rem;color:#fff;margin:0 0 .75rem;">2. Worker kimlik bilgilerini hazırlayın</h3>

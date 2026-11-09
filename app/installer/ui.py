@@ -149,7 +149,7 @@ class InstallerUI:
             if config.update_source_type == UpdateSourceType.GIT:
                 config.update_source = self.ask(
                     "Git repository URL or local path",
-                    "https://github.com/aydinguven/devcloud.git",
+                    "https://github.com/aydinguven/aifactory.git",
                 )
                 config.update_ref = self.ask(
                     "Release channel branch/tag", "stable"

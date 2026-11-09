@@ -329,3 +329,49 @@ def test_journal_left_by_a_failed_database_rename_is_recovered(tmp_path):
         for command in commands
     )
     assert "systemctl start devcloud-controller.service" in commands
+
+
+class PodmanHost(FakeHost):
+    def __init__(self, mounts):
+        super().__init__()
+        self.mounts = mounts
+
+    def run(self, command, **kwargs):
+        if command[:3] == ["podman", "ps", "-aq"]:
+            self.commands.append(command)
+            return subprocess.CompletedProcess(command, 0, "c1\n", "")
+        if command[:3] == ["podman", "container", "inspect"]:
+            self.commands.append(command)
+            return subprocess.CompletedProcess(command, 0, "\n".join(self.mounts) + "\n", "")
+        return super().run(command, **kwargs)
+
+    def exists(self, command):
+        return command == "podman"
+
+
+def test_3_50_removes_the_devcloud_links_only_when_nothing_uses_them(tmp_path):
+    legacy_all_in_one(tmp_path)
+    engine, migration = _migration(tmp_path, FakeHost())
+    for step in migration.steps():
+        if step.key != "backup":
+            step.apply()
+    migration.commit()
+    migration.finish()
+    old_roots = ("etc/devcloud", "var/lib/devcloud", "opt/devcloud", "srv/devcloud-downloads")
+
+    # A container created before the move still mounts the old path.
+    busy = InstallerEngine(
+        filesystem_root=tmp_path,
+        runner=PodmanHost(["/var/lib/devcloud/workspaces/3/ws"]),
+    )
+    assert busy._remove_legacy_links(migration.config) == []
+    assert all((tmp_path / old).is_symlink() for old in old_roots)
+
+    idle = InstallerEngine(
+        filesystem_root=tmp_path,
+        runner=PodmanHost(["/var/lib/aifactory/workspaces/3/ws"]),
+    )
+    removed = idle._remove_legacy_links(migration.config)
+    assert sorted(removed) == sorted("/" + old for old in old_roots)
+    assert not any((tmp_path / old).exists() or (tmp_path / old).is_symlink() for old in old_roots)
+    assert (tmp_path / "var/lib/aifactory/installer/install-state.json").is_file()

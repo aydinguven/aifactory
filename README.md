@@ -201,7 +201,7 @@ system changes:
 
 ```bash
 git clone https://git.aydin.cloud/aydin/devcloud.git
-cd devcloud
+cd aifactory
 bash deploy/deploy.sh
 ```
 
@@ -231,10 +231,10 @@ Apply a configured Git channel or a transferred bundle from the host:
 
 ```bash
 sudo bash /opt/aifactory/current/deploy/aifactory-setup.sh --yes update \
-  --source-type git --repository https://git.example/devcloud.git --ref stable
+  --source-type git --repository https://git.example/aifactory.git --ref stable
 
 sudo bash /opt/aifactory/current/deploy/aifactory-setup.sh --yes update \
-  --bundle /root/devcloud-platform-update-VERSION-COMMIT.tar.gz
+  --bundle /root/aifactory-platform-update-VERSION-COMMIT.tar.gz
 ```
 
 The same two choices are available under **Admin > System > Platform
@@ -513,9 +513,9 @@ Transfer both generated files to the target Linux VM via approved media, verify
 the outer checksum, extract it, and execute the offline installer:
 
 ```bash
-sha256sum -c devcloud-offline-*.tar.gz.sha256
-tar -xzf devcloud-offline-*.tar.gz
-cd devcloud
+sha256sum -c aifactory-offline-*.tar.gz.sha256
+tar -xzf aifactory-offline-*.tar.gz
+cd aifactory
 
 sudo bash deploy/aifactory-setup.sh
 ```

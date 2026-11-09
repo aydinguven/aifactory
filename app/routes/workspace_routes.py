@@ -923,7 +923,7 @@ async def snapshot_workspace_endpoint(
         )
     slug = re.sub(r"[^a-zA-Z0-9_\-]", "", template_name.lower().replace(" ", "-"))[:30]
     template_id = f"custom-{slug}"
-    image_tag = f"localhost/devcloud-{template_id}:latest"
+    image_tag = f"localhost/aifactory-{template_id}:latest"
     try:
         result = await agent_manager.get(workspace.node_id).request(
             "container.snapshot",

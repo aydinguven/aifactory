@@ -259,7 +259,7 @@ def test_platform_update_has_clear_methods_release_summary_and_live_log():
     assert ".platform-update-log" in css
     assert template.count('name="allow_unsigned"') == 2
     assert template.count('class="unsigned-update-control"') == 2
-    assert 'value="https://github.com/aydinguven/devcloud.git"' in template
+    assert 'value="https://github.com/aydinguven/aifactory.git"' in template
     assert 'name="allow_unsigned" type="checkbox" value="true" checked' not in template
     assert ".unsigned-update-control:has(input:checked)" in css
     assert 'form.elements.namedItem("allow_unsigned")' in javascript
@@ -376,8 +376,8 @@ def test_worker_bootstrap_uses_one_time_admin_command():
     assert "--yes install worker" in bootstrap
     assert "sha256sum -c" in bootstrap
     assert 'tar -xf "${BUNDLE_PATH}"' in bootstrap
-    assert "devcloud-offline-*.tar.gz.sha256" in template
-    assert "devcloud-worker-offline-*.tar.gz.sha256" in template
+    assert "aifactory-offline-*.tar.gz.sha256" in template
+    assert "aifactory-worker-offline-*.tar.gz.sha256" in template
     assert "Worker name" in bootstrap
     assert "/api/bootstrap/workers/" not in bootstrap
     assert "AIFACTORY_NODE_TOKEN" not in template

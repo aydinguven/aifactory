@@ -107,7 +107,7 @@ if [[ "${SIGN_RELEASE}" == "true" ]]; then
     exit 1
   }
 
-  gpg --batch --yes --output "${ASSET_DIR}/devcloud-release-keyring.gpg" --export "${signing_key}"
+  gpg --batch --yes --output "${ASSET_DIR}/aifactory-release-keyring.gpg" --export "${signing_key}"
 fi
 
 image_logged_in=false
@@ -207,12 +207,12 @@ build_arguments=(
   --channel-url "${ASSET_BASE_URL}/${PLATFORM_FILENAME}"
 )
 if [[ -n "${signing_key}" ]]; then
-  build_arguments+=(--release-keyring "${ASSET_DIR}/devcloud-release-keyring.gpg")
+  build_arguments+=(--release-keyring "${ASSET_DIR}/aifactory-release-keyring.gpg")
 fi
 
 offline_keyring_arguments=()
 if [[ -n "${signing_key}" ]]; then
-  offline_keyring_arguments=(--release-keyring "${ASSET_DIR}/devcloud-release-keyring.gpg")
+  offline_keyring_arguments=(--release-keyring "${ASSET_DIR}/aifactory-release-keyring.gpg")
 fi
 # The two offline bundles each run dnf download, so they stay sequential with
 # each other; they run in parallel with the platform bundle and the pushes.
@@ -250,7 +250,7 @@ from app.platform_release import load_platform_release
 
 bundle = Path(sys.argv[1])
 signing_key = sys.argv[2]
-keyring = Path("/release-assets/devcloud-release-keyring.gpg")
+keyring = Path("/release-assets/aifactory-release-keyring.gpg")
 with prepare_release(
     bundle,
     runner=CommandRunner(),
@@ -289,9 +289,9 @@ fi
 
 for role in server worker; do
   if [[ "${role}" == "server" ]]; then
-    pattern='devcloud-offline-v*.tar.gz'
+    pattern='aifactory-offline-v*.tar.gz'
   else
-    pattern='devcloud-worker-offline-v*.tar.gz'
+    pattern='aifactory-worker-offline-v*.tar.gz'
   fi
   bundle="$(find "${ASSET_DIR}" -maxdepth 1 -type f -name "${pattern}" -print -quit)"
   [[ -n "${bundle}" ]] || {

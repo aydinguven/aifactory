@@ -117,10 +117,10 @@ The builder:
 9. verifies the stage and creates these ignored files:
 
 ```text
-dist/devcloud-offline-v<version>-<YYYYMMDD>-<commit>.tar.gz
-dist/devcloud-offline-v<version>-<YYYYMMDD>-<commit>.tar.gz.sha256
-dist/devcloud-worker-offline-v<version>-<YYYYMMDD>-<commit>.tar.gz
-dist/devcloud-worker-offline-v<version>-<YYYYMMDD>-<commit>.tar.gz.sha256
+dist/aifactory-offline-v<version>-<YYYYMMDD>-<commit>.tar.gz
+dist/aifactory-offline-v<version>-<YYYYMMDD>-<commit>.tar.gz.sha256
+dist/aifactory-worker-offline-v<version>-<YYYYMMDD>-<commit>.tar.gz
+dist/aifactory-worker-offline-v<version>-<YYYYMMDD>-<commit>.tar.gz.sha256
 ```
 
 The outer bundle is gzip-compressed because the exported Podman layers benefit
@@ -147,7 +147,7 @@ Build the optional workspace-image transport independently:
 python3 deploy/package_workspace_images.py
 ```
 
-It creates `dist/devcloud-workspace-images-v<version>-<date>-<commit>.tar.gz`
+It creates `dist/aifactory-workspace-images-v<version>-<date>-<commit>.tar.gz`
 and its outer SHA-256 file. This archive is not an installer and is not tied to
 a controller or worker role. It contains one normalized Linux/amd64 image
 archive per maintained workspace template plus a checksummed manifest.
@@ -223,9 +223,9 @@ Transfer both files using approved media. Keep the target's public repository
 access disabled for this test. From the transfer directory:
 
 ```bash
-sha256sum -c devcloud-offline-*.tar.gz.sha256
-tar -xzf devcloud-offline-*.tar.gz
-cd devcloud
+sha256sum -c aifactory-offline-*.tar.gz.sha256
+tar -xzf aifactory-offline-*.tar.gz
+cd aifactory
 sudo bash deploy/aifactory-setup.sh
 ```
 
@@ -259,8 +259,8 @@ After the controller and workers are enrolled, transfer the separately produced
 workspace-image archive to an administrator machine or the controller:
 
 ```bash
-sha256sum -c devcloud-workspace-images-*.tar.gz.sha256
-tar -xzf devcloud-workspace-images-*.tar.gz
+sha256sum -c aifactory-workspace-images-*.tar.gz.sha256
+tar -xzf aifactory-workspace-images-*.tar.gz
 ```
 
 Open **Admin > Workspace Image'ları** and upload each archive in the extracted
@@ -273,7 +273,7 @@ internet or registry access, and scheduling waits until the requested image is
 present on a worker.
 
 For a disconnected in-place update, copy the signed
-`devcloud-platform-update-v*.tar.gz` bundle to the controller. It already
+`aifactory-platform-update-v*.tar.gz` bundle to the controller. It already
 contains the prebuilt controller and worker OCI archives plus native-worker
 Python wheels, contains no workspace images, and requires no external
 package-index access from workers. The updater creates a verified pre-update
@@ -284,7 +284,7 @@ Apply the signed bundle:
 
 ```bash
 sudo bash /opt/aifactory/current/deploy/aifactory-setup.sh --yes update \
-  --bundle /root/devcloud-platform-update-v3.4.7-COMMIT.tar.gz
+  --bundle /root/aifactory-platform-update-v3.4.7-COMMIT.tar.gz
 ```
 
 The release is rejected unless its manifest signature chains to

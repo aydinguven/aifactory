@@ -46,7 +46,7 @@ still reject unsigned OTA. Upgrade each such worker once from its host:
 ```bash
 sudo bash /opt/aifactory/current/deploy/aifactory-setup.sh --yes update \
   --source-type git \
-  --repository https://github.com/aydinguven/devcloud.git \
+  --repository https://github.com/aydinguven/aifactory.git \
   --ref stable \
   --allow-unsigned
 ```
@@ -179,7 +179,7 @@ The `vscode-cuda` template (**Kilo Code (CUDA)**) is Kilo Code plus the CUDA
 
 1. Run host NVIDIA driver 580 or newer on the GPU workers (CUDA 13.x
    requirement) and update the workers to 3.24.0 or newer.
-2. Import `ghcr.io/aydinguven/devcloud:vscode-cuda-VERSION` under
+2. Import `ghcr.io/aydinguven/aifactory:vscode-cuda-VERSION` under
    **Admin > Workspace Image'ları**. Only workers whose heartbeat reports an
    NVIDIA stack download it (about 3.5 GB compressed); CPU workers skip it.
 3. Users pick the template together with a GPU flavor such as `g1.shared`;

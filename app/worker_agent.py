@@ -142,8 +142,8 @@ def _tls_context(connection_url: str) -> ssl.SSLContext | None:
 
 
 
-# Workspace image tags move from localhost/devcloud-* to localhost/aifactory-*
-# (3.50.1). Archives and local images built before keep the old tag.
+# Workspace image tags moved from localhost/devcloud-* to localhost/aifactory-*
+# in 3.50.1. Archives and local images built before keep the old tag.
 _RENAMED_IMAGE_PREFIXES = (
     ("localhost/aifactory-", "localhost/devcloud-"),
     ("localhost/devcloud-", "localhost/aifactory-"),
@@ -392,6 +392,9 @@ class WorkerAgent:
                     and await _adopt_renamed_image(image_ref)
                 ):
                     exists_code = 0
+                    # Report the tag the controller now asks for.
+                    self.image_state[image_id] = {**current, "image_ref": image_ref}
+                    self._save_image_state()
                 if current.get("sha256") == expected_sha256 and exists_code == 0:
                     self.image_progress[image_id].update(
                         state="ready", downloaded_bytes=expected_size

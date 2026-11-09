@@ -23,14 +23,13 @@ logger = logging.getLogger(__name__)
 
 BUNDLE_ROLES = ("server", "worker")
 BUNDLE_PREFIXES = {
-    "server": "devcloud-offline",
-    "worker": "devcloud-worker-offline",
+    "server": "aifactory-offline",
+    "worker": "aifactory-worker-offline",
 }
-# Bundles are still built with the devcloud prefix (see deploy/package_offline);
-# published ones under either prefix are recognized.
+# Bundles published before 3.50.1 use the devcloud prefix; both are recognized.
 BUNDLE_PATTERNS = {
     role: re.compile(
-        rf"^(?:{prefix}|{prefix.replace('devcloud', 'aifactory', 1)})"
+        rf"^(?:{prefix}|{prefix.replace('aifactory', 'devcloud', 1)})"
         rf"-(?:v?[0-9]+\.[0-9]+\.[0-9]+-[0-9]{{8}}-)?([0-9a-f]{{12}})\.tar(?:\.gz)?$"
     )
     for role, prefix in BUNDLE_PREFIXES.items()

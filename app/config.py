@@ -17,9 +17,9 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "aifactory-super-secret-key-change-in-production-1234567890"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 4  # Initial value; admin policy takes precedence.
-    # Still the devcloud name: 3.50.1 switches to aifactory_session once no
-    # host can roll back to a release that does not strip that cookie.
-    COOKIE_NAME: str = "devcloud_session"
+    # Sessions set before 3.50.1 use devcloud_session; it is still read
+    # (app.auth.dependencies.session_cookie_names) and never forwarded.
+    COOKIE_NAME: str = "aifactory_session"
     COOKIE_SECURE: bool = False
     
     # Storage & Database
