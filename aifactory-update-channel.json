@@ -1,10 +1,10 @@
 {
   "format": 1,
-  "version": "3.49.2",
+  "version": "3.50.1",
   "bundle": {
-    "filename": "devcloud-platform-update-v3.49.2-db13ed2630de.tar.gz",
-    "url": "https://github.com/aydinguven/devcloud/releases/download/v3.49.2/devcloud-platform-update-v3.49.2-db13ed2630de.tar.gz",
-    "sha256": "c5c12da31def2d59ef09fc37c3222c4353b3babda38449ca91876ffef759756c",
-    "size": 954538278
+    "filename": "aifactory-platform-update-v3.50.1-a2bb012813a7.tar.gz",
+    "url": "https://github.com/aydinguven/aifactory/releases/download/v3.50.1/aifactory-platform-update-v3.50.1-a2bb012813a7.tar.gz",
+    "sha256": "bf4a3b70a3f947c3d1449fc1aa5cb1effde5c7f16e6d7e4dabb9b3c6f55acd2d",
+    "size": 954546468
   }
 }
