@@ -211,7 +211,7 @@ async def import_workspace_image_from_registry(
         definition = payload.new_template
         if definition.id in BUILTIN_TEMPLATE_IDS or await db.get(CustomTemplate, definition.id):
             raise HTTPException(status_code=409, detail="Bu şablon ID zaten kullanılıyor")
-        image_ref = f"localhost/devcloud-{definition.id}:latest"
+        image_ref = f"localhost/aifactory-{definition.id}:latest"
         template_name = definition.name
         custom_template = CustomTemplate(
             id=definition.id,

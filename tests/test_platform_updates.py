@@ -34,7 +34,7 @@ def _platform_root(root: Path) -> Path:
         archive.parent.mkdir(parents=True)
         archive.write_bytes(content)
         images[role] = {
-            "image": f"localhost/devcloud-{role}:3.4.0",
+            "image": f"localhost/aifactory-{role}:3.4.0",
             "source": f"quay.io/example/aifactory:{role}-3.4.0",
             "digest": "sha256:" + ("a" if role == "controller" else "b") * 64,
             "archive": archive.relative_to(root).as_posix(),
@@ -110,13 +110,13 @@ def test_clean_install_tree_is_published_as_verified_worker_bundle(tmp_path):
 
     published = publish_platform_root(root, tmp_path / "downloads")
 
-    assert published.name == "devcloud-platform-update-v3.4.0-abcdef123456.tar.gz"
+    assert published.name == "aifactory-platform-update-v3.4.0-abcdef123456.tar.gz"
     assert latest_release(tmp_path / "downloads").path == published
     with tarfile.open(published, "r:gz") as archive:
         members = {member.name for member in archive.getmembers() if member.isfile()}
-    assert "devcloud-3.4.0/release.json" in members
-    assert "devcloud-3.4.0/platform-release.json" in members
-    assert "devcloud-3.4.0/offline/worker-images/aifactory-worker.tar" in members
+    assert "aifactory-3.4.0/release.json" in members
+    assert "aifactory-3.4.0/platform-release.json" in members
+    assert "aifactory-3.4.0/offline/worker-images/aifactory-worker.tar" in members
 
 
 def test_git_channel_resolves_a_checksum_pinned_relative_bundle(tmp_path):

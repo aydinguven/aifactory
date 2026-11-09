@@ -27,12 +27,12 @@ from typing import Iterable
 BUNDLE_FORMAT = 4
 BUNDLE_ROLES = ("server", "worker")
 BUNDLE_PREFIXES = {
-    "server": "devcloud-offline",
-    "worker": "devcloud-worker-offline",
+    "server": "aifactory-offline",
+    "worker": "aifactory-worker-offline",
 }
 BUNDLE_ROOT_NAMES = {
-    "server": "devcloud",
-    "worker": "devcloud-worker",
+    "server": "aifactory",
+    "worker": "aifactory-worker",
 }
 DEFAULT_PYTHON_VERSIONS = ("3.12",)
 LINUX_PLATFORMS = (
@@ -57,18 +57,18 @@ SYSTEM_PACKAGES_BY_BUNDLE_ROLE = {
 # Compatibility for integrations that imported the original server-wide map.
 SYSTEM_PACKAGES_BY_DISTRIBUTION = SYSTEM_PACKAGES_BY_BUNDLE_ROLE["server"]
 IMAGES = (
-    ("devcloud-vscode-kilo", "localhost/devcloud-vscode-kilo:latest", "vscode-kilo"),
-    ("devcloud-vscode-cuda", "localhost/devcloud-vscode-cuda:latest", "vscode-cuda"),
-    ("devcloud-jupyter-python", "localhost/devcloud-jupyter-python:latest", "jupyter-python"),
+    ("aifactory-vscode-kilo", "localhost/aifactory-vscode-kilo:latest", "vscode-kilo"),
+    ("aifactory-vscode-cuda", "localhost/aifactory-vscode-cuda:latest", "vscode-cuda"),
+    ("aifactory-jupyter-python", "localhost/aifactory-jupyter-python:latest", "jupyter-python"),
     (
-        "devcloud-terminal-rocky",
-        "localhost/devcloud-terminal-rocky:latest",
+        "aifactory-terminal-rocky",
+        "localhost/aifactory-terminal-rocky:latest",
         "terminal-rocky",
     ),
 )
-CONTROLLER_IMAGE_ARCHIVE = "devcloud-controller"
-WORKER_IMAGE_ARCHIVE = "devcloud-worker"
-POSTGRESQL_IMAGE_ARCHIVE = "devcloud-postgresql-16"
+CONTROLLER_IMAGE_ARCHIVE = "aifactory-controller"
+WORKER_IMAGE_ARCHIVE = "aifactory-worker"
+POSTGRESQL_IMAGE_ARCHIVE = "aifactory-postgresql-16"
 POSTGRESQL_IMAGE = "localhost/aifactory-postgresql:16"
 POSTGRESQL_SOURCE_IMAGE = os.getenv(
     "AIFACTORY_POSTGRES_SOURCE_IMAGE",
@@ -76,11 +76,11 @@ POSTGRESQL_SOURCE_IMAGE = os.getenv(
 )
 CONTROLLER_SOURCE_IMAGE = os.getenv(
     "AIFACTORY_CONTROLLER_SOURCE_IMAGE",
-    "ghcr.io/aydinguven/devcloud:controller-{version}",
+    "ghcr.io/aydinguven/aifactory:controller-{version}",
 )
 WORKER_SOURCE_IMAGE = os.getenv(
     "AIFACTORY_WORKER_SOURCE_IMAGE",
-    "ghcr.io/aydinguven/devcloud:worker-{version}",
+    "ghcr.io/aydinguven/aifactory:worker-{version}",
 )
 
 
@@ -90,7 +90,7 @@ class PackageError(RuntimeError):
 
 def _archive_name_variants(paths: set[str]) -> list[set[str]]:
     """Image archive names of bundles built before and after the aifactory rename."""
-    return [paths, {path.replace("/devcloud-", "/aifactory-") for path in paths}]
+    return [paths, {path.replace("/aifactory-", "/devcloud-") for path in paths}]
 
 
 def run(
@@ -1018,7 +1018,7 @@ def verify_staged_bundle(
     return manifest
 
 
-def create_archive(bundle_root: Path, output_path: Path, *, arcname: str = "devcloud") -> None:
+def create_archive(bundle_root: Path, output_path: Path, *, arcname: str = "aifactory") -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     pigz = shutil.which("pigz")
     if pigz is None:

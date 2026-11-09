@@ -24,13 +24,13 @@ podman image exists "${POSTGRES_IMAGE}" || {
 }
 
 podman save --format oci-archive \
-    --output "${OUTPUT_DIR}/devcloud-controller.tar" \
+    --output "${OUTPUT_DIR}/aifactory-controller.tar" \
     "${CONTROLLER_IMAGE}"
 podman save --format oci-archive \
-    --output "${OUTPUT_DIR}/devcloud-worker.tar" \
+    --output "${OUTPUT_DIR}/aifactory-worker.tar" \
     "${WORKER_IMAGE}"
 podman save --format oci-archive \
-    --output "${OUTPUT_DIR}/devcloud-postgresql-16.tar" \
+    --output "${OUTPUT_DIR}/aifactory-postgresql-16.tar" \
     "${POSTGRES_IMAGE}"
 
 (

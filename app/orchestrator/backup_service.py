@@ -69,7 +69,7 @@ def restore_workspace_from_zip(zip_file_path: Path, target_storage_dir: Path) ->
 
 async def snapshot_workspace_to_image(workspace: Workspace, new_template_id: str) -> tuple[bool, str]:
     """Create a new local Podman image from a running or stopped workspace container."""
-    image_tag = f"localhost/devcloud-custom-{new_template_id}:latest"
+    image_tag = f"localhost/aifactory-custom-{new_template_id}:latest"
     success = await podman_service.commit_container(workspace.container_name, image_tag)
     if not success:
         return False, f"Failed to snapshot container {workspace.container_name}"

@@ -293,9 +293,9 @@ async def build_custom_template_stream(
                 raise RuntimeError("Bu şablon ID zaten kullanılıyor.")
             prefix = settings.AIFACTORY_REGISTRY_URL.rstrip("/")
             image_tag = (
-                f"{prefix}/devcloud-{normalized_template_id}:latest"
+                f"{prefix}/aifactory-{normalized_template_id}:latest"
                 if prefix
-                else f"localhost/devcloud-{normalized_template_id}:latest"
+                else f"localhost/aifactory-{normalized_template_id}:latest"
             )
             await emit(f"🔨 Starting build for [{image_tag}]...", "info")
             flavor = get_flavor("t1.nano")

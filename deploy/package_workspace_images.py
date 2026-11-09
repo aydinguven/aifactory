@@ -34,13 +34,13 @@ def build_pack(args: argparse.Namespace) -> tuple[Path, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     date = datetime.now(timezone.utc).strftime("%Y%m%d")
     output = output_dir / (
-        f"devcloud-workspace-images-v{version}-{date}-{commit[:12]}.tar.gz"
+        f"aifactory-workspace-images-v{version}-{date}-{commit[:12]}.tar.gz"
     )
     output.unlink(missing_ok=True)
     output.with_name(output.name + ".sha256").unlink(missing_ok=True)
 
     with tempfile.TemporaryDirectory(prefix="aifactory-workspace-images-") as temp_dir:
-        pack_root = Path(temp_dir) / "devcloud-workspace-images"
+        pack_root = Path(temp_dir) / "aifactory-workspace-images"
         images_dir = pack_root / "images"
         export_images(
             root_dir,

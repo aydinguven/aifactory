@@ -78,7 +78,7 @@ def test_root_queued_updater_passes_explicit_unsigned_flag_for_git(
         json.dumps(
             {
                 "source_type": "git",
-                "repository": "https://github.com/aydinguven/devcloud.git",
+                "repository": "https://github.com/aydinguven/aifactory.git",
                 "ref": "stable",
                 "filename": "aifactory@stable",
                 "target_version": "3.4.5",
@@ -446,7 +446,7 @@ def test_container_controller_uses_quadlet_without_native_postgresql(tmp_path):
         for command in commands
     )
     assert any(
-        f"podman pull ghcr.io/aydinguven/devcloud:controller-{engine.release_version}"
+        f"podman pull ghcr.io/aydinguven/aifactory:controller-{engine.release_version}"
         in command
         for command in commands
     )
@@ -919,7 +919,7 @@ def test_connected_container_worker_pulls_versioned_ghcr_image(tmp_path):
 
     engine._prepare_worker_image(candidate)
 
-    source = f"ghcr.io/aydinguven/devcloud:worker-{engine.release_version}"
+    source = f"ghcr.io/aydinguven/aifactory:worker-{engine.release_version}"
     target = f"localhost/aifactory-worker:{engine.release_version}"
     assert ["podman", "pull", source] in runner.commands
     assert ["podman", "tag", source, target] in runner.commands

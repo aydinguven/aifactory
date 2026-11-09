@@ -56,10 +56,10 @@ def build(
     release_version = version(root)
     output_dir.mkdir(parents=True, exist_ok=True)
     output = output_dir / (
-        f"devcloud-release-v{release_version}-{commit[:12]}.zip"
+        f"aifactory-release-v{release_version}-{commit[:12]}.zip"
     )
     with tempfile.TemporaryDirectory(prefix="aifactory-release-build-") as temp:
-        stage = Path(temp) / f"devcloud-{release_version}"
+        stage = Path(temp) / f"aifactory-{release_version}"
         stage.mkdir()
         for raw in files:
             relative = PurePosixPath(raw)

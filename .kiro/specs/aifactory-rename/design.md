@@ -214,29 +214,56 @@ Restore accepts `devcloud-backup/`, `etc-devcloud/`, `devcloud.db` and
 `devcloud.pgdump`. It restores into the aifactory paths and rewrites the
 restored env files and state with the same functions.
 
-## 3.50.1 (next)
+## 3.50.1
 
 **Preflight**
-- The host must be on the aifactory layout.
-- The controller update also requires every enabled node to report
-  `agent_version` 3.49.1 or later.
+- The installer refuses a host still on the devcloud layout and asks for
+  3.49.2 first. The 3.50.1 installer no longer runs the move.
+- Admin > System refuses to queue a platform update while an enabled node
+  reports an `agent_version` below 3.49.1. A CLI update is not checked.
 
-**Migration 40**
-- Renames `devcloud_schema_migrations`.
-- Rewrites `localhost/devcloud-` to `localhost/aifactory-` in
-  `workspace_images.image_ref` and `custom_templates.image_tag`. Workers tag
-  the twins.
+**Migration 39** (in `app/migrations.py`)
+- `upgrade()` first renames `devcloud_schema_migrations` to
+  `aifactory_schema_migrations`. 3.49.x reads either name, so a rollback
+  still works.
+- Rewrites the `localhost/devcloud-` prefix to `localhost/aifactory-` in
+  `workspace_images.image_ref` and `custom_templates.image_tag`. Registry
+  references keep their names.
 - Rewrites the `/var/lib/devcloud/` prefix in `workspaces.storage_path`.
 
-**Code and CI**
-- Switches the new defaults for the workspace image tags, the cookie name and
-  the share prefix, plus the bundle names and the channel file. The old
-  channel file stays frozen at 3.49.x.
-- Points the GHCR default and the update source URL at the renamed
-  repository.
+**Workspace image tags**
+- The archives on the controller keep the old tag inside. Workers tag the
+  loaded image under the new name (`_adopt_renamed_image`, since 3.49.1). A
+  3.50.1 worker also records the new tag in its image state.
+- Until a worker runs 3.50.1 it reports the old tag. The controller treats
+  `localhost/devcloud-X` and `localhost/aifactory-X` with the same checksum
+  as the same image (`app/image_refs.py`) in admission and in the MLflow
+  image readiness checks.
+
+**Names switched**
+- Workspace image tags (templates, admin import and build, snapshots, CI,
+  offline packs).
+- `aifactory_session` and `aifactory_share_`. Both old and new names are
+  still read, stripped and cleared on logout.
+- Bundle, archive, offline, keyring asset and workspace pack names.
+- The GHCR default `ghcr.io/aydinguven/aifactory`, and the update source:
+  the exact old GitHub URL in the install state becomes the new one on the
+  next run.
+- CI publishes only `aifactory-update-channel.json`. It keeps
+  `devcloud-update-channel.json` frozen at 3.49.2 on `stable`, so 3.29.x
+  hosts still reach the move.
+- Quay stays `aaslangoren/devcloud`; that registry account was not renamed.
+- `devcloud-mlflow-*` registry tags stay too: GC recomputes them from the
+  name.
 
 **Installer cleanup**
-- Removes the compatibility symlinks once nothing points into them.
+- After the release is recorded, the update removes the four old-path
+  symlinks, but only if all of these hold:
+  - no container mount source is under an old root;
+  - no `current` or `.venv` link points into one;
+  - none of the env files, the install state or the Nginx conf mentions one.
+- It also removes a leftover `devcloud-update.service` file that isn't
+  running.
 
 ## Testing
 

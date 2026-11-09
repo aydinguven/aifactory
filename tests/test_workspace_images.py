@@ -48,7 +48,7 @@ def test_registry_import_normalizes_to_managed_oci_archive(tmp_path, monkeypatch
 
     monkeypatch.setattr(image_service, "_run_skopeo", fake_skopeo)
     metadata = image_service.import_registry_image(
-        image_ref="localhost/devcloud-vscode-python:latest",
+        image_ref="localhost/aifactory-vscode-python:latest",
         source_ref="quay.io/example/python:2026.08",
         username="robot",
         password="secret",
@@ -56,7 +56,7 @@ def test_registry_import_normalizes_to_managed_oci_archive(tmp_path, monkeypatch
 
     archive = image_service.image_archive_path(str(metadata["filename"]))
     assert archive.read_bytes() == b"normalized-oci-archive"
-    assert metadata["image_ref"] == "localhost/devcloud-vscode-python:latest"
+    assert metadata["image_ref"] == "localhost/aifactory-vscode-python:latest"
     assert metadata["sha256"] == hashlib.sha256(archive.read_bytes()).hexdigest()
     assert auth_files and all(not path.exists() for path in auth_files)
     assert "--remove-signatures" in next(
@@ -67,33 +67,33 @@ def test_registry_import_normalizes_to_managed_oci_archive(tmp_path, monkeypatch
 def test_scheduler_requires_managed_image_from_new_agents():
     node = Node(id="image-node", name="image-node")
     node.capabilities_json = json.dumps({"runtime": "podman", "workspace_images": []})
-    assert _has_workspace_image(node, "localhost/devcloud-vscode-python:latest") is False
+    assert _has_workspace_image(node, "localhost/aifactory-vscode-python:latest") is False
 
     node.capabilities_json = json.dumps(
         {
             "runtime": "podman",
             "workspace_images": [
-                {"image_ref": "localhost/devcloud-vscode-python:latest"}
+                {"image_ref": "localhost/aifactory-vscode-python:latest"}
             ],
         }
     )
-    assert _has_workspace_image(node, "localhost/devcloud-vscode-python:latest") is True
+    assert _has_workspace_image(node, "localhost/aifactory-vscode-python:latest") is True
     assert _has_workspace_image(
         node,
-        "localhost/devcloud-vscode-python:latest",
+        "localhost/aifactory-vscode-python:latest",
         "f" * 64,
     ) is False
 
     node.capabilities_json = json.dumps({"runtime": "podman"})
-    assert _has_workspace_image(node, "localhost/devcloud-vscode-python:latest") is True
+    assert _has_workspace_image(node, "localhost/aifactory-vscode-python:latest") is True
     assert _has_workspace_image(
         node,
-        "localhost/devcloud-vscode-python:latest",
+        "localhost/aifactory-vscode-python:latest",
         "f" * 64,
     ) is False
 
     node.capabilities_json = "not-json"
-    assert _has_workspace_image(node, "localhost/devcloud-vscode-python:latest") is False
+    assert _has_workspace_image(node, "localhost/aifactory-vscode-python:latest") is False
 
 
 @pytest.mark.asyncio
@@ -108,7 +108,7 @@ async def test_admin_catalog_and_authenticated_worker_download(
         id="11111111-1111-1111-1111-111111111111",
         template_id="vscode-python",
         display_name="Python managed",
-        image_ref="localhost/devcloud-vscode-python:latest",
+        image_ref="localhost/aifactory-vscode-python:latest",
         source_type="upload",
         source_ref="python.tar",
         digest="sha256:" + "b" * 64,
@@ -202,7 +202,7 @@ async def test_registry_import_can_create_workspace_template(
     template_id = "custom-registry-jupyter"
 
     def fake_registry_import(*, image_ref, source_ref, username, password):
-        assert image_ref == f"localhost/devcloud-{template_id}:latest"
+        assert image_ref == f"localhost/aifactory-{template_id}:latest"
         assert source_ref == "quay.io/example/notebook:2026.09"
         assert username == "robot"
         assert password == "registry-token"
@@ -261,7 +261,7 @@ async def test_registry_import_can_create_workspace_template(
         custom = await db_session.get(CustomTemplate, template_id)
         assert custom is not None
         assert custom.name == "Registry Jupyter"
-        assert custom.image_tag == f"localhost/devcloud-{template_id}:latest"
+        assert custom.image_tag == f"localhost/aifactory-{template_id}:latest"
         assert custom.default_port == 8888
         assert custom.ide_type == "jupyter"
         assert custom.containerfile == "FROM quay.io/example/notebook:2026.09"
@@ -278,7 +278,7 @@ async def test_worker_reconciles_and_verifies_controller_image(tmp_path, monkeyp
     monkeypatch.setenv("AIFACTORY_NODE_TOKEN", "token-1")
     content = b"verified-workspace-image"
     checksum = hashlib.sha256(content).hexdigest()
-    image_ref = "localhost/devcloud-vscode-python:latest"
+    image_ref = "localhost/aifactory-vscode-python:latest"
     image_id = "22222222-2222-2222-2222-222222222222"
     catalog = {
         "images": [
@@ -352,3 +352,20 @@ async def test_worker_reconciles_and_verifies_controller_image(tmp_path, monkeyp
     assert any(call and call[0] == "load" for call in calls)
     assert agent.image_progress[image_id]["state"] == "ready"
     assert agent.image_progress[image_id]["downloaded_bytes"] == len(content)
+
+
+def test_worker_reporting_the_devcloud_tag_still_has_the_renamed_image():
+    """A 3.49 worker reports the old tag until it runs 3.50.1."""
+    node = Node(
+        id="worker-legacy-tag",
+        name="worker-legacy-tag",
+        capabilities_json=json.dumps(
+            {
+                "workspace_images": [
+                    {"image_ref": "localhost/devcloud-vscode-kilo:latest", "sha256": "a" * 64}
+                ]
+            }
+        ),
+    )
+    assert _has_workspace_image(node, "localhost/aifactory-vscode-kilo:latest", "a" * 64)
+    assert not _has_workspace_image(node, "localhost/aifactory-vscode-kilo:latest", "b" * 64)

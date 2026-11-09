@@ -267,7 +267,7 @@ async def test_vscode_launch_uses_admin_managed_cline_profile(monkeypatch):
     )
     assert vscode_settings["chat.disableAIFeatures"] is True
     assert vscode_settings["cline.rollout.bundleOverride"] == "legacy"
-    image_index = run_command.index("localhost/devcloud-vscode-python:latest")
+    image_index = run_command.index("localhost/aifactory-vscode-python:latest")
     startup_command = run_command[image_index + 1:]
     assert startup_command[0] == "-lc"
     assert "$CLINE_DATA_DIR/settings/providers.json" in startup_command[1]
@@ -334,7 +334,7 @@ async def test_vscode_launch_ignores_legacy_disabled_cline_toggle(monkeypatch):
         value.startswith("AIFACTORY_VSCODE_CHAT_MODELS_JSON=")
         for value in run_command
     )
-    image_index = run_command.index("localhost/devcloud-vscode-python:latest")
+    image_index = run_command.index("localhost/aifactory-vscode-python:latest")
     startup_command = run_command[image_index + 1:]
     assert "chatLanguageModels.json" not in startup_command[1]
     assert "--disable-extension" not in startup_command[1]
@@ -401,7 +401,7 @@ async def test_jupyter_launch_installs_gateway_ca_bundle(monkeypatch, tmp_path):
     assert f"AIFACTORY_CA_BUNDLE_PEM={bundle}" in run_command
     for key, value in WORKSPACE_CA_ENVIRONMENT.items():
         assert f"{key}={value}" in run_command
-    image_index = run_command.index("localhost/devcloud-jupyter-python:latest")
+    image_index = run_command.index("localhost/aifactory-jupyter-python:latest")
     assert run_command[image_index + 3].startswith(WORKSPACE_CA_SETUP + " && ")
 
     if not shutil.which("bash"):
@@ -486,7 +486,7 @@ async def test_jupyter_launch_uses_secure_workspace_base_url(monkeypatch):
     )
 
     run_command = next(args for args in commands if args[0] == "run")
-    image_index = run_command.index("localhost/devcloud-jupyter-python:latest")
+    image_index = run_command.index("localhost/aifactory-jupyter-python:latest")
     startup_command = run_command[image_index + 1:]
 
     assert "/workspace:/home/jovyan/work:Z,U" in run_command

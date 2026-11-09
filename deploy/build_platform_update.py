@@ -127,15 +127,15 @@ def build(
     release_version = version(root)
     controller_image = f"localhost/aifactory-controller:{release_version}"
     worker_image = f"localhost/aifactory-worker:{release_version}"
-    controller_source = controller_source or f"ghcr.io/aydinguven/devcloud:controller-{release_version}"
-    worker_source = worker_source or f"ghcr.io/aydinguven/devcloud:worker-{release_version}"
+    controller_source = controller_source or f"ghcr.io/aydinguven/aifactory:controller-{release_version}"
+    worker_source = worker_source or f"ghcr.io/aydinguven/aifactory:worker-{release_version}"
     for image in (controller_image, worker_image):
         command(root, podman, "image", "exists", image)
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    output = output_dir / f"devcloud-platform-update-v{release_version}-{commit[:12]}.tar.gz"
+    output = output_dir / f"aifactory-platform-update-v{release_version}-{commit[:12]}.tar.gz"
     with tempfile.TemporaryDirectory(prefix="aifactory-platform-") as temporary:
-        stage = Path(temporary) / f"devcloud-{release_version}"
+        stage = Path(temporary) / f"aifactory-{release_version}"
         stage.mkdir()
         _copy_tracked(root, stage)
         try:
@@ -153,8 +153,8 @@ def build(
             if not keyring.is_file() or keyring.is_symlink() or not keyring.stat().st_size:
                 raise ReleaseBuildError("Release verification keyring is missing or invalid")
             shutil.copy2(keyring, stage / "release-keyring.gpg")
-        controller_archive = stage / "offline/controller-images/devcloud-controller.tar"
-        worker_archive = stage / "offline/worker-images/devcloud-worker.tar"
+        controller_archive = stage / "offline/controller-images/aifactory-controller.tar"
+        worker_archive = stage / "offline/worker-images/aifactory-worker.tar"
         _save_image(root, podman, controller_image, controller_archive)
         _save_image(root, podman, worker_image, worker_archive)
         platform_manifest = {

@@ -41,7 +41,7 @@ on a private network and is never published on a host port. Native Python
 systemd installation remains available for existing deployments and
 compatibility.
 Connected installs pull versioned runtime images from
-`ghcr.io/aydinguven/devcloud` by default; air-gapped installs load the same
+`ghcr.io/aydinguven/aifactory` by default; air-gapped installs load the same
 images from their verified bundle archives.
 
 After installation, add each workspace image under **Admin > Workspace
@@ -254,9 +254,9 @@ outside the project directory) is reset. No manual `podman rm` is needed.
    cannot write the Kilo Code configuration. Migration 33 keeps the TCMB Code
    card's values (the TCMB Library URL becomes the catalog URL) and moves
    `vscode-tcmb` workspaces to `vscode-kilo`.
-2. Import `ghcr.io/aydinguven/devcloud:vscode-kilo-3.24.0` (or the
-   `devcloud-workspace-vscode-kilo-*.tar.gz` release archive) and, for GPU
-   workers, `ghcr.io/aydinguven/devcloud:vscode-cuda-3.24.0` under
+2. Import `ghcr.io/aydinguven/aifactory:vscode-kilo-3.24.0` (or the
+   `aifactory-workspace-vscode-kilo-*.tar.gz` release archive) and, for GPU
+   workers, `ghcr.io/aydinguven/aifactory:vscode-cuda-3.24.0` under
    **Admin > Workspace Image'ları**, and wait for the workers to synchronize
    them. Until then existing workspaces keep their TCMB Code containers.
 3. Under **Admin > Entegrasyonlar**, keep Workspace AI enabled, then check
@@ -309,7 +309,7 @@ are also installed:
 ~~~
 
 The current maintained workspace image is
-`ghcr.io/aydinguven/devcloud:jupyter-python-3.6.4`. Import it under
+`ghcr.io/aydinguven/aifactory:jupyter-python-3.6.4`. Import it under
 **Admin > Workspace Image'ları** as the source for the `jupyter-python`
 template. Enrolled workers then receive the controller-managed archive
 automatically. A future platform release publishes a new Jupyter tag only when
@@ -324,8 +324,8 @@ its archive). `vscode-cuda` has no release archive because it exceeds GitHub's
 (`deploy/package_workspace_images.py`) or `podman save` it on a connected host:
 
 ```bash
-sha256sum --check devcloud-workspace-TEMPLATE-vVERSION-SHORT_SHA.tar.gz.sha256
-gzip --decompress --keep devcloud-workspace-TEMPLATE-vVERSION-SHORT_SHA.tar.gz
+sha256sum --check aifactory-workspace-TEMPLATE-vVERSION-SHORT_SHA.tar.gz.sha256
+gzip --decompress --keep aifactory-workspace-TEMPLATE-vVERSION-SHORT_SHA.tar.gz
 ```
 
 Upload the resulting `.tar` under **Admin > Workspace Image'ları**, select the
@@ -356,12 +356,13 @@ On the release builder:
     python3 deploy/build_platform_update.py \
       --signing-key GPG_KEY_ID \
       --channel-output /tmp/release-channel/aifactory-update-channel.json \
-      --channel-url https://artifacts.example/devcloud/devcloud-platform-update-VERSION-COMMIT.tar.gz
+      --channel-url https://artifacts.example/aifactory/aifactory-platform-update-VERSION-COMMIT.tar.gz
 
 Commit `aifactory-update-channel.json` to the selected `stable` branch (or
-another configured branch/tag). Hosts before 3.49.1 read
-`devcloud-update-channel.json`, so the release workflow also commits a copy
-under that name. Store the multi-gigabyte bundle in a Git
+another configured branch/tag). Hosts before 3.49.1 read only
+`devcloud-update-channel.json`; the release workflow keeps that file frozen at
+3.49.x, so those hosts take the 3.49 update (which moves them to the new
+names) before any later one. Store the multi-gigabyte bundle in a Git
 release, an internal artifact server, or beside the channel file for a local
 repository. The descriptor pins its filename, size, and SHA-256.
 
@@ -370,12 +371,12 @@ them in `/etc/aifactory/controller.env`. They can also be supplied directly:
 
     sudo bash /opt/aifactory/current/deploy/aifactory-setup.sh --yes update \
       --source-type git \
-      --repository https://git.example/devcloud.git \
+      --repository https://git.example/aifactory.git \
       --ref stable
 
 The same Git source or an uploaded bundle can be selected under **Admin >
 System > Platform Güncelleme**. The controller Git form defaults to
-`https://github.com/aydinguven/devcloud.git`, branch `stable`, with
+`https://github.com/aydinguven/aifactory.git`, branch `stable`, with
 **İmzasız güncellemeye izin ver** selected for the current internal release
 workflow. Clear the checkbox to require a signature. The controller process
 only writes a request; `aifactory-update.path` invokes the root-owned updater.
@@ -386,7 +387,7 @@ telemetry.
 For an air-gapped or local update:
 
     sudo bash /opt/aifactory/current/deploy/aifactory-setup.sh --yes update \
-      --bundle /root/devcloud-platform-update-VERSION-COMMIT.tar.gz
+      --bundle /root/aifactory-platform-update-VERSION-COMMIT.tar.gz
 
 Official releases contain `release.json` and `release.json.asc` and are
 verified by `/etc/aifactory/release-keyring.gpg`. Unsigned updates require an
@@ -396,13 +397,16 @@ break-glass option. Only use either bypass for a reviewed source you trust.
 For an operator-reviewed development source ZIP:
 
     sudo bash /opt/aifactory/current/deploy/aifactory-setup.sh --yes update \
-      --bundle /root/devcloud-source.zip --allow-unsigned
+      --bundle /root/aifactory-source.zip --allow-unsigned
 
-## Moving from the devcloud names (3.49.1)
+## Moving from the devcloud names (3.49.x)
 
 Releases before 3.49.1 installed everything under `devcloud` names. The first
-update to 3.49.1 moves the host to the `aifactory` names before it installs
-the new release. Nothing has to be prepared by hand; update the controller
+update to 3.49.x moves the host to the `aifactory` names before it installs
+the new release. Releases from 3.50.1 on refuse to update a host that still
+uses the devcloud names: update it to 3.49.2 first (the `stable` channel
+still offers 3.49.2 to such hosts). Update the controller to 3.50.1 only after
+every worker reports 3.49.1 or later; Admin > System refuses otherwise. Nothing has to be prepared by hand; update the controller
 first, then the workers, the usual way (Admin > System or `update` on the
 CLI, and worker OTA from Admin > Worker'lar).
 
@@ -423,8 +427,10 @@ The update:
 6. replaces the `devcloud-*` systemd units, Quadlets, container network and
    ingress helper with `aifactory-*` ones and starts them.
 
-The old paths stay as symbolic links to the new ones until 3.50.1, because
-the older updater that started the update still writes its result there.
+The old paths stay as symbolic links to the new ones, because the older
+updater that started the update still writes its result there. The 3.50.1
+update removes them once no container, release link or configuration file
+uses them.
 
 The update stops before changing anything when:
 
@@ -448,7 +454,7 @@ Until the old units are removed, a reboot resumes the update by itself.
 Otherwise run it again from the CLI with the same source, for example:
 
     sudo bash /opt/devcloud/current/deploy/devcloud-setup.sh --yes update \
-      --bundle /root/devcloud-platform-update-VERSION-COMMIT.tar.gz
+      --bundle /root/devcloud-platform-update-v3.49.2-COMMIT.tar.gz
 
 If that script is missing, the new release was already staged; use
 `/opt/aifactory/current/deploy/aifactory-setup.sh` with the same arguments.

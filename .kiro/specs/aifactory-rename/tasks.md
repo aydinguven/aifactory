@@ -33,37 +33,39 @@
 
 ## Rollout of 3.49.1
 
-- [ ] 10. Release 3.49.1 (tag `v3.49.1` on the merged `main`).
-- [ ] 11. Controller: Admin > System > Platform Güncelleme. Check:
+- [x] 10. Release 3.49.1, then 3.49.2 (the 3.49.1 database rename failed on the controller; see DEVELOPMENT.md).
+- [x] 11. Controller: Admin > System > Platform Güncelleme. Check:
   - `/etc/aifactory`, `/var/lib/aifactory` and `/srv/aifactory-downloads`
     exist, and the old paths are symlinks;
   - `systemctl status aifactory-controller aifactory-postgresql
     aifactory-ingress.path aifactory-update.path` shows the units running;
   - login works and the old session is kept;
   - the worker bundle is listed for workers.
-- [ ] 12. Worker: stop its workspaces, then OTA from Admin > Worker'lar.
+- [x] 12. Worker: stop its workspaces, then OTA from Admin > Worker'lar.
   Check:
   - the worker reconnects on 3.49.1;
   - starting a workspace recreates its container with the project files.
-- [ ] 13. Rename the Git repository (Aydin).
+- [x] 13. Rename the Git repository (Aydin): `aydinguven/aifactory`.
 
 ## 3.50.1 — post-migration
 
-- [ ] 14. Preflight: the host is on the aifactory layout. On the controller,
+- [x] 14. Preflight: the host is on the aifactory layout. On the controller,
   every enabled node reports 3.49.1 or later.
-- [ ] 15. Migration 40:
+- [x] 15. Migration 39:
   - rename the migrations table;
   - rewrite the `localhost/devcloud-` image refs;
   - rewrite the `storage_path` prefix.
-- [ ] 16. Switch the remaining names:
+- [x] 16. Switch the remaining names:
   - workspace image tags (templates, builds, CI, offline);
   - the cookie name and share prefix;
   - bundle, archive, offline and keyring asset names;
   - the GHCR default and the update source URL.
   CI stops updating `devcloud-update-channel.json`.
-- [ ] 17. Remove the compatibility symlinks once no link or container mount
+- [x] 17. Remove the compatibility symlinks once no link or container mount
   points into them. Remove a leftover `devcloud-update.service`.
-- [ ] 18. Tests for migration 40 and the symlink checks, then the docs.
+- [x] 18. Tests for migration 39 and the symlink checks, then the docs.
+
+- [ ] 18a. Release 3.50.1; update the controller, then the worker.
 
 ## Later
 

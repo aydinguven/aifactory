@@ -856,13 +856,13 @@ class PodmanService:
         """List local container images."""
         if self._mock_mode:
             return [
-                "localhost/devcloud-vscode-kilo:latest",
-                "localhost/devcloud-vscode-empty:latest",
-                "localhost/devcloud-vscode-python:latest",
-                "localhost/devcloud-vscode-react:latest",
-                "localhost/devcloud-jupyter-python:latest",
-                "localhost/devcloud-vscode-java:latest",
-                "localhost/devcloud-terminal-rocky:latest",
+                "localhost/aifactory-vscode-kilo:latest",
+                "localhost/aifactory-vscode-empty:latest",
+                "localhost/aifactory-vscode-python:latest",
+                "localhost/aifactory-vscode-react:latest",
+                "localhost/aifactory-jupyter-python:latest",
+                "localhost/aifactory-vscode-java:latest",
+                "localhost/aifactory-terminal-rocky:latest",
             ]
         code, stdout, _ = await self.run_cmd("images", "--format", "{{.Repository}}:{{.Tag}}")
         if code != 0:

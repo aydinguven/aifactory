@@ -20,10 +20,12 @@ from fastapi import (
     UploadFile,
     status,
 )
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_admin_user
 from app.database import get_db
+from app.models.node import Node
 from app.models.session_settings import SessionSettings
 from app.schemas.session_settings import SessionSettingsUpdate
 from app.session_settings import session_timeout_minutes
@@ -40,6 +42,27 @@ from app.release_catalog import semantic_version
 from app.update_queue import read_update_status, update_queue_root
 
 router = APIRouter()
+
+# Workers below this cannot read the aifactory bundle and image names that
+# 3.50.1 and later publish; they must take the 3.49.x update first.
+MINIMUM_WORKER_VERSION = (3, 49, 1)
+
+
+async def _require_current_workers(db: AsyncSession) -> None:
+    nodes = (await db.execute(select(Node).where(Node.enabled.is_(True)))).scalars()
+    outdated = sorted(
+        f"{node.name} ({node.agent_version})"
+        for node in nodes
+        if node.agent_version
+        and (semantic_version(node.agent_version) or (0, 0, 0)) < MINIMUM_WORKER_VERSION
+    )
+    if outdated:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Önce bu worker'ları 3.49.x sürümüne güncelleyin: " + ", ".join(outdated)
+            ),
+        )
 
 
 @router.get("/session-settings", response_model=SessionSettingsUpdate)
@@ -209,12 +232,14 @@ async def queue_git_release_update(
     repository: Annotated[str, Form()],
     ref: Annotated[str, Form()],
     _admin: Annotated[User, Depends(get_current_admin_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
     allow_unsigned: Annotated[bool, Form()] = False,
     target_version: Annotated[str, Form()] = "",
 ):
     """Queue a platform release selected through a Git channel file."""
     if not settings.UPDATES_ENABLED:
         raise HTTPException(status_code=503, detail="Release updates are disabled.")
+    await _require_current_workers(db)
     try:
         repository, ref = validate_git_source(repository, ref)
     except InstallerError as exc:
@@ -259,11 +284,13 @@ async def queue_git_release_update(
 async def upload_release_update(
     release: Annotated[UploadFile, File()],
     _admin: Annotated[User, Depends(get_current_admin_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
     allow_unsigned: Annotated[bool, Form()] = False,
 ):
     """Stage a platform release for the root-owned systemd updater."""
     if not settings.UPDATES_ENABLED:
         raise HTTPException(status_code=503, detail="Release updates are disabled.")
+    await _require_current_workers(db)
     filename = Path(release.filename or "").name
     if not filename.lower().endswith((".zip", ".tar", ".tar.gz", ".tgz")):
         raise HTTPException(

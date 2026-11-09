@@ -129,7 +129,7 @@
         <div class="platform-git-fields">
           <label class="form-group">
             <span class="form-label">Repository adresi</span>
-            <input class="form-input" id="platform-update-repository" name="repository" type="url" required value="https://github.com/aydinguven/devcloud.git">
+            <input class="form-input" id="platform-update-repository" name="repository" type="url" required value="https://github.com/aydinguven/aifactory.git">
           </label>
           <label class="form-group">
             <span class="form-label">Branch / tag</span>
@@ -392,9 +392,9 @@
     <div style="margin-top: 0.75rem; font-size: 0.85rem; color: var(--text-muted); line-height: 1.6;">
       <p style="margin-bottom: 0.5rem;"><strong>Controller:</strong></p>
       <pre class="terminal-window" style="font-size: 0.8rem; padding: 0.75rem;"># Checksum doğrula, aç ve kur
-sha256sum -c devcloud-offline-*.tar.gz.sha256
-tar -xzf devcloud-offline-*.tar.gz
-cd devcloud
+sha256sum -c aifactory-offline-*.tar.gz.sha256
+tar -xzf aifactory-offline-*.tar.gz
+cd aifactory
   sudo bash deploy/deploy_offline.sh</pre>
       <p style="margin:.75rem 0 .5rem;"><strong>Worker:</strong> Worker Node'ları bölümünden 10 dakika geçerli tek kullanımlık kurulum komutu üretin. Komut node kaydını ve token oluşturmayı otomatik tamamlar.</p>
     </div>

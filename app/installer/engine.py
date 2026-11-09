@@ -1309,8 +1309,83 @@ class InstallerEngine:
                     )
                     if result.returncode == 0:
                         removed.append(f"{repository}:{tag}")
+        removed.extend(self._remove_legacy_links(config))
         if removed:
             self._report_detail(f"{len(removed)} eski öğe temizlendi")
+
+    def _remove_legacy_links(self, config: InstallConfig) -> list[str]:
+        """Remove the /etc, /var/lib, /opt and /srv devcloud symlinks of 3.49.
+
+        3.49 left them for the devcloud updater that ran its update. They go
+        once no container mount, release link or managed file uses them.
+        """
+        from app.installer.layout import ROOT_PAIRS
+
+        links = []
+        for old, new in ROOT_PAIRS:
+            path = self.host_path(old)
+            if path.is_symlink() and path.resolve() == self.host_path(new).resolve():
+                links.append((old, path))
+        if not links:
+            return []
+        old_roots = tuple(old for old, _path in links)
+
+        def uses_old_root(value: str) -> bool:
+            return any(value == old or value.startswith(old + "/") for old in old_roots)
+
+        if self.runner.exists("podman"):
+            ids = self.runner.run(
+                ["podman", "ps", "-aq"], capture_output=True, check=False
+            )
+            names = (ids.stdout or "").split()
+            if ids.returncode != 0:
+                return []
+            if names:
+                mounts = self.runner.run(
+                    [
+                        "podman", "container", "inspect", "--format",
+                        "{{range .Mounts}}{{.Source}}\n{{end}}", *names,
+                    ],
+                    capture_output=True,
+                    check=False,
+                )
+                if mounts.returncode != 0 or any(
+                    uses_old_root(line.strip()) for line in (mounts.stdout or "").splitlines()
+                ):
+                    return []
+        release_links = [self.host_path(config.install_root) / "current"]
+        releases = self.host_path(config.releases_root)
+        if releases.is_dir():
+            release_links += [release / ".venv" for release in releases.iterdir()]
+        for link in release_links:
+            if link.is_symlink() and uses_old_root(os.readlink(link)):
+                return []
+        managed_files = [
+            self.host_path(f"{CURRENT.etc_dir}/{name}")
+            for name in ("controller.env", "worker.env", "postgresql.env")
+        ] + [
+            self.host_path(config.state_root) / "install-state.json",
+            self.host_path("/etc/nginx/conf.d/aifactory.conf"),
+        ]
+        for path in managed_files:
+            if path.is_file() and any(
+                old in path.read_text(encoding="utf-8", errors="replace")
+                for old in old_roots
+            ):
+                return []
+        for _old, path in links:
+            path.unlink()
+        leftover_unit = self.host_path("/etc/systemd/system/devcloud-update.service")
+        if leftover_unit.is_file():
+            state = self.runner.run(
+                ["systemctl", "is-active", "devcloud-update.service"],
+                capture_output=True,
+                check=False,
+            )
+            if (state.stdout or "").strip() not in {"active", "activating"}:
+                leftover_unit.unlink()
+                self.runner.run(["systemctl", "daemon-reload"], check=False)
+        return [old for old, _path in links]
 
     def _report_detail(self, text: str) -> None:
         progress = getattr(self, "progress", None)
@@ -1791,7 +1866,7 @@ class InstallerEngine:
     def _controller_source_image(self) -> str:
         return os.environ.get(
             "AIFACTORY_CONTROLLER_SOURCE_IMAGE",
-            f"ghcr.io/aydinguven/devcloud:controller-{self.release_version}",
+            f"ghcr.io/aydinguven/aifactory:controller-{self.release_version}",
         )
 
     def _worker_image(self) -> str:
@@ -1800,7 +1875,7 @@ class InstallerEngine:
     def _worker_source_image(self) -> str:
         return os.environ.get(
             "AIFACTORY_WORKER_SOURCE_IMAGE",
-            f"ghcr.io/aydinguven/devcloud:worker-{self.release_version}",
+            f"ghcr.io/aydinguven/aifactory:worker-{self.release_version}",
         )
 
     @staticmethod

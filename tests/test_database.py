@@ -553,3 +553,52 @@ async def test_workspace_name_uniqueness_migration_is_idempotent(tmp_path):
         await engine.dispose()
 
     assert name_key == "solo"
+
+
+@pytest.mark.asyncio
+async def test_3_50_migration_renames_devcloud_table_image_tags_and_paths(tmp_path):
+    from app.migrations import (
+        _applied_versions,
+        _rename_devcloud_values,
+        _rename_migrations_table,
+    )
+
+    database_path = (tmp_path / "rename.db").as_posix()
+    engine = create_async_engine(f"sqlite+aiosqlite:///{database_path}")
+    try:
+        async with engine.begin() as conn:
+            for statement in (
+                "CREATE TABLE devcloud_schema_migrations (version INTEGER PRIMARY KEY, "
+                "name VARCHAR(255) NOT NULL, applied_at VARCHAR(64) NOT NULL)",
+                "INSERT INTO devcloud_schema_migrations VALUES (38, 'x', 'now')",
+                "CREATE TABLE workspace_images (id VARCHAR(36), image_ref VARCHAR(512))",
+                "INSERT INTO workspace_images VALUES ('a', 'localhost/devcloud-vscode-kilo:latest'),"
+                " ('b', 'registry.example/devcloud-mlflow-x:1')",
+                "CREATE TABLE custom_templates (id VARCHAR(36), image_tag VARCHAR(255))",
+                "INSERT INTO custom_templates VALUES ('c', 'localhost/devcloud-custom-rust:latest')",
+                "CREATE TABLE workspaces (id VARCHAR(36), storage_path VARCHAR(512))",
+                "INSERT INTO workspaces VALUES ('w', '/var/lib/devcloud/workspaces/3/w'),"
+                " ('m', '/mnt/devcloud-extra/3/m')",
+            ):
+                await conn.execute(text(statement))
+            await _rename_migrations_table(conn)
+            await _rename_migrations_table(conn)
+            applied = await _applied_versions(conn)
+            await _rename_devcloud_values(conn)
+            await _rename_devcloud_values(conn)
+            tables = await conn.run_sync(lambda sync: set(inspect(sync).get_table_names()))
+            images = dict((await conn.execute(text("SELECT id, image_ref FROM workspace_images"))).all())
+            tag = (await conn.execute(text("SELECT image_tag FROM custom_templates"))).scalar_one()
+            paths = dict((await conn.execute(text("SELECT id, storage_path FROM workspaces"))).all())
+    finally:
+        await engine.dispose()
+
+    assert applied == {38}
+    assert "aifactory_schema_migrations" in tables
+    assert "devcloud_schema_migrations" not in tables
+    assert images == {
+        "a": "localhost/aifactory-vscode-kilo:latest",
+        "b": "registry.example/devcloud-mlflow-x:1",
+    }
+    assert tag == "localhost/aifactory-custom-rust:latest"
+    assert paths == {"w": "/var/lib/aifactory/workspaces/3/w", "m": "/mnt/devcloud-extra/3/m"}

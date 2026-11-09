@@ -13,7 +13,7 @@
 
 | Owner | Status | Branch | Task | Next step |
 |---|---|---|---|---|
-| Aydin | Pending | `main` | 3.49.2: technical names devcloud -> aifactory; the first update moves each host (spec `.kiro/specs/aifactory-rename/`). The 3.49.1 controller update failed at the database rename and was undone, leaving an `undo-failed` journal in `/var/lib/aifactory-migration` | After `v3.49.2` is published, update the controller again from Admin > System; it finishes the undo, then moves the host. Then stop the worker's workspaces and OTA the worker. Check `tasks.md` 11-12, then rename the Git repo before 3.50.1 |
+| Aydin | Pending | `feat/aifactory-names-r2` | 3.50.1: switch the names 3.49.x kept (bundles, workspace image tags, session cookie, migrations table via migration 39, GHCR and repo URL); remove the old-path symlinks. Controller and worker are on 3.49.2; repo renamed to `aydinguven/aifactory` | Merge, tag `v3.50.1`, make the new GHCR package `ghcr.io/aydinguven/aifactory` public, update the controller, then the worker |
 | Aydin | Pending | `main` | 3.29.2 rollout (3.29.0 and 3.29.1 never published; 3.29.1 and 3.29.2 add only image build fixes): GenAI auto-provisioning at AD login with an admin switch (migration 38, PR #88); toggle switches for on/off settings (PR #89); quieter Ports panel and Kilo telemetry off (PRs #86, #87); simpler navigation and text fit (PR #90); reopenable deployment and release logs (PR #91) | Back up the database (migration 38 adds `genai_settings.auto_provision_directory_users`, on by default), then update IDMVAIFACT1; workers need no update. Import `vscode-kilo-3.29.2` and `vscode-cuda-3.29.2` under Admin > Workspace Image'ları; Kilo Code workspaces are recreated once on their next start. Check Admin > Entegrasyonlar > GenAI: the auto-provision switch is on (untick it to keep opt-in). Log in as an AD user and check that the LiteLLM user and a `-workspace` key exist. In a Kilo Code workspace the Ports panel should list only app ports. Open MLflow > Deployment'lar and press Günlük on a release |
 | Aydin | Pending | `main` | 3.28.0 rollout: IDM/ODM datacenter placement removed (migration 37, PR #82); new workspaces open the IDE in a new tab and the Kilo Code images ship Python/Jupyter extensions (PR #83); skill library list layout (PR #84) | Back up the database (migration 37 drops the datacenter columns), then update IDMVAIFACT1; workers need no update. Import `vscode-kilo-3.28.0` and `vscode-cuda-3.28.0` under Admin > Workspace Image'ları; Kilo Code workspaces move to the new image when recreated. Check that Admin > Worker'lar shows only Yerleşim Etiketleri, that creating a workspace keeps the AI Factory tab open, and that the Python, Jupyter, basedpyright and Ruff extensions are listed |
 | Aydin | Pending | `main` | 3.27.0 rollout: Admin skill library for Kilo Code and Jupyter AI (migration 36, PR #80) | Update IDMVAIFACT1, then the workers (before saving the first skill), then add `tcmb-bvp-trino` under Admin > Skill Kütüphanesi. Stop and start one Kilo Code and one Jupyter workspace and ask the chat "What skills do you have available?" |
@@ -35,6 +35,12 @@
 
 ## Decisions
 
+- 2026-11-09 (3.50.1): the names kept in 3.49.x switch to aifactory.
+  - Bundles are `aifactory-platform-update-*` and `aifactory-*offline-*`; workspace image tags are `localhost/aifactory-*`; the cookies are `aifactory_session` and `aifactory_share_`; the migrations table is `aifactory_schema_migrations` (migration 39 renames it and rewrites the stored image tags and storage paths).
+  - 3.49.x already accepted all of these. A 3.49 worker still reports old image tags, so the controller treats both prefixes with the same checksum as one image (`app/image_refs.py`).
+  - `devcloud-update-channel.json` stays frozen at 3.49.2 on `stable` for 3.29.x hosts; the 3.50.1 installer refuses devcloud-layout hosts.
+  - The update removes the 3.49 compatibility symlinks once nothing uses them.
+  - Quay `aaslangoren/devcloud` and `devcloud-mlflow-*` registry tags keep their names.
 - 2026-11-08 (3.49.1): technical identifiers move from devcloud to aifactory in two releases.
   - **3.49.1** uses the new names for paths, user/group, units, Quadlets, containers, network, platform images, PostgreSQL role/database, `AIFACTORY_*` variables, internal workspace env and in-image paths. Its update moves a devcloud host first: `app/installer/legacy_layout.py`, prepended to the update plan.
     - It takes a backup, stops units and removes workspace containers on workers.
@@ -296,6 +302,7 @@ Earlier handoff:
 
 ## Session log
 
+- 2026-11-09: Controller and worker both moved with 3.49.2; Aydin renamed the repo to `aydinguven/aifactory`. Built 3.50.1 on `feat/aifactory-names-r2`; suite 414 passed.
 - 2026-11-08: 3.49.1 controller update failed in `migrate-database`. The temporary `podman run` PostgreSQL helper hit `crun: systemd failed to install eBPF device filter` from inside `devcloud-update.service`, and the undo hit the same error, so the journal stayed `undo-failed`. Nothing else had moved yet. 3.49.2 renames through the installed `devcloud-postgresql` unit plus `podman exec` instead; a test reproduces the left-over journal and recovers it.
 - 2026-11-08: Implemented 3.49.1 (identifier rename plus the in-update host move with undo) on `feat/aifactory-names-r1`. A semantic review found 11 issues in the move (database undo, commit point, reboot recovery, logout cookies, keyring, symlink journal order, helper logs, database stop check, handover reporting); all were fixed. Suite: 410 passed.
 - 2026-10-23: Replaced TCMB Code with upstream Kilo Code (full rename, migration 33, catalog MCP servers with Aydin's `LocalMCP.sh`, skills URLs); prepared 3.24.0 on `feat/kilo-code`.

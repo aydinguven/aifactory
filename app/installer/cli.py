@@ -10,7 +10,6 @@ from pathlib import Path
 from app.installer.engine import InstallerEngine
 from app.installer.layout import CURRENT, LEGACY
 from app.installer.legacy_layout import (
-    LegacyMigration,
     legacy_state_file,
     migrated_configuration,
     needs_migration,
@@ -38,7 +37,11 @@ from deploy.package_offline import PackageError, verify_staged_bundle
 
 DEFAULT_STATE_ROOT = CURRENT.state_root
 DEFAULT_KEYRING = Path(f"{CURRENT.etc_dir}/release-keyring.gpg")
-LEGACY_KEYRING = Path(f"{LEGACY.etc_dir}/release-keyring.gpg")
+CURRENT_REPOSITORY_URL = "https://github.com/aydinguven/aifactory.git"
+LEGACY_REPOSITORY_URLS = {
+    "https://github.com/aydinguven/devcloud.git",
+    "https://github.com/aydinguven/devcloud",
+}
 # The update was applied, but publishing the worker bundle failed. The root
 # updater reports this as a successful update with a warning.
 EXIT_APPLIED_PUBLISH_FAILED = 3
@@ -224,7 +227,12 @@ def _config_from_state(engine: InstallerEngine) -> InstallConfig:
     state = engine.current_state(DEFAULT_STATE_ROOT)
     if state is None:
         raise InstallerError("No managed AI Factory installation was found")
-    return InstallConfig.from_dict({**state.configuration, "role": state.role})
+    config = InstallConfig.from_dict({**state.configuration, "role": state.role})
+    # The Git repository was renamed after 3.49.2; GitHub redirects the old
+    # URL, but new installs and the admin form use the new one.
+    if config.update_source.rstrip("/") in LEGACY_REPOSITORY_URLS:
+        config.update_source = CURRENT_REPOSITORY_URL
+    return config
 
 
 def _legacy_state(engine: InstallerEngine) -> InstallationState | None:
@@ -240,19 +248,6 @@ def _legacy_configs(engine: InstallerEngine) -> tuple[InstallConfig, InstallConf
     return (
         InstallConfig.from_dict(values),
         InstallConfig.from_dict(migrated_configuration(values)),
-    )
-
-
-def _migration_for(update_engine: InstallerEngine, legacy: bool) -> LegacyMigration | None:
-    if not legacy:
-        return None
-    legacy_config, config = _legacy_configs(update_engine)
-    state = _legacy_state(update_engine)
-    return LegacyMigration(
-        update_engine,
-        legacy_config,
-        config,
-        legacy_version=state.version if state else "unknown",
     )
 
 
@@ -347,16 +342,14 @@ def main(argv: list[str] | None = None) -> int:
             engine, lambda: _legacy_configs(engine)
         ):
             ui.write("An interrupted move to the aifactory names was undone.")
-        legacy = needs_migration(engine.host_path)
-        if legacy:
-            if command != "update":
-                raise InstallerError(
-                    "This host still uses the devcloud names. Update it to "
-                    "3.49.1 or later first; the update moves it to the aifactory names."
-                )
-            config = _legacy_configs(engine)[1]
-        else:
-            config = _config_from_state(engine)
+        if needs_migration(engine.host_path):
+            # 3.50.1 no longer moves hosts; 3.49.x does, and is still offered
+            # to them through the frozen devcloud-update-channel.json.
+            raise InstallerError(
+                "This host still uses the devcloud names. Update it to 3.49.2 "
+                "first; that update moves it to the aifactory names."
+            )
+        config = _config_from_state(engine)
 
         if command == "publish-worker-bundle":
             if not config.installs_controller:
@@ -431,7 +424,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             applied = _execute_plan(
                 update_engine.build_update_plan(
-                    config, migration=_migration_for(update_engine, legacy)
+                    config
                 ),
                 ui,
                 assume_yes=args.yes,
@@ -495,7 +488,7 @@ def main(argv: list[str] | None = None) -> int:
                     return 0
             keyring = getattr(args, "keyring", None)
             if keyring is None:
-                keyring = LEGACY_KEYRING if legacy else DEFAULT_KEYRING
+                keyring = DEFAULT_KEYRING
             keyring = engine.host_path(keyring)
             with resolve_update_bundle(
                 source_type=source_type,
@@ -532,7 +525,6 @@ def main(argv: list[str] | None = None) -> int:
                         applied = _execute_plan(
                             update_engine.build_update_plan(
                                 config,
-                                migration=_migration_for(update_engine, legacy),
                             ),
                             ui,
                             assume_yes=args.yes,
