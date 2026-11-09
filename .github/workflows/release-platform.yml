@@ -165,7 +165,7 @@ jobs:
           if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
             echo "Release ${RELEASE_TAG} already exists; its assets will be replaced."
           else
-            gh release create "${RELEASE_TAG}" --draft --target "${GITHUB_SHA}" --title "DevCloud ${DEVCLOUD_VERSION} (${SHORT_SHA})" --generate-notes
+            gh release create "${RELEASE_TAG}" --draft --target "${GITHUB_SHA}" --title "AI Factory ${DEVCLOUD_VERSION} (${SHORT_SHA})" --generate-notes
           fi
 
   workspace_images:

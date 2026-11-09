@@ -115,14 +115,14 @@
   <div id="tab-files" class="tab-content" style="display: none; padding: 1.25rem;" data-workspace-id="{{ workspace.id }}">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
       <div id="fm-breadcrumbs" style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; font-family: var(--font-mono); color: #fff;">
-        <span style="cursor: pointer; color: var(--primary);" onclick="DevCloudFileManager.loadDir('')">root</span>
+        <span style="cursor: pointer; color: var(--primary);" onclick="AIFactoryFileManager.loadDir('')">root</span>
       </div>
       <div style="display: flex; gap: 0.5rem;">
         <input type="file" id="fm-file-input" multiple style="display: none;">
         <button class="btn btn-secondary btn-sm" onclick="document.getElementById('fm-file-input').click()">
           ⬆ Dosya Yükle
         </button>
-        <button class="btn btn-secondary btn-sm" onclick="DevCloudFileManager.promptNewFolder()">
+        <button class="btn btn-secondary btn-sm" onclick="AIFactoryFileManager.promptNewFolder()">
           + Yeni Klasör
         </button>
       </div>
@@ -164,7 +164,7 @@
 
       <section style="margin-bottom: 1.5rem;" aria-labelledby="share-heading">
         <h3 id="share-heading">Paylaşım Bağlantıları</h3>
-        <p>Seçtiğiniz porttaki uygulamayı DevCloud hesabı gerektirmeden paylaşın. Bağlantı, bu porttaki tüm uygulama işlevlerine erişim verir. Workspace çalışıyor olmalıdır.</p>
+        <p>Seçtiğiniz porttaki uygulamayı AI Factory hesabı gerektirmeden paylaşın. Bağlantı, bu porttaki tüm uygulama işlevlerine erişim verir. Workspace çalışıyor olmalıdır.</p>
         <form id="workspace-share-form" data-workspace-id="{{ workspace.id }}">
           <label class="form-label" for="share-password">Parola (isteğe bağlı)</label>
           <input class="form-input" id="share-password" name="password" type="password" maxlength="256" autocomplete="new-password" placeholder="Boş bırakılırsa bağlantı yeterlidir">

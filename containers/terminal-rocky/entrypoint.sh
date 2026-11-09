@@ -7,7 +7,7 @@ SKELETON="/opt/devcloud-home-skel.tar"
 PORT="${DEVCLOUD_TERMINAL_PORT:-7681}"
 SENTINEL="${HOME_DIR}/.devcloud-home-seeded"
 
-# DevCloud mounts persistent storage over the home directory, so on the very
+# AI Factory mounts persistent storage over the home directory, so on the very
 # first start the image's dotfiles are hidden behind an empty volume. Restore
 # them once and leave the marker behind; later starts keep whatever the user
 # has since changed.
@@ -30,5 +30,5 @@ exec ttyd \
     --cwd "${HOME_DIR}" \
     --client-option disableLeaveAlert=true \
     --client-option rendererType=canvas \
-    --client-option titleFixed="DevCloud Terminal" \
+    --client-option titleFixed="AI Factory Terminal" \
     tmux new-session -A -s devcloud

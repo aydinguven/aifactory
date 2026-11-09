@@ -7,7 +7,7 @@
 # The NVIDIA driver is deliberately not installed. Its user-space libraries
 # (libcuda, libnvidia-ml, nvidia-smi) must match the host kernel module, so
 # the host's NVIDIA Container Toolkit injects them through the CDI device that
-# DevCloud assigns to a GPU workspace. CUDA 13.x needs host driver 580 or newer.
+# AI Factory assigns to a GPU workspace. CUDA 13.x needs host driver 580 or newer.
 #
 # Keep KILO_CODE_VERSION, its checksum, lancedb/ and LocalMCP.sh identical to
 # vscode-kilo; the release smoke test checks the version against vscode-kilo.
@@ -29,7 +29,7 @@ ARG CUDA_PACKAGE_VERSION=13.4.3-1
 ARG CUDNN_PACKAGE_VERSION=9.27.0.42-1
 ARG NCCL_PACKAGE_VERSION=2.32.3-1+cuda13.4
 
-LABEL org.opencontainers.image.title="DevCloud Kilo Code CUDA workspace"
+LABEL org.opencontainers.image.title="AI Factory Kilo Code CUDA workspace"
 
 USER root
 
@@ -98,7 +98,7 @@ RUN cuda="$(printf '%s' "${CUDA_VERSION}" | tr . -)" \
         'export PATH' \
         > /etc/profile.d/cuda.sh
 
-# DevCloud starts code-server through `bash -lc`, where Debian's /etc/profile
+# AI Factory starts code-server through `bash -lc`, where Debian's /etc/profile
 # resets PATH; /etc/profile.d/cuda.sh above restores nvcc for that path.
 ENV CUDA_HOME=/usr/local/cuda \
     PATH=/usr/local/cuda/bin:${PATH}
@@ -114,7 +114,7 @@ RUN npm ci --prefix /opt/kilo/lancedb --omit=dev --ignore-scripts --no-audit --n
     && chmod -R a+rX /opt/kilo
 
 # Local stdio MCP server (kilo-install) that writes catalog items into the
-# open project's .kilo folder. DevCloud's kilo.jsonc starts it with bash.
+# open project's .kilo folder. AI Factory's kilo.jsonc starts it with bash.
 COPY LocalMCP.sh /opt/kilo/LocalMCP.sh
 RUN chmod 0755 /opt/kilo/LocalMCP.sh && bash -n /opt/kilo/LocalMCP.sh
 
@@ -130,7 +130,7 @@ USER coder
 WORKDIR /home/coder/project
 
 # Compile (not run: the builder has no GPU) a CUDA program from the same login
-# shell DevCloud uses, so a broken toolkit or PATH fails the build.
+# shell AI Factory uses, so a broken toolkit or PATH fails the build.
 RUN bash -lc 'nvcc --version' \
     && printf '%s\n' \
         '#include <cstdio>' \

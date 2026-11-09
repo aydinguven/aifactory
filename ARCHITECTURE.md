@@ -1,4 +1,4 @@
-# DevCloud deployment architecture
+# AI Factory deployment architecture
 
 ## Supported topology
 
@@ -141,7 +141,7 @@ root.
 - Worker to image registry and package repositories as configured.
 
 When both the managed server and a user's MLflow connection are enabled,
-DevCloud passes the effective tracking URL and that user's credentials only to
+AI Factory passes the effective tracking URL and that user's credentials only to
 their newly created or recreated workspace container.
 
 

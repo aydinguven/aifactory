@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bootstrap the interactive DevCloud lifecycle installer on Rocky/RHEL 9 or 10.
+# Bootstrap the interactive AI Factory lifecycle installer on Rocky/RHEL 9 or 10.
 set -Eeuo pipefail
 
 log() {
@@ -44,7 +44,7 @@ case "${MAJOR_VERSION}" in
         PYTHON_PACKAGES=(python3)
         ;;
     9)
-        # EL9's platform python3 is 3.9; DevCloud needs the AppStream 3.12
+        # EL9's platform python3 is 3.9; AI Factory needs the AppStream 3.12
         # interpreter that matches the bundled cp312 wheels.
         PYTHON_BIN=/usr/bin/python3.12
         PYTHON_PACKAGES=(python3.12 python3.12-pip)

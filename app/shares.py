@@ -1,4 +1,4 @@
-"""Port-scoped sharing credentials, separate from DevCloud login tokens."""
+"""Port-scoped sharing credentials, separate from AI Factory login tokens."""
 import time
 
 import jwt

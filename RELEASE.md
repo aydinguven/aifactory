@@ -1,6 +1,6 @@
 # Automated Platform Releases
 
-DevCloud uses Git as a small release channel, not as storage for runtime
+AI Factory uses Git as a small release channel, not as storage for runtime
 artifacts. The release workflow builds controller and worker images once,
 packages those exact images into verified update and offline bundles, publishes
 the images to GitHub Container Registry (GHCR), uploads the bundles to a GitHub

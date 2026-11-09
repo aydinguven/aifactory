@@ -135,7 +135,7 @@ def test_terminal_workspace_image_is_pinned_and_proxy_compatible():
     assert "--writable" in entrypoint
     # tmux keeps a dropped WebSocket from killing the user's work.
     assert "tmux new-session -A -s devcloud" in entrypoint
-    # No upstream credential: DevCloud is the only authenticator.
+    # No upstream credential: AI Factory is the only authenticator.
     assert "--credential" not in entrypoint
     # The home volume is seeded on first start, since the mount hides the image
     # skeleton.

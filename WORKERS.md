@@ -1,4 +1,4 @@
-# DevCloud worker setup
+# AI Factory worker setup
 
 Distributed worker behavior, enrollment, networking, scheduling, drain, and
 failure semantics are documented in [ARCHITECTURE.md](ARCHITECTURE.md).
@@ -129,9 +129,9 @@ legacy state and `settings/providers.json` from the shared key.
 Settings are injected when a workspace container is created. To roll changed
 settings into an existing workspace:
 
-1. Stop the workspace in DevCloud.
+1. Stop the workspace in AI Factory.
 2. On its assigned worker, run `podman rm -f <container-name>`.
-3. Start the workspace again from DevCloud.
+3. Start the workspace again from AI Factory.
 
 The workspace directory is bind-mounted and survives container recreation.
 Do not use the dashboard Delete action as a recreation shortcut; Delete removes
@@ -147,7 +147,7 @@ worker, it performs read-only checks for:
 - NVIDIA Container Toolkit through nvidia-ctk;
 - at least one nvidia.com/gpu CDI device.
 
-DevCloud deliberately does not install, upgrade, or reconfigure the NVIDIA
+AI Factory deliberately does not install, upgrade, or reconfigure the NVIDIA
 driver, Container Toolkit, CDI, or MIG. If a check fails, the script prints the
 failed prerequisite and exits before the one-time ticket is consumed. Correct
 the host stack and run the same command again.

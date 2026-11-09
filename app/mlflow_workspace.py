@@ -32,7 +32,7 @@ MLFLOW_SERVICE_ENV_KEYS = {
 
 
 def validate_mlflow_service_environment(values: Mapping | None) -> dict[str, str]:
-    """Allow only the small serving-runtime surface controlled by DevCloud."""
+    """Allow only the small serving-runtime surface controlled by AI Factory."""
     if not values:
         return {}
     if not isinstance(values, Mapping):

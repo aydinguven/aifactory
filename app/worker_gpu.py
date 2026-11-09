@@ -1,6 +1,6 @@
 """Read-only NVIDIA GPU discovery for worker capability reporting.
 
-DevCloud never installs or changes the host NVIDIA stack. The bootstrap script
+AI Factory never installs or changes the host NVIDIA stack. The bootstrap script
 validates it before enrollment; this module keeps reporting the same runtime
 state so administrators can see drift after installation.
 """

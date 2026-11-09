@@ -4,7 +4,7 @@
 
 AI Factory users need a personal LiteLLM API key without asking an admin.
 LiteLLM runs at `http://idmvopenuit1:5003` (UI at `/ui/`). It is the open-source
-edition, so team features are not used. Devcloud talks to it through an
+edition, so team features are not used. AI Factory talks to it through an
 `aifactory` LiteLLM user that has the `proxy_admin` role.
 
 ## Requirements
@@ -27,19 +27,19 @@ edition, so team features are not used. Devcloud talks to it through an
 3. Otherwise the page shows one of these states:
    - **No access**: a "GenAI erişimi oluştur" button.
    - **Active**: LiteLLM user id, key alias, creation/rotation date, and usage.
-   - **Existing LiteLLM user without a devcloud key** (created by hand): a
+   - **Existing LiteLLM user without an AI Factory key** (created by hand): a
      "generate key" button that reuses that LiteLLM user.
    - **LiteLLM unreachable**: an error message. The page itself still renders.
 
 ### R3 — Provisioning
-1. The button creates a LiteLLM user with `user_id` set to the devcloud
+1. The button creates a LiteLLM user with `user_id` set to the AI Factory
    username in lowercase (e.g. `k015570`), plus the user's email.
 2. It then generates a **personal key** owned by that user and shows it
    **once**, with a copy button, the base URL and a usage snippet.
 3. The personal key is never stored in plaintext or logged. Only its LiteLLM
    token id/hash and alias are stored.
 4. Running it again (double click, retry) is safe. If the LiteLLM user already
-   exists, devcloud reuses it.
+   exists, AI Factory reuses it.
 5. All LiteLLM calls are made by the controller. The admin key never reaches
    the browser.
 
@@ -56,7 +56,7 @@ edition, so team features are not used. Devcloud talks to it through an
    for the last 30 days. Otherwise this section is hidden.
 
 ### R6 — Per-user workspace key (phase 2)
-1. Devcloud also creates a separate **workspace key**
+1. AI Factory also creates a separate **workspace key**
    (`devcloud-<username>-workspace`) for the same LiteLLM user. It is stored
    encrypted and never shown to the user.
 2. New Jupyter/VS Code workspaces of a provisioned user get this key instead of

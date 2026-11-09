@@ -1,6 +1,6 @@
-# DevCloud - Self-Hosted Cloud Development Environment Platform
+# AI Factory - Self-Hosted Cloud Development Environment Platform
 
-DevCloud is a lightweight, high-performance cloud development platform built with **Python (FastAPI)** and **Podman**. It enables teams to create, launch, and manage browser-accessible development environments (VS Code / code-server and JupyterLab) on a Linux VM with persistent storage and resource quotas.
+AI Factory is a lightweight, high-performance cloud development platform built with **Python (FastAPI)** and **Podman**. It enables teams to create, launch, and manage browser-accessible development environments (VS Code / code-server and JupyterLab) on a Linux VM with persistent storage and resource quotas.
 
 ---
 
@@ -39,7 +39,7 @@ DevCloud is a lightweight, high-performance cloud development platform built wit
 - **Pause to Reclaim Quota**: CPU and RAM are charged only while a workspace holds compute, so pausing one frees its allowance for another. Disk keeps counting paused workspaces because their data stays on the worker, and GPU slots keep counting because a paused workspace holds its accelerator slot. Resuming re-checks the owner's quota and is refused when it would exceed the limit.
 - **Outbound-Only CPU and NVIDIA GPU Workers**: Register workers without inbound management ports, validate an existing NVIDIA driver/Container Toolkit/CDI stack, display physical GPU and MIG inventory, and schedule GPU workspaces onto exact CDI devices.
 - **GPU Sharing Policy**: RTX 4090 workers default to two workspace slots per physical GPU and RTX 5090 workers to three; admins can override physical GPUs to one, two, or three slots. Every MIG CDI slice is an exclusive single slot.
-- **Managed MLflow Tracking & Registry View**: Administrators define one MLflow URL and TLS policy while every user supplies encrypted personal credentials. DevCloud browses experiments, runs, parameters, metrics, artifacts, registered models, versions, aliases, tags, and run-to-model lineage, then injects the effective MLflow environment into newly created or recreated workspaces.
+- **Managed MLflow Tracking & Registry View**: Administrators define one MLflow URL and TLS policy while every user supplies encrypted personal credentials. AI Factory browses experiments, runs, parameters, metrics, artifacts, registered models, versions, aliases, tags, and run-to-model lineage, then injects the effective MLflow environment into newly created or recreated workspaces.
 - **Kubernetes image releases**: The deploy modal's Kubernetes target builds a model version's serving image and publishes it to the deploy registry (Nexus) as `rfs_code/app_name:X.Y.Z`, for the platform team to re-tag and deploy. Admins define the registry and the RFS codes under Admin > Kubernetes. Users pick an RFS code and an app name in the modal, and the first release creates the application bound to that MLflow model. See `CONTAINERS.md`.
 
 ---
@@ -48,14 +48,14 @@ DevCloud is a lightweight, high-performance cloud development platform built wit
 
 Open a workspace's **Web Uygulaması / Port Önizleme** tab, enter the app port (for example `3333`), and create a share link. Password and lifetime in minutes are optional; blank lifetime means no expiry. Owners and administrators can list, copy, and revoke links from the same panel.
 
-Visitors open `/share/<signed-token>`, enter the password when required, and are redirected to `/proxy/<workspace-id>/port/3333/`. They do not need a DevCloud account. Access covers the entire app on that port, including its HTTP actions and WebSockets, but does not authorize other ports or workspace management. The workspace must stay running and its owner active. Apps must support the existing proxy URL prefix (including asset and WebSocket URLs).
+Visitors open `/share/<signed-token>`, enter the password when required, and are redirected to `/proxy/<workspace-id>/port/3333/`. They do not need an AI Factory account. Access covers the entire app on that port, including its HTTP actions and WebSockets, but does not authorize other ports or workspace management. The workspace must stay running and its owner active. Apps must support the existing proxy URL prefix (including asset and WebSocket URLs).
 
 Links and password hashes persist in the database. Revocation and expiry block subsequent requests; active shared WebSockets are checked every two seconds. Responses already delivered cannot be recalled. Visitor access cookies last at most 24 hours, capped by link expiry; reopening a valid link grants access again (with the password, if configured). Five incorrect password attempts temporarily lock the link for one minute.
 
 ## Architecture Overview
 
 ```
-User Browser ── HTTPS/WSS :443 ──> DevCloud Controller
+User Browser ── HTTPS/WSS :443 ──> AI Factory Controller
                                       ├── UI / API / LDAP
                                       ├── Scheduler / Database
                                       ├── Workspace Port Proxy
@@ -122,12 +122,12 @@ before enabling directory login.
   operating-system trust store or enter its server-side PEM path.
 - `İzinli kullanıcı grubu DN` limits login to one AD group. Leaving it empty
   permits every successfully authenticated directory user.
-- `DevCloud yönetici grubu DN` maps members to the DevCloud administrator role.
+- `AI Factory yönetici grubu DN` maps members to the AI Factory administrator role.
   Other directory users receive the standard user role.
 - Nested group lookup uses Active Directory matching-rule-in-chain and can be
   disabled for non-AD LDAP servers.
 - Profile fields are synchronized on successful directory login and are
-  read-only in DevCloud. The default AD mappings are `sAMAccountName` for the
+  read-only in AI Factory. The default AD mappings are `sAMAccountName` for the
   username, `displayName` for full name, `mail` for email, `department` for
   team, and `division` for the parent organization. The optional müdürlük
   mapping is empty by default; set it to the AD attribute that carries the
@@ -154,7 +154,7 @@ before enabling directory login.
   and then every `DIRECTORY_SYNC_INTERVAL_HOURS` (default 6, `0` disables), so a
   team gets its müdürlük even when nobody from it, or its müdür, has logged
   in. Managers outside the sync search (another OU, or a filter that only
-  returns DevCloud users) are read by DN to complete the chain, and a blank
+  returns AI Factory users) are read by DN to complete the chain, and a blank
   `division` on a manager no longer ends it.
 - When directory login is enabled, public self-registration is disabled. The
   existing local administrator remains available as an emergency fallback.
@@ -196,7 +196,7 @@ For controller plus CPU/GPU worker topology, follow [the worker deployment guide
 ### 1. Clean install from Git
 
 Use this legacy flow on a pre-unified connected controller. Run it as the Linux account that
-should own the DevCloud service; the script requests sudo only for operating
+should own the AI Factory service; the script requests sudo only for operating
 system changes:
 
 ```bash
@@ -207,7 +207,7 @@ bash deploy/deploy.sh
 
 The clean installer installs Python, Podman, Nginx, and SELinux prerequisites;
 creates persistent workspace/download/ingress directories; installs Python
-dependencies; installs the DevCloud service; and configures Nginx as the port
+dependencies; installs the AI Factory service; and configures Nginx as the port
 80 entrypoint. Workspace images have a separate lifecycle: import them later
 from an OCI registry or archive under **Admin > Workspace Image'ları**. HTTPS
 remains disabled until a valid certificate and key are uploaded from Admin.
@@ -335,7 +335,7 @@ VS Code Chat and Copilot are disabled. Configure gateway access under
    key to the embedding model and a budget: every Kilo Code user can read it,
    and the catalog token, inside their workspace.
 
-DevCloud writes `~/.config/kilo/kilo.jsonc` into each Kilo Code container
+AI Factory writes `~/.config/kilo/kilo.jsonc` into each Kilo Code container
 every time it starts. Chat uses the owner's own AI Factory key from the
 **GenAI** tab (the per-user workspace key, so usage counts towards that
 user, team and müdürlük); there is no shared-key fallback. A user without a
@@ -369,7 +369,7 @@ after changing the toggle; project data remains in its bind mount.
 New workers fetch these settings automatically. New workspace containers get
 the current settings at creation time. To update an existing workspace, stop
 it, remove only its stopped Podman container on the assigned worker with
-`podman rm -f <container-name>`, then start it again from DevCloud. Its
+`podman rm -f <container-name>`, then start it again from AI Factory. Its
 bind-mounted workspace data is preserved. Do not use the dashboard **Delete**
 action for this operation because Delete removes persistent workspace storage.
 
@@ -381,7 +381,7 @@ for the full gateway, security, and troubleshooting notes.
 ### GenAI: personal LiteLLM API keys
 
 The **GenAI** tab lets each user create their own LiteLLM user (named after
-their lowercase DevCloud username) and a personal API key. The controller
+their lowercase AI Factory username) and a personal API key. The controller
 makes every LiteLLM call itself; browsers never see the admin credential.
 
 1. In LiteLLM, create a dedicated user such as `aifactory` with the
@@ -394,10 +394,10 @@ makes every LiteLLM call itself; browsers never see the admin credential.
    when a LiteLLM user is created. The allowed models and the key lifetime are
    applied to each new key. Empty fields mean LiteLLM's defaults apply.
 
-A key is shown once and never stored. DevCloud keeps only its LiteLLM token
+A key is shown once and never stored. AI Factory keeps only its LiteLLM token
 hash, so it can delete the old key on **Anahtarı yenile**. Spend is tracked per
 LiteLLM user, so usage history survives key rotation. If a LiteLLM user with
-the same id already exists, DevCloud adopts it instead of creating a new one.
+the same id already exists, AI Factory adopts it instead of creating a new one.
 
 **Teams.** Set **Varsayılan LiteLLM takımı** (for example `TCMB_Standard_User`).
 New users, and adopted users who are in no team yet, join that team. **Takım
@@ -465,7 +465,7 @@ devcloud` after `deploy/devcloud.service` has been copied into place.
 
 ## Air-Gapped / Offline Installation
 
-DevCloud supports installation on Rocky Linux and RHEL 9.x/10.x x86_64 VMs
+AI Factory supports installation on Rocky Linux and RHEL 9.x/10.x x86_64 VMs
 that are isolated from the internet but can reach an internal Satellite or
 Foreman/Katello service. New bundles include a small distribution-matched local
 DNF repository only for bootstrapping `subscription-manager`. Python, Podman,
@@ -550,7 +550,7 @@ operator-installed driver, NVIDIA Container Toolkit, and CDI devices. It never
 installs or changes that stack, and it stops before consuming the one-time
 ticket when a prerequisite is missing or unhealthy.
 
-GPU users select the `g1.shared` flavor like any CPU flavor. DevCloud reserves a
+GPU users select the `g1.shared` flavor like any CPU flavor. AI Factory reserves a
 specific worker, device UUID, and slot transactionally, then passes only that
 exact CDI device to Podman. Stopped and failed workspaces retain the reservation
 until deletion. Physical-GPU slot sharing is cooperative: the 8 GB flavor value
@@ -568,7 +568,7 @@ A clean connected or offline controller installation configures Nginx on port 80
 In **Admin > Çevrim Dışı İndirmeler > HTTPS & Sertifika Yönetimi**, set the
 hostname, upload the PEM certificate chain and its unencrypted PEM private key,
 then enable HTTPS. When the organization CA is not already trusted by workers,
-also upload the CA-only worker trust bundle. DevCloud verifies the server
+also upload the CA-only worker trust bundle. AI Factory verifies the server
 certificate validity period, server authentication usage, SAN coverage, and
 certificate/key match; every worker trust certificate must be a currently valid
 CA with certificate-signing authority. The private key is stored only in the

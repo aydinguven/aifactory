@@ -5,10 +5,10 @@ FORWARDED_ALLOW_IPS="$(python -m app.controller_proxy)"
 export FORWARDED_ALLOW_IPS
 echo "Trusting forwarded headers from container proxy IPs: ${FORWARDED_ALLOW_IPS}"
 
-echo "Applying DevCloud database migrations..."
+echo "Applying AI Factory database migrations..."
 python -m app.migrations upgrade
 
-echo "Starting DevCloud controller..."
+echo "Starting AI Factory controller..."
 exec python -m uvicorn app.main:app \
     --host 0.0.0.0 \
     --port 8000 \

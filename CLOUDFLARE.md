@@ -1,10 +1,10 @@
 # Cloudflare deployment
 
-Publish DevCloud through a remotely-managed Cloudflare Tunnel. The browser-facing
+Publish AI Factory through a remotely-managed Cloudflare Tunnel. The browser-facing
 URL is `https://dev.aydin.cloud`, while `cloudflared` connects to the application
 over loopback at `http://127.0.0.1:8000`. No inbound Internet port is required.
 
-## 1. Secure DevCloud before publishing
+## 1. Secure AI Factory before publishing
 
 1. Sign in as `admin` and change the existing admin password from the Profile page.
    Changing `ADMIN_PASSWORD` later does not update an account already stored in the
@@ -44,7 +44,7 @@ cloudflared --version
 1. In Cloudflare, open **Networking > Tunnels** and create a remotely-managed
    tunnel named `devcloud-demo`.
 2. Select Linux / Red Hat / 64-bit and copy the generated service-install command.
-3. Run that command on the DevCloud VM. Treat the tunnel token as a password and
+3. Run that command on the AI Factory VM. Treat the tunnel token as a password and
    do not save it in Git or paste it into chat.
 4. In the tunnel's **Routes**, add a **Published application**:
    - Hostname: `dev.aydin.cloud`
@@ -59,12 +59,12 @@ cloudflared --version
    curl -I https://dev.aydin.cloud/login
    ```
 
-Use a named tunnel, not a temporary `trycloudflare.com` quick tunnel. DevCloud's
+Use a named tunnel, not a temporary `trycloudflare.com` quick tunnel. AI Factory's
 deployment logs use Server-Sent Events, which quick tunnels do not support.
 
 ## 4. Protect the demo with Cloudflare Access
 
-Public registration is intentionally open inside DevCloud. Without an outer access
+Public registration is intentionally open inside AI Factory. Without an outer access
 policy, anyone could create many one-workspace accounts and exhaust the VM.
 
 1. Open **Zero Trust > Access controls > Applications**.
@@ -75,7 +75,7 @@ policy, anyone could create many one-workspace accounts and exhaust the VM.
 5. Do not use an `Everyone` rule or a policy that only checks the One-time PIN
    login method; either choice permits any valid email address.
 
-Users will pass Cloudflare Access first, then create or sign in to their DevCloud
+Users will pass Cloudflare Access first, then create or sign in to their AI Factory
 account. This preserves the in-app per-user quota demonstration.
 
 ## 5. Cloudflare settings for browser IDEs
@@ -90,16 +90,16 @@ account. This preserves the in-app per-user quota demonstration.
 
 ## 6. Publish offline downloads
 
-DevCloud can asynchronously stream verified files from `DOWNLOADS_ROOT` at
+AI Factory can asynchronously stream verified files from `DOWNLOADS_ROOT` at
 `/download/`, including byte-range requests for resumable multi-gigabyte
 downloads. Enable `DOWNLOADS_ENABLED=True` only after the directory has been
-created with read access for the DevCloud systemd user. To expose the admin-only
+created with read access for the AI Factory systemd user. To expose the admin-only
 rebuild control, also set `DOWNLOAD_UPDATES_ENABLED=True` and configure the build
 directory described in [`AIRGAP.md`](AIRGAP.md).
 
 Cloudflare limits request/upload sizes but does not impose the same limit on a
 streamed response body. Add a cache rule that bypasses cache when the URI path
-starts with `/download/`; DevCloud also sends `Cache-Control: private, no-store`.
+starts with `/download/`; AI Factory also sends `Cache-Control: private, no-store`.
 Confirm the existing Access application covers `/download/*` so the archive is
 not unintentionally public.
 

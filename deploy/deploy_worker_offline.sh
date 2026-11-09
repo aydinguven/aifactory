@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install an air-gapped DevCloud CPU worker and its outbound-only agent service.
+# Install an air-gapped AI Factory CPU worker and its outbound-only agent service.
 set -Eeuo pipefail
 
 log() {
@@ -89,7 +89,7 @@ for image_archive in "${IMAGES_DIR}"/*.tar; do
 done
 log "Loaded ${IMAGE_COUNT} legacy image archive(s); managed images synchronize after enrollment."
 
-log "Loading the verified DevCloud worker runtime image..."
+log "Loading the verified AI Factory worker runtime image..."
 for image_archive in "${WORKER_IMAGES_DIR}"/*.tar; do
     [[ -f "${image_archive}" ]] || continue
     podman load -i "${image_archive}"

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# DevCloud Air-Gapped / Offline Linux VM Deployment Script
+# AI Factory Air-Gapped / Offline Linux VM Deployment Script
 # Specifically optimized for Fedora-based distros (Rocky Linux, RHEL, Fedora, CentOS)
 # ==============================================================================
 set -euo pipefail
 
 echo "=============================================================================="
-echo "Starting DevCloud Offline Deployment (Fedora / Rocky / RHEL Ecosystem)"
+echo "Starting AI Factory Offline Deployment (Fedora / Rocky / RHEL Ecosystem)"
 echo "=============================================================================="
 
 # 0. Ensure root privileges for systemd and container storage configuration
@@ -33,7 +33,7 @@ echo "--> Installing operating-system prerequisites from configured Satellite/Fo
 if ! dnf install -y \
     gnupg2 python3 python3-pip policycoreutils-python-utils \
     podman crun tar gzip nginx curl createrepo_c postgresql-server postgresql; then
-    echo "ERROR: Configured repositories could not install DevCloud prerequisites."
+    echo "ERROR: Configured repositories could not install AI Factory prerequisites."
     echo "Register this VM with Satellite/Foreman, confirm its repositories are enabled, and rerun."
     exit 1
 fi
@@ -153,7 +153,7 @@ bash "${PROJECT_DIR}/deploy/restart.sh"
 IP_ADDR=$(hostname -I 2>/dev/null | awk '{print $1}' || echo '127.0.0.1')
 
 echo "=============================================================================="
-echo "DevCloud Deployment Completed Successfully on Fedora-based VM!"
+echo "AI Factory Deployment Completed Successfully on Fedora-based VM!"
 echo "Status: Active and running on systemd service 'devcloud'"
 echo "Dashboard URL: http://${IP_ADDR}"
 echo "Check logs: sudo journalctl -u devcloud -f"

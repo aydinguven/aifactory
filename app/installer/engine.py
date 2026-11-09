@@ -223,7 +223,7 @@ class InstallerEngine:
         if self.runner.dry_run:
             return
         if os.name != "posix":
-            raise InstallerError("DevCloud installation is supported only on Linux hosts.")
+            raise InstallerError("AI Factory installation is supported only on Linux hosts.")
         if os.geteuid() != 0:
             raise InstallerError("Run devcloud-setup as root.")
         host = detect_platform(self.host_path("/etc/os-release"))
@@ -265,7 +265,7 @@ class InstallerEngine:
             ),
             PlanStep(
                 "release",
-                f"Install DevCloud {self.release_version} as an immutable side-by-side release",
+                f"Install AI Factory {self.release_version} as an immutable side-by-side release",
                 lambda: self._install_release(config),
             ),
             PlanStep(
@@ -356,12 +356,12 @@ class InstallerEngine:
                 ),
             ]
         )
-        return InstallPlan(f"Install DevCloud {config.role.value}", steps)
+        return InstallPlan(f"Install AI Factory {config.role.value}", steps)
 
     def build_repair_plan(self, config: InstallConfig) -> InstallPlan:
         self._validate_config(config)
         return InstallPlan(
-            f"Repair DevCloud {config.role.value}",
+            f"Repair AI Factory {config.role.value}",
             [
                 PlanStep("preflight", "Re-run host preflight checks", self.preflight),
                 PlanStep(
@@ -440,7 +440,7 @@ class InstallerEngine:
                 )
             )
         return InstallPlan(
-            f"Update DevCloud to {self.release_version}",
+            f"Update AI Factory to {self.release_version}",
             [
                 PlanStep(
                     "preflight",
@@ -527,12 +527,12 @@ class InstallerEngine:
         steps = [
             PlanStep(
                 "stop",
-                "Stop and disable DevCloud services",
+                "Stop and disable AI Factory services",
                 lambda: self._stop_services(config, include_database=True),
             ),
             PlanStep(
                 "units",
-                "Remove DevCloud systemd unit files",
+                "Remove AI Factory systemd unit files",
                 lambda: self._remove_service_units(config),
             ),
             PlanStep(
@@ -545,11 +545,11 @@ class InstallerEngine:
             steps.append(
                 PlanStep(
                     "purge",
-                    "Permanently remove DevCloud configuration, releases, state, and workspace data",
+                    "Permanently remove AI Factory configuration, releases, state, and workspace data",
                     lambda: self._purge_data(config),
                 )
             )
-        return InstallPlan("Uninstall DevCloud", steps)
+        return InstallPlan("Uninstall AI Factory", steps)
 
     def build_backup_plan(
         self,
@@ -559,7 +559,7 @@ class InstallerEngine:
         include_workspaces: bool = False,
     ) -> InstallPlan:
         return InstallPlan(
-            "Back up DevCloud",
+            "Back up AI Factory",
             [
                 PlanStep(
                     "backup",
@@ -588,11 +588,11 @@ class InstallerEngine:
         archive: Path,
     ) -> InstallPlan:
         return InstallPlan(
-            "Restore DevCloud",
+            "Restore AI Factory",
             [
                 PlanStep(
                     "stop",
-                    "Stop DevCloud services before replacing managed state",
+                    "Stop AI Factory services before replacing managed state",
                     lambda: self._stop_services(config),
                 ),
                 PlanStep(
@@ -682,7 +682,7 @@ class InstallerEngine:
                 raise InstallerError(f"{field_name} must be a safe absolute path")
             if not any("devcloud" in part.lower() for part in value.parts):
                 raise InstallerError(
-                    f"{field_name} must identify a DevCloud-specific directory"
+                    f"{field_name} must be a dedicated directory whose path contains 'devcloud'"
                 )
         path_policies = {
             "install_root": (PurePosixPath("/opt"), PurePosixPath("/var/lib")),

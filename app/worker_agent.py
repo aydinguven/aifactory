@@ -1,4 +1,4 @@
-"""Outbound-only DevCloud worker agent.
+"""Outbound-only AI Factory worker agent.
 
 Run with DEVCLOUD_CONTROLLER_URL, DEVCLOUD_NODE_ID and DEVCLOUD_NODE_TOKEN set.
 The legacy DEVCLOUD_MASTER_URL name remains an upgrade compatibility fallback.

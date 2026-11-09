@@ -49,8 +49,8 @@ def _settings_payload(**overrides):
         "team_attribute": "department",
         "directorate_attribute": "division",
         "group_membership_attribute": "memberOf",
-        "required_group_dn": "CN=DevCloud,OU=Groups,DC=example,DC=com",
-        "admin_group_dn": "CN=DevCloud-Admins,OU=Groups,DC=example,DC=com",
+        "required_group_dn": "CN=AIFactory,OU=Groups,DC=example,DC=com",
+        "admin_group_dn": "CN=AIFactory-Admins,OU=Groups,DC=example,DC=com",
         "nested_group_search": True,
     }
     payload.update(overrides)
@@ -141,8 +141,8 @@ async def test_successful_directory_login_provisions_admin_user(
                 bind_dn="CN=svc,DC=example,DC=com",
                 encrypted_bind_password=encrypt_directory_secret("bind-secret"),
                 user_base_dn="OU=Users,DC=example,DC=com",
-                required_group_dn="CN=DevCloud,DC=example,DC=com",
-                admin_group_dn="CN=DevCloud-Admins,DC=example,DC=com",
+                required_group_dn="CN=AIFactory,DC=example,DC=com",
+                admin_group_dn="CN=AIFactory-Admins,DC=example,DC=com",
             )
         )
         await session.commit()
@@ -157,7 +157,7 @@ async def test_successful_directory_login_provisions_admin_user(
             team="AI Platform",
             directorate="Data Technologies",
             user_dn="CN=Aydin,OU=Users,DC=example,DC=com",
-            groups=("CN=DevCloud-Admins,DC=example,DC=com",),
+            groups=("CN=AIFactory-Admins,DC=example,DC=com",),
             is_admin=True,
         )
 

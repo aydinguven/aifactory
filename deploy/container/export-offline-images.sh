@@ -38,4 +38,4 @@ podman save --format oci-archive \
     sha256sum ./*.tar > SHA256SUMS
 )
 
-echo "Offline DevCloud runtime images exported to ${OUTPUT_DIR}"
+echo "Offline AI Factory runtime images exported to ${OUTPUT_DIR}"

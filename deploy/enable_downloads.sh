@@ -76,4 +76,4 @@ log "Publication directory: ${DOWNLOADS_ROOT}"
 log "Build directory: ${DOWNLOAD_BUILD_ROOT}"
 
 bash "${PROJECT_DIR}/deploy/restart.sh"
-log "Download updates are ready in the DevCloud management page."
+log "Download updates are ready in the AI Factory management page."

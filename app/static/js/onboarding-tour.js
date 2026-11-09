@@ -229,12 +229,12 @@
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   function prepareCreateModal() {
-    window.DevCloudWorkspaceCreateModal?.open({resetDeploymentUI: false});
+    window.AIFactoryWorkspaceCreateModal?.open({resetDeploymentUI: false});
   }
 
   function cleanupCreateModal(_currentState, nextStep) {
     if (nextStep?.group === "workspace-create-modal") return;
-    window.DevCloudWorkspaceCreateModal?.close({force: true});
+    window.AIFactoryWorkspaceCreateModal?.close({force: true});
   }
 
   function prepareWorkspaceDetail(currentState, step) {
@@ -502,7 +502,7 @@
     openDialog({
       eyebrow: "Tur tamamlandı",
       title: "Hazırsınız",
-      body: "DevCloud'un temel alanlarını tamamladınız. Turu üst menüden veya Profil sayfasından istediğiniz zaman yeniden başlatabilirsiniz.",
+      body: "AI Factory'nin temel alanlarını tamamladınız. Turu üst menüden veya Profil sayfasından istediğiniz zaman yeniden başlatabilirsiniz.",
       buttons: [{label: "Kapat", className: "btn btn-primary", primary: true, action: async close => close()}],
     });
   };

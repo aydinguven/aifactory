@@ -175,7 +175,7 @@ async def update_profile(
     if current_user.auth_source != "internal":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Kurumsal dizin profilleri DevCloud üzerinden değiştirilemez.",
+            detail="Kurumsal dizin profilleri AI Factory üzerinden değiştirilemez.",
         )
     if update_data.email:
         stmt = select(User).where(User.email == update_data.email.lower(), User.id != current_user.id)
@@ -193,7 +193,7 @@ async def update_profile(
         if not changed:
             raise HTTPException(
                 status_code=400,
-                detail="Kurumsal dizin parolası DevCloud üzerinden değiştirilemez.",
+                detail="Kurumsal dizin parolası AI Factory üzerinden değiştirilemez.",
             )
 
     db.add(current_user)

@@ -11,7 +11,7 @@ active release.
 This runbook creates Linux x86_64 server or CPU-worker base bundles
 from a specific Git commit. The server bundle supports both Controller and
 All-in-one installation, including SQLite, bundled PostgreSQL, and external
-PostgreSQL choices. Each base bundle contains the required DevCloud source,
+PostgreSQL choices. Each base bundle contains the required AI Factory source,
 Python wheels, a distribution-matched
 `subscription-manager` bootstrap repository, an artifact manifest, and SHA-256
 checksums. Both roles contain the immutable rootful worker image; the server
@@ -162,7 +162,7 @@ acceptable if your server has suitable quotas.
 
 ### Optional: publish and update bundles from the admin page
 
-A connected native DevCloud server exposes verified bundles at /download/ and lets
+A connected native AI Factory server exposes verified bundles at /download/ and lets
 an administrator rebuild them from the management page. New installations
 enable this feature and prepare its directories automatically. For an existing
 installation, enable it once with:
@@ -173,7 +173,7 @@ sudo bash deploy/enable_downloads.sh
 
 The helper prepares writable build/publication directories, updates the
 project-root `.env`, restores standard SELinux file contexts when available,
-and reloads DevCloud. Then use the separate **Controller Paketini Güncelle** and
+and reloads AI Factory. Then use the separate **Controller Paketini Güncelle** and
 **Worker Paketini Güncelle** controls under **Yönetim > Çevrim Dışı
 İndirmeler**.
 
@@ -209,7 +209,7 @@ network.
 The initial Controller URL is `http://10.253.6.189`. Change it at any time under
 **Admin > Çevrim Dışı İndirmeler > Worker kurulumunda kullanılacak Controller URL**.
 `DOWNLOAD_PUBLIC_BASE_URL` in `.env` remains the first-run fallback, including
-when DevCloud runs behind a reverse proxy. The ticket token is short-lived and
+when AI Factory runs behind a reverse proxy. The ticket token is short-lived and
 single-use; the permanent enrollment token is returned only to the bootstrap
 process and never appears in the command line.
 

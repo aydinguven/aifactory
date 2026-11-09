@@ -1,5 +1,5 @@
 [Unit]
-Description=DevCloud managed PostgreSQL container
+Description=AI Factory managed PostgreSQL container
 After=network-online.target
 Wants=network-online.target
 

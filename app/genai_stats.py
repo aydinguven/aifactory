@@ -119,7 +119,7 @@ async def _fetch(client: LiteLLMClient, start: date, end: date) -> dict:
 
 
 async def usage_stats(db: AsyncSession, days: int = 30, viewer: User | None = None) -> dict:
-    """Aggregated usage for the last ``days`` days, mapped to devcloud users.
+    """Aggregated usage for the last ``days`` days, mapped to AI Factory users.
 
     With a ``viewer``, ``my_team`` holds their team's usage and members, and
     ``my_unit`` (unit heads only) their müdürlük with each of its teams.
@@ -148,7 +148,7 @@ async def usage_stats(db: AsyncSession, days: int = 30, viewer: User | None = No
 
 @dataclass
 class _Org:
-    """Team and müdürlük structure of every devcloud user, active or not."""
+    """Team and müdürlük structure of every AI Factory user, active or not."""
 
     team_names: dict[str, Counter] = field(default_factory=lambda: defaultdict(Counter))
     team_units: dict[str, Counter] = field(default_factory=lambda: defaultdict(Counter))
@@ -189,7 +189,7 @@ class _Org:
 
 
 async def _directory(db: AsyncSession) -> tuple[dict[str, dict], _Org]:
-    """LiteLLM user id -> devcloud identity, and the organization structure."""
+    """LiteLLM user id -> AI Factory identity, and the organization structure."""
     accounts = {
         row.user_id: row.litellm_user_id
         for row in (await db.execute(select(GenAiAccount))).scalars()

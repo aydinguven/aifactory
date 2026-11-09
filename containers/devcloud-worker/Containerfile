@@ -2,8 +2,8 @@ ARG PYTHON_IMAGE=registry.access.redhat.com/ubi10/python-312-minimal:latest
 FROM ${PYTHON_IMAGE}
 
 ARG DEVCLOUD_VERSION=0.0.0
-LABEL org.opencontainers.image.title="DevCloud Worker" \
-      org.opencontainers.image.description="DevCloud rootful Podman workspace worker" \
+LABEL org.opencontainers.image.title="AI Factory Worker" \
+      org.opencontainers.image.description="AI Factory rootful Podman workspace worker" \
       org.opencontainers.image.version="${DEVCLOUD_VERSION}"
 
 USER 0

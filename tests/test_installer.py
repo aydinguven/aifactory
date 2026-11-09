@@ -1223,7 +1223,7 @@ def test_applied_update_with_unpublished_worker_bundle_is_not_reported_failed(tm
     )
 
     def fake_run(command, *, text, stdout, stderr, env):
-        stdout.write("Update DevCloud to 3.15.0 completed successfully.\nWARNING: ... No space left on device\n")
+        stdout.write("Update AI Factory to 3.15.0 completed successfully.\nWARNING: ... No space left on device\n")
         return subprocess.CompletedProcess(command, 3)
 
     monkeypatch.setenv("UPDATE_QUEUE_ROOT", str(queue))

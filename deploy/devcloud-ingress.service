@@ -1,5 +1,5 @@
 [Unit]
-Description=Apply validated DevCloud Nginx ingress configuration
+Description=Apply validated AI Factory Nginx ingress configuration
 After=network.target
 
 [Service]

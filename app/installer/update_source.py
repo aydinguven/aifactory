@@ -120,7 +120,7 @@ def _download_channel_bundle(
     if parsed.scheme in {"http", "https"}:
         if parsed.scheme != "https":
             raise InstallerError("Remote update bundles require HTTPS")
-        headers = {"User-Agent": "DevCloud-Updater/1"}
+        headers = {"User-Agent": "AIFactory-Updater/1"}
         if token_file:
             if not token_file.is_file():
                 raise InstallerError(f"Update token file does not exist: {token_file}")

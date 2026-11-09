@@ -14,7 +14,7 @@ ADMIN_KEY = "sk-aifactory-admin-secret"
 
 
 class FakeLiteLLM:
-    """In-memory LiteLLM management API (subset used by devcloud)."""
+    """In-memory LiteLLM management API (subset used by AI Factory)."""
 
     def __init__(self, *, user_info_404: bool = True):
         self.users: dict[str, dict] = {"aifactory": {"user_role": "proxy_admin", "spend": 0}}

@@ -90,7 +90,7 @@ async def _fetch_release_channel(repository: str, ref: str):
     try:
         async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
             response = await client.get(
-                channel_url, headers={"User-Agent": "DevCloud-Controller/1"}
+                channel_url, headers={"User-Agent": "AIFactory-Controller/1"}
             )
             response.raise_for_status()
             return parse_channel(response.json())
@@ -365,7 +365,7 @@ async def run_system_update_stream(
             if not update_script.is_file():
                 raise FileNotFoundError(f"Güncelleme betiği bulunamadı: {update_script}")
 
-            await emit("DevCloud platform güncellemesi başlatıldı.", "info")
+            await emit("AI Factory platform güncellemesi başlatıldı.", "info")
             proc = await asyncio.create_subprocess_exec(
                 "bash",
                 str(update_script),

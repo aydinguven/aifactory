@@ -30,7 +30,7 @@ RUN pip install --no-cache-dir \
     "jupyter-ai[magics]==3.1.3"
 
 # Keep the bundled Claude ACP persona implementation and stable persona ID,
-# changing only the name and avatar shown to DevCloud users.
+# changing only the name and avatar shown to AI Factory users.
 COPY rename_claude_persona.py /tmp/rename_claude_persona.py
 COPY tcmb_emblem.svg /tmp/tcmb_emblem.svg
 RUN python /tmp/rename_claude_persona.py /tmp/tcmb_emblem.svg

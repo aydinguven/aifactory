@@ -4,7 +4,7 @@
 # It downloads the original bytes from CATALOG_URL and writes them under .kilo.
 # Keep behavior in step with install.ps1.
 #
-# DevCloud bakes this file into the vscode-kilo and vscode-cuda images as
+# AI Factory bakes this file into the vscode-kilo and vscode-cuda images as
 # /opt/kilo/LocalMCP.sh; keep both copies identical.
 if [[ -z "${KILO_INSTALL_UNBUFFERED:-}" ]] && command -v stdbuf >/dev/null 2>&1; then
   export KILO_INSTALL_UNBUFFERED=1

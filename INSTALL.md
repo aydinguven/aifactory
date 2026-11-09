@@ -1,7 +1,7 @@
-# DevCloud installer and lifecycle guide
+# AI Factory installer and lifecycle guide
 
 The supported production target is Rocky Linux or RHEL 9.x/10.x on x86_64.
-EL9 hosts run DevCloud under the AppStream `python3.12` interpreter (the
+EL9 hosts run AI Factory under the AppStream `python3.12` interpreter (the
 platform `python3` is 3.9); setup installs `python3.12` and `python3.12-pip`
 from the enabled repositories when missing. Run the installer as root; operating-system packages come from the VM's enabled
 DNF repositories, including Satellite or Foreman-managed repositories.
@@ -78,7 +78,7 @@ worker installations retain their saved runtime during repair and update.
 The exception is an automatically detected NVIDIA GPU worker. Its one-line
 bootstrap validates the existing host driver, NVIDIA Container Toolkit, and
 CDI devices before enrollment, then selects the native worker agent so those
-host capabilities remain directly observable. DevCloud does not install or
+host capabilities remain directly observable. AI Factory does not install or
 modify any NVIDIA component. A failed GPU preflight exits before consuming the
 single-use ticket. CPU workers retain the system Quadlet default.
 
@@ -150,7 +150,7 @@ JUPYTER_AI_MODEL_CATALOG_JSON=[]
 ~~~
 
 The gateway URL is the root URL, for example
-`http://llm-gateway.internal.example:5003`. Do not append `/v1`: DevCloud and
+`http://llm-gateway.internal.example:5003`. Do not append `/v1`: AI Factory and
 Claude Code append `/v1/messages` and `/v1/models` as needed, while Kilo Code uses
 the same root at `/v1` through its OpenAI-compatible provider. A configured URL
 ending in `/v1` therefore causes requests such as `/v1/v1/messages` and usually
@@ -176,7 +176,7 @@ sudo systemctl restart devcloud-worker.service
 Only newly created workspace containers receive changed environment values.
 Existing containers must be recreated to pick up a changed gateway, token, or
 model catalogue. Stop the workspace, run `podman rm -f <container-name>` on its
-assigned worker, and start it again from DevCloud. The workspace directory is a
+assigned worker, and start it again from AI Factory. The workspace directory is a
 bind mount and is preserved. Do not use the dashboard Delete action for this
 operation because Delete removes the persistent workspace storage.
 
@@ -227,7 +227,7 @@ under **Admin > Entegrasyonlar > Kilo Code**:
   endpoint and are stored with LanceDB inside the workspace.
 
 Chat requests use the workspace owner's own AI Factory key, which they
-request on the **GenAI** tab (DevCloud issues a separate per-user workspace
+request on the **GenAI** tab (AI Factory issues a separate per-user workspace
 key for the same LiteLLM user and team). Kilo Code never falls back to the
 shared key, so GenAI and Workspace AI must point at the same LiteLLM. Without
 a key the user sees a warning while creating the workspace and an
@@ -238,7 +238,7 @@ Every Kilo Code user can read the indexing key and the catalog token inside
 their own workspace. Restrict the indexing key in LiteLLM to the embedding
 model and give it a budget.
 
-DevCloud rewrites `~/.config/kilo/kilo.jsonc` at each container start. When
+AI Factory rewrites `~/.config/kilo/kilo.jsonc` at each container start. When
 the owner's key or the Admin settings changed since the container was
 created, stopping and starting the workspace recreates the container with the
 new settings; the project directory is a bind mount and is preserved, while
@@ -285,7 +285,7 @@ workspace terminal:
 ls -la ~/.config/kilo/
 ~~~
 
-- **No `kilo.jsonc`**: DevCloud sent no configuration. The deployment log
+- **No `kilo.jsonc`**: AI Factory sent no configuration. The deployment log
   names the cause; the possible causes are:
   - the **Kilo Code** card under **Admin > Entegrasyonlar** is not set to
     distribute (its badge says "Devre Dışı");

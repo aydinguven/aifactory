@@ -1,5 +1,5 @@
 [Unit]
-Description=DevCloud Controller container
+Description=AI Factory Controller container
 After=network-online.target
 Wants=network-online.target
 {{DATABASE_DEPENDENCIES}}

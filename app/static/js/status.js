@@ -150,7 +150,7 @@
   function render(report) {
     overall.dataset.status = report.status;
     headline.textContent = HEADLINE[report.status] || report.status;
-    const parts = [`Son kontrol: ${time(report.checked_at)}`, `DevCloud v${report.version}`];
+    const parts = [`Son kontrol: ${time(report.checked_at)}`, `AI Factory v${report.version}`];
     if (report.duration_ms != null) parts.push(`${report.duration_ms} ms`);
     meta.textContent = parts.join(" · ");
     // Keep expanded sections open across refreshes.

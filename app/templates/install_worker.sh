@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Enroll and install one DevCloud worker using a short-lived controller ticket.
+# Enroll and install one AI Factory worker using a short-lived controller ticket.
 set -Eeuo pipefail
 umask 077
 
@@ -27,7 +27,7 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 
 [[ ! -f /var/lib/devcloud/installer/install-state.json ]] || fail \
-    "A managed DevCloud installation already exists; purge it or run update."
+    "A managed AI Factory installation already exists; purge it or run update."
 
 GPU_MODE="$(printenv DEVCLOUD_WORKER_GPU_MODE || true)"
 [[ -n "$GPU_MODE" ]] || GPU_MODE=auto

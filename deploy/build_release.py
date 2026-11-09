@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a manifest-indexed, optionally GPG-signed DevCloud source release ZIP."""
+"""Build a manifest-indexed, optionally GPG-signed AI Factory source release ZIP."""
 
 from __future__ import annotations
 

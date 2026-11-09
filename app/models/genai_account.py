@@ -7,7 +7,7 @@ from app.database import Base
 
 
 class GenAiAccount(Base):
-    """A devcloud user's LiteLLM identity and the keys devcloud issued for it.
+    """An AI Factory user's LiteLLM identity and the keys AI Factory issued for it.
 
     The personal API key is shown to the user once and never stored; only the
     LiteLLM token hash is kept so the key can be deleted on rotation. A

@@ -1,4 +1,4 @@
-"""Self-service LiteLLM users and API keys for devcloud users."""
+"""Self-service LiteLLM users and API keys for AI Factory users."""
 
 import asyncio
 import logging

@@ -191,7 +191,7 @@ async def test_admin_catalog_and_authenticated_worker_download(
     )
     assert download.status_code == 200
     assert download.content == b"managed-image"
-    assert download.headers["x-devcloud-sha256"] == digest
+    assert download.headers["x-aifactory-sha256"] == digest
 
 
 @pytest.mark.asyncio

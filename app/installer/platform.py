@@ -46,14 +46,14 @@ def detect_platform(os_release: Path = Path("/etc/os-release")) -> HostPlatform:
 
 SUPPORTED_MAJOR_VERSIONS = ("9", "10")
 
-# EL9's platform python3 is 3.9, but DevCloud needs 3.11+ and ships cp312
+# EL9's platform python3 is 3.9, but AI Factory needs 3.11+ and ships cp312
 # wheels, so EL9 hosts use the AppStream python3.12 interpreter instead.
 _HOST_PYTHON_BY_MAJOR = {"9": "/usr/bin/python3.12"}
 _HOST_PYTHON_PACKAGES_BY_MAJOR = {"9": ("python3.12", "python3.12-pip")}
 
 
 def host_python(host: HostPlatform | None) -> str:
-    """Return the interpreter DevCloud runs under on this host."""
+    """Return the interpreter AI Factory runs under on this host."""
     major = host.major_version if host else ""
     return _HOST_PYTHON_BY_MAJOR.get(major, "/usr/bin/python3")
 
