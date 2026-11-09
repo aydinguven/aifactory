@@ -5,11 +5,11 @@
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="${DEVCLOUD_PROJECT_DIR:-$(dirname "${SCRIPT_DIR}")}"
+PROJECT_DIR="${AIFACTORY_PROJECT_DIR:-$(dirname "${SCRIPT_DIR}")}"
 DATA_DIR="${PROJECT_DIR}/data"
 LOCK_FILE="${DATA_DIR}/platform-update.lock"
 RESTART_LOG="${DATA_DIR}/platform-update-restart.log"
-SERVICE_FILE="/etc/systemd/system/devcloud.service"
+SERVICE_FILE="/etc/systemd/system/aifactory.service"
 UNIT_TMP=""
 
 cleanup() {
@@ -46,7 +46,7 @@ if [ -n "${TRACKED_CHANGES}" ]; then
     fail "Tracked files contain local changes. Commit or revert them before updating."
 fi
 
-TARGET_BRANCH="${DEVCLOUD_UPDATE_BRANCH:-main}"
+TARGET_BRANCH="${AIFACTORY_UPDATE_BRANCH:-main}"
 git check-ref-format --branch "${TARGET_BRANCH}" >/dev/null 2>&1 || \
     fail "Invalid update branch: ${TARGET_BRANCH}"
 OLD_COMMIT="$(git rev-parse HEAD)"
@@ -67,22 +67,22 @@ echo "--> [2/5] Checking Python dependencies..."
 .venv/bin/python -m pip install --disable-pip-version-check -r requirements.txt
 
 echo "--> [3/5] Installing the current AI Factory systemd unit..."
-[ -f deploy/devcloud.service ] || fail "deploy/devcloud.service is missing."
-SERVICE_USER="${DEVCLOUD_SERVICE_USER:-}"
+[ -f deploy/aifactory.service ] || fail "deploy/aifactory.service is missing."
+SERVICE_USER="${AIFACTORY_SERVICE_USER:-}"
 if [ -z "${SERVICE_USER}" ]; then
-    SERVICE_USER="$(systemctl show --property User --value devcloud 2>/dev/null || true)"
+    SERVICE_USER="$(systemctl show --property User --value aifactory 2>/dev/null || true)"
 fi
 SERVICE_USER="${SERVICE_USER:-$(id -un)}"
 UNIT_TMP="$(mktemp)"
 sed -e "s|{{USER}}|${SERVICE_USER}|g" \
     -e "s|{{PROJECT_DIR}}|${PROJECT_DIR}|g" \
-    deploy/devcloud.service >"${UNIT_TMP}"
+    deploy/aifactory.service >"${UNIT_TMP}"
 sudo install -m 0644 "${UNIT_TMP}" "${SERVICE_FILE}"
 sudo systemctl daemon-reload
 
 echo "--> [4/5] Installing the HTTPS ingress helper and watcher..."
 [ -f deploy/install_ingress.sh ] || fail "deploy/install_ingress.sh is missing."
-sudo env DEVCLOUD_INGRESS_APPLY_INITIAL=0 bash "${PROJECT_DIR}/deploy/install_ingress.sh" "${SERVICE_USER}"
+sudo env AIFACTORY_INGRESS_APPLY_INITIAL=0 bash "${PROJECT_DIR}/deploy/install_ingress.sh" "${SERVICE_USER}"
 
 echo "--> [5/5] Scheduling a health-checked worker reload..."
 [ -f deploy/restart.sh ] || fail "deploy/restart.sh is missing."

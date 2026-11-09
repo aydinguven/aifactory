@@ -30,12 +30,12 @@ def _platform_root(root: Path) -> Path:
     )
     images = {}
     for role, content in (("controller", b"controller-image"), ("worker", b"worker-image")):
-        archive = root / f"offline/{role}-images/devcloud-{role}.tar"
+        archive = root / f"offline/{role}-images/aifactory-{role}.tar"
         archive.parent.mkdir(parents=True)
         archive.write_bytes(content)
         images[role] = {
             "image": f"localhost/devcloud-{role}:3.4.0",
-            "source": f"quay.io/example/devcloud:{role}-3.4.0",
+            "source": f"quay.io/example/aifactory:{role}-3.4.0",
             "digest": "sha256:" + ("a" if role == "controller" else "b") * 64,
             "archive": archive.relative_to(root).as_posix(),
             "sha256": hashlib.sha256(content).hexdigest(),
@@ -61,8 +61,8 @@ def test_platform_manifest_requires_verified_images_and_excludes_workspaces(tmp_
 
     release = load_platform_release(root)
 
-    assert release.controller.archive.endswith("devcloud-controller.tar")
-    assert release.worker.archive.endswith("devcloud-worker.tar")
+    assert release.controller.archive.endswith("aifactory-controller.tar")
+    assert release.worker.archive.endswith("aifactory-worker.tar")
     manifest = json.loads((root / "platform-release.json").read_text(encoding="utf-8"))
     manifest["workspace_images_included"] = True
     (root / "platform-release.json").write_text(json.dumps(manifest), encoding="utf-8")
@@ -71,7 +71,7 @@ def test_platform_manifest_requires_verified_images_and_excludes_workspaces(tmp_
 
 
 def test_platform_bundle_publication_is_visible_to_workers(tmp_path):
-    bundle = tmp_path / "devcloud-platform-update-v3.4.0-abcdef1.tar.gz"
+    bundle = tmp_path / "aifactory-platform-update-v3.4.0-abcdef1.tar.gz"
     bundle.write_bytes(b"signed-platform-bundle")
     downloads = tmp_path / "downloads"
 
@@ -116,15 +116,15 @@ def test_clean_install_tree_is_published_as_verified_worker_bundle(tmp_path):
         members = {member.name for member in archive.getmembers() if member.isfile()}
     assert "devcloud-3.4.0/release.json" in members
     assert "devcloud-3.4.0/platform-release.json" in members
-    assert "devcloud-3.4.0/offline/worker-images/devcloud-worker.tar" in members
+    assert "devcloud-3.4.0/offline/worker-images/aifactory-worker.tar" in members
 
 
 def test_git_channel_resolves_a_checksum_pinned_relative_bundle(tmp_path):
     repository = tmp_path / "channel"
     repository.mkdir()
-    bundle = repository / "devcloud-platform-update-v3.4.0-abcdef1.tar.gz"
+    bundle = repository / "aifactory-platform-update-v3.4.0-abcdef1.tar.gz"
     bundle.write_bytes(b"immutable-release")
-    channel_path = write_channel(bundle, repository / "devcloud-update-channel.json", url=bundle.name)
+    channel_path = write_channel(bundle, repository / "aifactory-update-channel.json", url=bundle.name)
     assert read_channel(repository).sha256 == hashlib.sha256(bundle.read_bytes()).hexdigest()
     subprocess.run(["git", "init", "-q", "-b", "stable"], cwd=repository, check=True)
     subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repository, check=True)
@@ -145,9 +145,9 @@ def test_git_channel_resolves_a_checksum_pinned_relative_bundle(tmp_path):
     ("location", "ref"),
     [
         ("ext::sh -c evil", "stable"),
-        ("http://insecure.example/devcloud.git", "stable"),
-        ("https://example.com/devcloud.git", "--upload-pack=evil"),
-        ("https://example.com/devcloud.git", "refs/heads/../evil"),
+        ("http://insecure.example/aifactory.git", "stable"),
+        ("https://example.com/aifactory.git", "--upload-pack=evil"),
+        ("https://example.com/aifactory.git", "refs/heads/../evil"),
     ],
 )
 def test_git_channel_rejects_unsafe_transport_or_ref(location, ref):
@@ -179,12 +179,12 @@ def test_publishing_prunes_old_bundles_and_refuses_without_disk_space(tmp_path, 
     releases = tmp_path / "downloads" / "releases"
     releases.mkdir(parents=True)
     for index, version in enumerate(("3.12.0", "3.13.0", "3.14.0")):
-        old = releases / f"devcloud-platform-update-v{version}-{'a' * 12}.tar.gz"
+        old = releases / f"aifactory-platform-update-v{version}-{'a' * 12}.tar.gz"
         old.write_bytes(b"old")
         (releases / f"{old.name}.sha256").write_text("x", encoding="ascii")
         os.utime(old, (1000 + index, 1000 + index))
-    (releases / ".devcloud-platform-update-v3.15.0-bbbbbbbbbbbb.tar.gz.dead.partial").write_bytes(b"half")
-    bundle = tmp_path / "devcloud-platform-update-v3.15.0-bbbbbbbbbbbb.tar.gz"
+    (releases / ".aifactory-platform-update-v3.15.0-bbbbbbbbbbbb.tar.gz.dead.partial").write_bytes(b"half")
+    bundle = tmp_path / "aifactory-platform-update-v3.15.0-bbbbbbbbbbbb.tar.gz"
     bundle.write_bytes(b"new bundle")
 
     real_usage = shutil_module.disk_usage
@@ -197,14 +197,14 @@ def test_publishing_prunes_old_bundles_and_refuses_without_disk_space(tmp_path, 
     # Old bundles beyond the previous one and the interrupted copy are gone
     # before the space check, so a retry has more room.
     assert sorted(path.name for path in releases.iterdir()) == [
-        "devcloud-platform-update-v3.14.0-aaaaaaaaaaaa.tar.gz",
-        "devcloud-platform-update-v3.14.0-aaaaaaaaaaaa.tar.gz.sha256",
+        "aifactory-platform-update-v3.14.0-aaaaaaaaaaaa.tar.gz",
+        "aifactory-platform-update-v3.14.0-aaaaaaaaaaaa.tar.gz.sha256",
     ]
 
     monkeypatch.setattr(platform_release.shutil, "disk_usage", real_usage)
     published = platform_release.publish_platform_bundle(bundle, tmp_path / "downloads")
     assert published.read_bytes() == b"new bundle"
     assert {path.name for path in releases.iterdir() if not path.name.endswith(".sha256")} == {
-        "devcloud-platform-update-v3.14.0-aaaaaaaaaaaa.tar.gz",
+        "aifactory-platform-update-v3.14.0-aaaaaaaaaaaa.tar.gz",
         published.name,
     }

@@ -15,8 +15,10 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-PROGRESS_FILE_ENV = "DEVCLOUD_UPDATE_PROGRESS_FILE"
-DEFAULT_QUEUE_ROOT = "/var/lib/devcloud/update-queue"
+PROGRESS_FILE_ENV = "AIFACTORY_UPDATE_PROGRESS_FILE"
+# Set by the devcloud updater (before 3.49.1) that starts the first update.
+LEGACY_PROGRESS_FILE_ENV = "DEVCLOUD_UPDATE_PROGRESS_FILE"
+DEFAULT_QUEUE_ROOT = "/var/lib/aifactory/update-queue"
 PROGRESS_FILENAME = "progress.json"
 OUTPUT_FILENAME = "output.log"
 
@@ -39,6 +41,16 @@ STEP_LABELS = {
     "restart": "Servisler yeniden başlatılıyor",
     "state": "Sürüm kaydediliyor",
     "cleanup": "Eski sürümler temizleniyor",
+    "migrate-preflight": "AI Factory adlarına geçiş kontrolleri",
+    "migrate-stop": "Eski servisler durduruluyor",
+    "migrate-database": "Veritabanı adı değiştiriliyor",
+    "migrate-move": "Dizinler taşınıyor",
+    "migrate-account": "Servis hesabı yeniden adlandırılıyor",
+    "migrate-files": "Yapılandırma güncelleniyor",
+    "migrate-units": "Eski servis tanımları kaldırılıyor",
+    "selinux": "Workspace depolaması etiketleniyor",
+    "migrate-commit": "Geçiş kaydediliyor",
+    "migrate-finish": "Geçiş tamamlanıyor",
 }
 
 
@@ -72,7 +84,9 @@ class ProgressReporter:
     @classmethod
     def from_environment(cls, fallback_root: Path | None = None) -> "ProgressReporter":
         """The root updater passes the file explicitly; installers fall back to the queue."""
-        explicit = os.environ.get(PROGRESS_FILE_ENV)
+        explicit = os.environ.get(PROGRESS_FILE_ENV) or os.environ.get(
+            LEGACY_PROGRESS_FILE_ENV
+        )
         if explicit:
             return cls(Path(explicit))
         if fallback_root is not None and fallback_root.is_dir():

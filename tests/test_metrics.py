@@ -33,10 +33,10 @@ async def test_get_workspace_stats_summary(client: AsyncClient, db_session):
         node_id=TEST_WORKER_ID,
         template_id="jupyter-python",
         flavor_id="t1.micro",
-        container_name="devcloud-1-test-ws-metrics-1",
+        container_name="aifactory-1-test-ws-metrics-1",
         host_port=10200,
         container_port=8888,
-        storage_path="/tmp/devcloud_test_metrics",
+        storage_path="/tmp/aifactory_test_metrics",
         status=WorkspaceStatus.RUNNING,
         last_started_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=5),
     )
@@ -68,10 +68,10 @@ async def test_get_single_workspace_stats(client: AsyncClient, db_session):
         node_id=TEST_WORKER_ID,
         template_id="jupyter-python",
         flavor_id="t1.micro",
-        container_name="devcloud-1-test-ws-metrics-2",
+        container_name="aifactory-1-test-ws-metrics-2",
         host_port=10201,
         container_port=8888,
-        storage_path="/tmp/devcloud_test_metrics_2",
+        storage_path="/tmp/aifactory_test_metrics_2",
         status=WorkspaceStatus.STOPPED,
     )
     db_session.add(ws)

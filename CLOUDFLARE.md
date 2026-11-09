@@ -42,7 +42,7 @@ cloudflared --version
 ## 3. Create the named tunnel
 
 1. In Cloudflare, open **Networking > Tunnels** and create a remotely-managed
-   tunnel named `devcloud-demo`.
+   tunnel named `aifactory-demo`.
 2. Select Linux / Red Hat / 64-bit and copy the generated service-install command.
 3. Run that command on the AI Factory VM. Treat the tunnel token as a password and
    do not save it in Git or paste it into chat.
@@ -122,7 +122,7 @@ sudo firewall-cmd --list-ports
 
 ```bash
 sudo journalctl -u cloudflared -n 100 --no-pager
-sudo journalctl -u devcloud -n 100 --no-pager
+sudo journalctl -u aifactory -n 100 --no-pager
 curl -I http://127.0.0.1:8000/login
 ```
 

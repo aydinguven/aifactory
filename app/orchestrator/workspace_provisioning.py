@@ -77,7 +77,7 @@ from app.skills import (
     build_bundle as build_skills_bundle,
 )
 
-logger = logging.getLogger("devcloud.workspaces")
+logger = logging.getLogger("aifactory.workspaces")
 
 
 class WorkspaceOperationError(Exception):
@@ -647,7 +647,7 @@ async def reserve_workspace(
     name_fragment = workspace_name_slug(name)
     container_name = "-".join(
         part
-        for part in ("devcloud", str(current_user.id), name_fragment, workspace_id[:8])
+        for part in ("aifactory", str(current_user.id), name_fragment, workspace_id[:8])
         if part
     )
     workspace = Workspace(

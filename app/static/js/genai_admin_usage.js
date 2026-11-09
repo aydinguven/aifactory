@@ -16,7 +16,7 @@
       return;
     }
     const ranked = stats.users.slice().sort((a, b) => b.total_tokens - a.total_tokens);
-    const byUser = new Map(stats.users.filter((row) => row.devcloud_user_id).map((row) => [String(row.devcloud_user_id), row]));
+    const byUser = new Map(stats.users.filter((row) => row.aifactory_user_id).map((row) => [String(row.aifactory_user_id), row]));
     const byGroup = new Map(stats.groups.map((row) => [row.key, row]));
 
     // Compact user rows: tokens, rank and a sparkline; details in the tooltip.

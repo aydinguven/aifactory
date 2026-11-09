@@ -31,7 +31,7 @@ permissions:
   packages: write
 
 concurrency:
-  group: devcloud-platform-release
+  group: aifactory-platform-release
   cancel-in-progress: false
 
 jobs:
@@ -90,7 +90,7 @@ jobs:
             echo "release_tag=${release_tag}"
           } >> "${GITHUB_OUTPUT}"
           echo "RELEASE_TAG=${release_tag}" >> "${GITHUB_ENV}"
-          echo "DEVCLOUD_VERSION=${version}" >> "${GITHUB_ENV}"
+          echo "AIFACTORY_VERSION=${version}" >> "${GITHUB_ENV}"
           echo "SHORT_SHA=${short_sha}" >> "${GITHUB_ENV}"
 
       # Workspace images have their own lifecycle and are not part of the
@@ -165,7 +165,7 @@ jobs:
           if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
             echo "Release ${RELEASE_TAG} already exists; its assets will be replaced."
           else
-            gh release create "${RELEASE_TAG}" --draft --target "${GITHUB_SHA}" --title "AI Factory ${DEVCLOUD_VERSION} (${SHORT_SHA})" --generate-notes
+            gh release create "${RELEASE_TAG}" --draft --target "${GITHUB_SHA}" --title "AI Factory ${AIFACTORY_VERSION} (${SHORT_SHA})" --generate-notes
           fi
 
   workspace_images:
@@ -181,7 +181,7 @@ jobs:
         image: ${{ fromJSON(needs.release_scope.outputs.workspace_matrix) }}
     env:
       GH_TOKEN: ${{ github.token }}
-      DEVCLOUD_VERSION: ${{ needs.release_scope.outputs.version }}
+      AIFACTORY_VERSION: ${{ needs.release_scope.outputs.version }}
       SHORT_SHA: ${{ needs.release_scope.outputs.short_sha }}
       RELEASE_TAG: ${{ needs.release_scope.outputs.release_tag }}
       IMAGE_REGISTRY: ghcr.io
@@ -216,7 +216,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           image="${{ matrix.image }}"
-          local_image="localhost/devcloud-${image}:${DEVCLOUD_VERSION}"
+          local_image="localhost/devcloud-${image}:${AIFACTORY_VERSION}"
           docker build --pull --platform linux/amd64 \
             --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
             --file "containers/${image}/Containerfile" \
@@ -231,7 +231,7 @@ jobs:
           npm install --prefix "${RUNNER_TEMP}/vscode-smoke" playwright@1.58.2
           "${RUNNER_TEMP}/vscode-smoke/node_modules/.bin/playwright" install --with-deps chromium
           NODE_PATH="${RUNNER_TEMP}/vscode-smoke/node_modules" \
-            node deploy/ci/smoke-vscode.cjs "localhost/devcloud-${{ matrix.image }}:${DEVCLOUD_VERSION}"
+            node deploy/ci/smoke-vscode.cjs "localhost/devcloud-${{ matrix.image }}:${AIFACTORY_VERSION}"
 
       - name: Save failed Kilo Code browser check
         if: failure() && startsWith(matrix.image, 'vscode-')
@@ -261,7 +261,7 @@ jobs:
           }
           trap cleanup EXIT
           image="${{ matrix.image }}"
-          local_image="localhost/devcloud-${image}:${DEVCLOUD_VERSION}"
+          local_image="localhost/devcloud-${image}:${AIFACTORY_VERSION}"
           repositories=("${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}")
 
           if [[ "${PUBLISH_QUAY}" == "true" ]]; then
@@ -277,8 +277,8 @@ jobs:
 
           for repository in "${repositories[@]}"; do
             for remote_tag in \
-              "${image}-${DEVCLOUD_VERSION}" \
-              "${image}-${DEVCLOUD_VERSION}-${SHORT_SHA}"; do
+              "${image}-${AIFACTORY_VERSION}" \
+              "${image}-${AIFACTORY_VERSION}-${SHORT_SHA}"; do
               remote_image="${repository}:${remote_tag}"
               docker tag "${local_image}" "${remote_image}"
               docker push "${remote_image}"
@@ -292,8 +292,8 @@ jobs:
         run: |
           set -Eeuo pipefail
           image="${{ matrix.image }}"
-          local_image="localhost/devcloud-${image}:${DEVCLOUD_VERSION}"
-          archive="${RUNNER_TEMP}/devcloud-workspace-${image}-v${DEVCLOUD_VERSION}-${SHORT_SHA}.tar.gz"
+          local_image="localhost/devcloud-${image}:${AIFACTORY_VERSION}"
+          archive="${RUNNER_TEMP}/devcloud-workspace-${image}-v${AIFACTORY_VERSION}-${SHORT_SHA}.tar.gz"
           # pigz writes standard gzip using every runner core.
           if ! command -v pigz >/dev/null 2>&1; then
             sudo apt-get update -qq
@@ -321,7 +321,7 @@ jobs:
     environment: release
     env:
       GH_TOKEN: ${{ github.token }}
-      DEVCLOUD_VERSION: ${{ needs.release_scope.outputs.version }}
+      AIFACTORY_VERSION: ${{ needs.release_scope.outputs.version }}
       SHORT_SHA: ${{ needs.release_scope.outputs.short_sha }}
       RELEASE_TAG: ${{ needs.release_scope.outputs.release_tag }}
       IMAGE_REGISTRY: ghcr.io
@@ -348,10 +348,10 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          asset_dir="${RUNNER_TEMP}/devcloud-release-assets"
+          asset_dir="${RUNNER_TEMP}/aifactory-release-assets"
           rm -rf -- "${asset_dir}"
           install -d -m 0755 "${asset_dir}"
-          platform_filename="devcloud-platform-update-v${DEVCLOUD_VERSION}-${SHORT_SHA}.tar.gz"
+          platform_filename="devcloud-platform-update-v${AIFACTORY_VERSION}-${SHORT_SHA}.tar.gz"
           {
             echo "ASSET_DIR=${asset_dir}"
             echo "PLATFORM_FILENAME=${platform_filename}"
@@ -376,14 +376,14 @@ jobs:
           set -Eeuo pipefail
           # Host-disk image store so Podman can use native overlay instead of
           # vfs inside the container (overlay cannot sit on Docker's overlay).
-          storage_dir="${RUNNER_TEMP}/devcloud-containers-storage"
+          storage_dir="${RUNNER_TEMP}/aifactory-containers-storage"
           install -d -m 0700 "${storage_dir}"
           docker run --privileged --rm \
             --volume "${GITHUB_WORKSPACE}:/workspace" \
             --volume "${ASSET_DIR}:/release-assets" \
             --volume "${storage_dir}:/var/lib/containers" \
             --env GITHUB_SHA \
-            --env DEVCLOUD_VERSION \
+            --env AIFACTORY_VERSION \
             --env SHORT_SHA \
             --env PLATFORM_FILENAME \
             --env ASSET_BASE_URL \
@@ -406,6 +406,9 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          # Hosts before 3.49.1 read the devcloud channel name.
+          cp "${ASSET_DIR}/aifactory-update-channel.json" \
+            "${ASSET_DIR}/devcloud-update-channel.json"
           mapfile -d '' release_assets < <(
             find "${ASSET_DIR}" -maxdepth 1 -type f -print0 | sort -z
           )
@@ -413,7 +416,7 @@ jobs:
             echo "No release assets were generated." >&2
             exit 1
           }
-          [[ -f "${ASSET_DIR}/devcloud-update-channel.json" ]] || {
+          [[ -f "${ASSET_DIR}/aifactory-update-channel.json" ]] || {
             echo "Release channel descriptor is missing." >&2
             exit 1
           }
@@ -424,8 +427,8 @@ jobs:
       - name: Stage release channel descriptor
         uses: actions/upload-artifact@v4
         with:
-          name: devcloud-update-channel
-          path: ${{ runner.temp }}/devcloud-release-assets/devcloud-update-channel.json
+          name: aifactory-update-channel
+          path: ${{ runner.temp }}/aifactory-release-assets/aifactory-update-channel.json
           if-no-files-found: error
           retention-days: 1
 
@@ -441,19 +444,19 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_DB: devcloud_test
-          POSTGRES_USER: devcloud
-          POSTGRES_PASSWORD: devcloud
+          POSTGRES_DB: aifactory_test
+          POSTGRES_USER: aifactory
+          POSTGRES_PASSWORD: aifactory
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U devcloud -d devcloud_test"
+          --health-cmd "pg_isready -U aifactory -d aifactory_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
     env:
-      TEST_POSTGRES_URL: postgresql+asyncpg://devcloud:devcloud@127.0.0.1:5432/devcloud_test
-      TEST_POSTGRESQL_URL: postgresql+asyncpg://devcloud:devcloud@127.0.0.1:5432/devcloud_test
+      TEST_POSTGRES_URL: postgresql+asyncpg://aifactory:aifactory@127.0.0.1:5432/aifactory_test
+      TEST_POSTGRESQL_URL: postgresql+asyncpg://aifactory:aifactory@127.0.0.1:5432/aifactory_test
     steps:
       - name: Check out release source
         uses: actions/checkout@v4
@@ -483,7 +486,7 @@ jobs:
     timeout-minutes: 15
     env:
       GH_TOKEN: ${{ github.token }}
-      DEVCLOUD_VERSION: ${{ needs.release_scope.outputs.version }}
+      AIFACTORY_VERSION: ${{ needs.release_scope.outputs.version }}
       SHORT_SHA: ${{ needs.release_scope.outputs.short_sha }}
       RELEASE_TAG: ${{ needs.release_scope.outputs.release_tag }}
 
@@ -494,8 +497,8 @@ jobs:
       - name: Collect release channel descriptor
         uses: actions/download-artifact@v4
         with:
-          name: devcloud-update-channel
-          path: ${{ runner.temp }}/devcloud-channel
+          name: aifactory-update-channel
+          path: ${{ runner.temp }}/aifactory-channel
 
       - name: Publish the draft GitHub Release
         shell: bash
@@ -508,8 +511,8 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          channel_copy="${RUNNER_TEMP}/devcloud-update-channel.json"
-          cp "${RUNNER_TEMP}/devcloud-channel/devcloud-update-channel.json" "${channel_copy}"
+          channel_copy="${RUNNER_TEMP}/aifactory-update-channel.json"
+          cp "${RUNNER_TEMP}/aifactory-channel/aifactory-update-channel.json" "${channel_copy}"
 
           git config user.name github-actions
           git config user.email github-actions@github.com
@@ -522,13 +525,15 @@ jobs:
           fi
 
           git rm -r --ignore-unmatch .
+          cp "${channel_copy}" aifactory-update-channel.json
+          # Hosts before 3.49.1 read only the devcloud name.
           cp "${channel_copy}" devcloud-update-channel.json
-          git add devcloud-update-channel.json
+          git add aifactory-update-channel.json devcloud-update-channel.json
 
           if git diff --cached --quiet; then
             echo "Stable channel already references this release."
             exit 0
           fi
 
-          git commit -m "release: point stable to ${DEVCLOUD_VERSION}-${SHORT_SHA}"
+          git commit -m "release: point stable to ${AIFACTORY_VERSION}-${SHORT_SHA}"
           git push origin HEAD:stable

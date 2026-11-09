@@ -33,7 +33,7 @@ logging.basicConfig(
     level=logging.INFO if not settings.DEBUG else logging.DEBUG,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
-logger = logging.getLogger("devcloud")
+logger = logging.getLogger("aifactory")
 
 
 async def seed_initial_admin():
@@ -78,17 +78,17 @@ async def recover_interrupted_workspace_operations():
 
 async def seed_bootstrap_worker() -> None:
     """Idempotently maintain the all-in-one host as an ordinary worker."""
-    worker_id = settings.DEVCLOUD_BOOTSTRAP_WORKER_ID.strip()
+    worker_id = settings.AIFACTORY_BOOTSTRAP_WORKER_ID.strip()
     if not worker_id:
         return
-    token_hash = settings.DEVCLOUD_BOOTSTRAP_WORKER_TOKEN_HASH.strip()
+    token_hash = settings.AIFACTORY_BOOTSTRAP_WORKER_TOKEN_HASH.strip()
     async with AsyncSessionLocal() as db:
         node = await db.get(Node, worker_id)
         if node is None:
             node = Node(
                 id=worker_id,
                 name=(
-                    settings.DEVCLOUD_BOOTSTRAP_WORKER_NAME.strip()
+                    settings.AIFACTORY_BOOTSTRAP_WORKER_NAME.strip()
                     or "all-in-one-worker"
                 ),
                 status=NodeStatus.PENDING,

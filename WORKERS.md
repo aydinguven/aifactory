@@ -12,7 +12,7 @@ The short path is:
    command. It is valid for 10 minutes.
 3. Run that exact command as root on the Rocky/RHEL 9 or 10 worker and enter only the
    worker name. The controller creates the node and token automatically.
-4. Verify devcloud-worker.service is active and the node reports online.
+4. Verify aifactory-worker.service is active and the node reports online.
 5. Add workspace images under **Admin > Workspace Image'ları**. The worker
    downloads and verifies enabled versions automatically; no image archives are
    copied to the worker installation directory. The page shows download,
@@ -35,8 +35,8 @@ generic error badge.
 ## Temporary unsigned OTA transition
 
 Unsigned worker OTA is disabled by default. To temporarily enable it, set
-`WORKER_OTA_ALLOW_UNSIGNED=true` in `/etc/devcloud/controller.env` and restart
-`devcloud-controller`. Release downloads remain authenticated and SHA-256
+`WORKER_OTA_ALLOW_UNSIGNED=true` in `/etc/aifactory/controller.env` and restart
+`aifactory-controller`. Release downloads remain authenticated and SHA-256
 verified, but the bundle signature is not checked. Restore the value to `false`
 after signed releases and trusted keyrings are deployed.
 
@@ -44,7 +44,7 @@ Workers running v3.4.9 or older do not understand this controller approval and
 still reject unsigned OTA. Upgrade each such worker once from its host:
 
 ```bash
-sudo bash /opt/devcloud/current/deploy/devcloud-setup.sh --yes update \
+sudo bash /opt/aifactory/current/deploy/aifactory-setup.sh --yes update \
   --source-type git \
   --repository https://github.com/aydinguven/devcloud.git \
   --ref stable \
@@ -54,7 +54,7 @@ sudo bash /opt/devcloud/current/deploy/devcloud-setup.sh --yes update \
 After that one-time transition, the worker inventory's **Güncelle** action can
 apply later unsigned releases while the controller switch remains enabled.
 Managed controller updates preserve this opt-in in
-`/etc/devcloud/controller.env`.
+`/etc/aifactory/controller.env`.
 
 The only required worker-to-controller firewall flow is outbound TCP 443.
 Never expose Podman, workspace ports, or a worker management listener.
@@ -70,8 +70,8 @@ For a private PKI, upload the CA-only trust bundle in the same panel. The bundle
 may contain root and intermediate CA certificates, but never a leaf certificate
 or private key. The Admin-generated command authenticates its first script fetch
 with the controller certificate's SPKI pin, installs the verified public CA bundle
-as `/etc/devcloud/pki/controller-ca.pem`, and records
-`DEVCLOUD_AGENT_CA_FILE` for both native and container workers. Repair and update
+as `/etc/aifactory/pki/controller-ca.pem`, and records
+`AIFACTORY_AGENT_CA_FILE` for both native and container workers. Repair and update
 preserve this path and any configured worker mTLS certificate/key pair.
 
 An optional **Worker fallback IPv4** may be configured next to the public
@@ -107,8 +107,8 @@ the root and intermediate CA certificates (PEM, never a private key) into
 host. Workers from 3.26.0 on trust the bundle in the connectivity test and
 install it in every new or recreated Jupyter and VS Code workspace. Inside the
 container, `SSL_CERT_FILE`, `REQUESTS_CA_BUNDLE` and `CURL_CA_BUNDLE` point
-at `/tmp/devcloud-ca/ca-bundle.pem` (the image's system roots plus the
-bundle), and `NODE_EXTRA_CA_CERTS` at `/tmp/devcloud-ca/extra-ca.pem`.
+at `/tmp/aifactory-ca/ca-bundle.pem` (the image's system roots plus the
+bundle), and `NODE_EXTRA_CA_CERTS` at `/tmp/aifactory-ca/extra-ca.pem`.
 Existing workspaces are recreated on their next start after the bundle is
 saved or changed. Project files on the mounted work directory are kept, but
 anything installed elsewhere in the container is lost. Terminal workspaces

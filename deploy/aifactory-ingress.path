@@ -2,8 +2,8 @@
 Description=Watch for AI Factory ingress configuration requests
 
 [Path]
-PathChanged=/var/lib/devcloud/ingress/apply.request
-Unit=devcloud-ingress.service
+PathChanged=/var/lib/aifactory/ingress/apply.request
+Unit=aifactory-ingress.service
 
 [Install]
 WantedBy=multi-user.target

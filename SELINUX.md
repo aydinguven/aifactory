@@ -11,7 +11,7 @@ does not disable labels and does not require `setenforce 0` during normal use.
 - The `:U` option maps the host directory ownership to the non-root account in
   the selected workspace image.
 - `deploy/configure_selinux.sh` registers `container_file_t` persistently for
-  `/var/lib/devcloud/workspaces` and applies the context without overwriting
+  `/var/lib/aifactory/workspaces` and applies the context without overwriting
   private MCS labels belonging to running containers.
 
 Clean installs also place Nginx in front of AI Factory. The installer does not
@@ -32,11 +32,11 @@ file-system relabel.
 cd /root/devcloud
 git pull --ff-only origin main
 sudo dnf install -y policycoreutils-python-utils selinux-policy-targeted
-sudo DEVCLOUD_SERVICE_USER=root bash deploy/configure_selinux.sh
+sudo AIFACTORY_SERVICE_USER=root bash deploy/configure_selinux.sh
 ```
 
-If the installed `devcloud.service` uses a user other than root, replace
-`DEVCLOUD_SERVICE_USER=root` with that unit's `User=` value.
+If the installed `aifactory.service` uses a user other than root, replace
+`AIFACTORY_SERVICE_USER=root` with that unit's `User=` value.
 
 ### 2. Configure the first enabled boot as permissive
 
@@ -65,7 +65,7 @@ After the VM returns:
 ```bash
 getenforce
 cd /root/devcloud
-sudo DEVCLOUD_SERVICE_USER=root bash deploy/configure_selinux.sh
+sudo AIFACTORY_SERVICE_USER=root bash deploy/configure_selinux.sh
 bash deploy/restart.sh
 sudo ausearch -m AVC,USER_AVC -ts boot
 ```
@@ -80,11 +80,11 @@ directory and database record remain intact:
 
 ```bash
 podman ps -a --format '{{.Names}}'
-podman rm -f devcloud-USER-WORKSPACE
+podman rm -f aifactory-USER-WORKSPACE
 ```
 
-Replace the example name with one exact `devcloud-...` name from the first
-command. Do not delete `/var/lib/devcloud/workspaces`.
+Replace the example name with one exact `aifactory-...` name from the first
+command. Do not delete `/var/lib/aifactory/workspaces`.
 
 ### 4. Switch to enforcing
 
@@ -104,9 +104,9 @@ the smoke tests.
 ## Verification and troubleshooting
 
 ```bash
-ls -Zd /var/lib/devcloud/workspaces
+ls -Zd /var/lib/aifactory/workspaces
 podman inspect --format '{{range .Mounts}}{{println .Source .Destination .Options}}{{end}}' CONTAINER_NAME
-sudo journalctl -u devcloud -n 100 --no-pager
+sudo journalctl -u aifactory -n 100 --no-pager
 sudo ausearch -m AVC,USER_AVC -ts recent
 ```
 

@@ -137,15 +137,15 @@ cd devcloud-worker</pre>
     </div>
     <div style="background:rgba(255,255,255,.02);border:1px solid var(--border-color);border-radius:var(--radius-md);padding:1.25rem;">
       <h3 style="font-size:1.05rem;color:#fff;margin:0 0 .75rem;">2. Worker kimlik bilgilerini hazırlayın</h3>
-      <pre class="terminal-window" style="font-size:.85rem;padding:.85rem 1rem;">sudo install -d -m 0755 /etc/devcloud
-sudo install -m 0600 deploy/worker.env.example /etc/devcloud/worker.env
-sudo vi /etc/devcloud/worker.env</pre>
+      <pre class="terminal-window" style="font-size:.85rem;padding:.85rem 1rem;">sudo install -d -m 0755 /etc/aifactory
+sudo install -m 0600 deploy/worker.env.example /etc/aifactory/worker.env
+sudo vi /etc/aifactory/worker.env</pre>
       <small style="color:var(--text-muted);">Controller URL, node ID ve node token alanlarını yönetim panelindeki değerlerle doldurun.</small>
     </div>
     <div style="background:rgba(255,255,255,.02);border:1px solid var(--border-color);border-radius:var(--radius-md);padding:1.25rem;">
       <h3 style="font-size:1.05rem;color:#fff;margin:0 0 .75rem;">3. Worker'ı kurun</h3>
       <pre class="terminal-window" style="font-size:.85rem;padding:.85rem 1rem;">sudo bash deploy/deploy_worker_offline.sh
-sudo journalctl -u devcloud-worker -f</pre>
+sudo journalctl -u aifactory-worker -f</pre>
       <small style="color:var(--color-success);">Kurucu eksik Podman, Python ve subscription-manager RPM'lerini yerel paketten yükler. Worker yalnızca controller'a doğru HTTPS/WSS bağlantısı açar; inbound yönetim portu gerekmez.</small>
     </div>
   </div>

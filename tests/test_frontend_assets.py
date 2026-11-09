@@ -355,7 +355,7 @@ def test_mlflow_tracking_pages_cover_runs_artifacts_comparison_and_lineage():
     assert "/api/mlflow/overview" in javascript
     assert "/history" in javascript
     assert "/artifacts/preview" in javascript
-    assert "devcloud.mlflow.savedFilters.v1" in javascript
+    assert "aifactory.mlflow.savedFilters.v1" in javascript
     assert 'id="mlflow-dashboard"' in dashboard
     assert 'href="/mlflow"' in nav
     assert 'href="/experiments"' in nav
@@ -372,7 +372,7 @@ def test_worker_bootstrap_uses_one_time_admin_command():
 
     assert "Admin &gt; Worker Node'ları" in template
     assert "worker_bootstrap_url" not in template
-    assert "devcloud-setup.sh" in bootstrap
+    assert "aifactory-setup.sh" in bootstrap
     assert "--yes install worker" in bootstrap
     assert "sha256sum -c" in bootstrap
     assert 'tar -xf "${BUNDLE_PATH}"' in bootstrap
@@ -380,7 +380,7 @@ def test_worker_bootstrap_uses_one_time_admin_command():
     assert "devcloud-worker-offline-*.tar.gz.sha256" in template
     assert "Worker name" in bootstrap
     assert "/api/bootstrap/workers/" not in bootstrap
-    assert "DEVCLOUD_NODE_TOKEN" not in template
+    assert "AIFACTORY_NODE_TOKEN" not in template
 
 
 def test_institutional_brand_mark_replaces_text_placeholder():

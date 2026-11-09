@@ -12,8 +12,8 @@ assert(image, 'Usage: node smoke-vscode.cjs IMAGE');
 const containerfile = fs.readFileSync(path.join(__dirname, '../../containers/vscode-kilo/Containerfile'), 'utf8');
 const expectedVersion = (containerfile.match(/^ARG KILO_CODE_VERSION=(\S+)$/m) || [])[1];
 assert(expectedVersion, 'KILO_CODE_VERSION is missing from containers/vscode-kilo/Containerfile');
-const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'devcloud-kilo-code-smoke-'));
-const container = `devcloud-kilo-code-smoke-${process.pid}`;
+const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'aifactory-kilo-code-smoke-'));
+const container = `aifactory-kilo-code-smoke-${process.pid}`;
 const docker = (...args) => execFileSync('docker', args, { encoding: 'utf8', timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] });
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const userDir = '/home/coder/.local/share/code-server/User';
@@ -21,7 +21,7 @@ const configDir = '/home/coder/.config/kilo';
 
 fs.mkdirSync(path.join(fixture, 'extension'));
 fs.writeFileSync(path.join(fixture, 'extension/package.json'), JSON.stringify({
-  name: 'kilo-code-smoke', publisher: 'devcloud-test', version: '0.0.1',
+  name: 'kilo-code-smoke', publisher: 'aifactory-test', version: '0.0.1',
   engines: { vscode: '^1.105.0' }, main: './extension.js',
   activationEvents: ['onStartupFinished'],
 }));
@@ -40,16 +40,16 @@ exports.activate = async () => {
     await kilo.activate();
     if (!kilo.isActive) throw Error('Kilo Code did not activate');
     await vscode.commands.executeCommand('kilo-code.SidebarProvider.focus');
-    fs.writeFileSync('/tmp/devcloud-kilo-code-smoke.json', JSON.stringify({ok:true}));
+    fs.writeFileSync('/tmp/aifactory-kilo-code-smoke.json', JSON.stringify({ok:true}));
   } catch (error) {
-    fs.writeFileSync('/tmp/devcloud-kilo-code-smoke.json', JSON.stringify({ok:false,error:String(error.stack || error)}));
+    fs.writeFileSync('/tmp/aifactory-kilo-code-smoke.json', JSON.stringify({ok:false,error:String(error.stack || error)}));
   }
 };
 `);
 fs.writeFileSync(path.join(fixture, '[Content_Types].xml'),
   '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="json" ContentType="application/json"/><Default Extension="js" ContentType="application/javascript"/><Default Extension="vsixmanifest" ContentType="text/xml"/></Types>');
 fs.writeFileSync(path.join(fixture, 'extension.vsixmanifest'),
-  '<?xml version="1.0"?><PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011"><Metadata><Identity Language="en-US" Id="kilo-code-smoke" Version="0.0.1" Publisher="devcloud-test"/><DisplayName>Kilo Code smoke test</DisplayName><Description xml:space="preserve">CI only</Description><Properties><Property Id="Microsoft.VisualStudio.Code.Engine" Value="^1.105.0"/></Properties></Metadata><Installation><InstallationTarget Id="Microsoft.VisualStudio.Code"/></Installation><Dependencies/><Assets><Asset Type="Microsoft.VisualStudio.Code.Manifest" Path="extension/package.json" Addressable="true"/></Assets></PackageManifest>');
+  '<?xml version="1.0"?><PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011"><Metadata><Identity Language="en-US" Id="kilo-code-smoke" Version="0.0.1" Publisher="aifactory-test"/><DisplayName>Kilo Code smoke test</DisplayName><Description xml:space="preserve">CI only</Description><Properties><Property Id="Microsoft.VisualStudio.Code.Engine" Value="^1.105.0"/></Properties></Metadata><Installation><InstallationTarget Id="Microsoft.VisualStudio.Code"/></Installation><Dependencies/><Assets><Asset Type="Microsoft.VisualStudio.Code.Manifest" Path="extension/package.json" Addressable="true"/></Assets></PackageManifest>');
 execFileSync('zip', ['-qr', 'smoke.vsix', 'extension', '[Content_Types].xml', 'extension.vsixmanifest'], { cwd: fixture });
 
 // The same renderer the controller uses, with dummy keys and an unreachable gateway.
@@ -117,7 +117,7 @@ fs.writeFileSync(path.join(fixture, 'settings.json'), JSON.stringify({
     let agentRunning = false;
     while (Date.now() < deadline) {
       try {
-        const result = JSON.parse(docker('exec', container, 'cat', '/tmp/devcloud-kilo-code-smoke.json'));
+        const result = JSON.parse(docker('exec', container, 'cat', '/tmp/aifactory-kilo-code-smoke.json'));
         assert(result.ok, result.error);
         activated = true;
       } catch (error) {

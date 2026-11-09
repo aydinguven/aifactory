@@ -2,17 +2,17 @@
 # Reload AI Factory's Uvicorn workers without stopping Podman workspace containers.
 set -Eeuo pipefail
 
-SERVICE_NAME="${DEVCLOUD_SERVICE_NAME:-devcloud.service}"
-RELOAD_TIMEOUT_SECONDS="${DEVCLOUD_RELOAD_TIMEOUT_SECONDS:-25}"
-START_TIMEOUT_SECONDS="${DEVCLOUD_START_TIMEOUT_SECONDS:-25}"
-HEALTH_URL="${DEVCLOUD_HEALTH_URL:-http://127.0.0.1:8000/login}"
+SERVICE_NAME="${AIFACTORY_SERVICE_NAME:-aifactory.service}"
+RELOAD_TIMEOUT_SECONDS="${AIFACTORY_RELOAD_TIMEOUT_SECONDS:-25}"
+START_TIMEOUT_SECONDS="${AIFACTORY_START_TIMEOUT_SECONDS:-25}"
+HEALTH_URL="${AIFACTORY_HEALTH_URL:-http://127.0.0.1:8000/login}"
 
 log() {
-    printf '[devcloud-restart] %s\n' "$*"
+    printf '[aifactory-restart] %s\n' "$*"
 }
 
 fail() {
-    printf '[devcloud-restart] ERROR: %s\n' "$*" >&2
+    printf '[aifactory-restart] ERROR: %s\n' "$*" >&2
     exit 1
 }
 
@@ -21,9 +21,9 @@ is_positive_integer() {
 }
 
 is_positive_integer "${RELOAD_TIMEOUT_SECONDS}" ||
-    fail "DEVCLOUD_RELOAD_TIMEOUT_SECONDS must be a positive integer."
+    fail "AIFACTORY_RELOAD_TIMEOUT_SECONDS must be a positive integer."
 is_positive_integer "${START_TIMEOUT_SECONDS}" ||
-    fail "DEVCLOUD_START_TIMEOUT_SECONDS must be a positive integer."
+    fail "AIFACTORY_START_TIMEOUT_SECONDS must be a positive integer."
 
 if (( EUID == 0 )); then
     SUDO=()
@@ -87,7 +87,7 @@ health_ready() {
 show_diagnostics() {
     local state
     state="$(service_state)"
-    printf '[devcloud-restart] Service did not become healthy (state: %s).\n' "${state}" >&2
+    printf '[aifactory-restart] Service did not become healthy (state: %s).\n' "${state}" >&2
     systemctl_cmd status "${SERVICE_NAME}" --no-pager --full || true
     "${SUDO[@]}" journalctl -u "${SERVICE_NAME}" -n 40 --no-pager || true
 }
@@ -115,7 +115,7 @@ STATE="$(service_state)"
 OLD_MAIN_PID="$(main_pid)"
 
 if [[ "${STATE}" == "deactivating" ]]; then
-    fail "${SERVICE_NAME} is already stuck deactivating. Stop the listed devcloud-* containers once, wait for the unit to become inactive, then rerun this helper. Persistent workspace volumes are not deleted."
+    fail "${SERVICE_NAME} is already stuck deactivating. Stop the listed aifactory-* containers once, wait for the unit to become inactive, then rerun this helper. Persistent workspace volumes are not deleted."
 fi
 
 if [[ "${STATE}" == "active" ]] && pid_is_alive "${OLD_MAIN_PID}"; then

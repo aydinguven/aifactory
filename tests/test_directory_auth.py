@@ -39,7 +39,7 @@ def _settings_payload(**overrides):
         "validate_tls": True,
         "ca_cert_file": "",
         "connect_timeout_seconds": 10,
-        "bind_dn": "CN=svc-devcloud,OU=Services,DC=example,DC=com",
+        "bind_dn": "CN=svc-aifactory,OU=Services,DC=example,DC=com",
         "bind_password": "bind-secret",
         "user_base_dn": "OU=Users,DC=example,DC=com",
         "user_filter": "(&(objectClass=user)(sAMAccountName={username}))",

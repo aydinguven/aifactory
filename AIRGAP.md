@@ -1,11 +1,11 @@
 # Air-Gapped Deployment
 
 The unified lifecycle entry point for newly produced bundles is
-sudo bash deploy/devcloud-setup.sh; it prompts for controller, all-in-one, or
+sudo bash deploy/aifactory-setup.sh; it prompts for controller, all-in-one, or
 worker role. The older deploy_offline.sh commands later in this document
 describe pre-unified bundles and remain for migration compatibility. For an
 in-place disconnected update, transfer a signed release or reviewed Git ZIP
-and use devcloud-setup update with the bundle path; do not extract over the
+and use aifactory-setup update with the bundle path; do not extract over the
 active release.
 
 This runbook creates Linux x86_64 server or CPU-worker base bundles
@@ -76,7 +76,7 @@ sudo dnf install -y createrepo_c
 
 The default PostgreSQL source is the public upstream SCL CentOS Stream 10
 image. To package the entitled RHEL 10 image or an internal mirror instead, set
-DEVCLOUD_POSTGRES_SOURCE_IMAGE before running the builder; authenticate to that
+AIFACTORY_POSTGRES_SOURCE_IMAGE before running the builder; authenticate to that
 registry first when required.
 
 ```bash
@@ -226,7 +226,7 @@ access disabled for this test. From the transfer directory:
 sha256sum -c devcloud-offline-*.tar.gz.sha256
 tar -xzf devcloud-offline-*.tar.gz
 cd devcloud
-sudo bash deploy/devcloud-setup.sh
+sudo bash deploy/aifactory-setup.sh
 ```
 
 The first unified-installer run detects the manifest, verifies
@@ -241,7 +241,7 @@ verify its repositories, and rerun setup:
 ```bash
 subscription-manager register --org='YOUR_ORG' --activationkey='YOUR_KEY'
 dnf repolist
-sudo bash deploy/devcloud-setup.sh
+sudo bash deploy/aifactory-setup.sh
 ```
 
 The second run installs all other operating-system prerequisites from the
@@ -283,12 +283,12 @@ Quadlet services, and publishes the same bundle for enrolled workers.
 Apply the signed bundle:
 
 ```bash
-sudo bash /opt/devcloud/current/deploy/devcloud-setup.sh --yes update \
+sudo bash /opt/aifactory/current/deploy/aifactory-setup.sh --yes update \
   --bundle /root/devcloud-platform-update-v3.4.7-COMMIT.tar.gz
 ```
 
 The release is rejected unless its manifest signature chains to
-`/etc/devcloud/release-keyring.gpg`. It may alternatively be uploaded from
+`/etc/aifactory/release-keyring.gpg`. It may alternatively be uploaded from
 **Admin > System > Platform Güncelleme**. For an operator-reviewed unsigned
 bundle, select **İmzasız güncellemeye izin ver** and accept the additional
 warning. Workers only need connectivity to the controller; they download the
@@ -299,7 +299,7 @@ published bundle through authenticated endpoints.
 The controller remains usable over HTTP when no certificate exists. To enable TLS,
 open **Admin > Çevrim Dışı İndirmeler > HTTPS & Sertifika Yönetimi**:
 
-1. set the hostname to devcloud.example.com;
+1. set the hostname to aifactory.example.com;
 2. upload the CA-issued certificate chain in PEM format;
 3. upload the matching, unencrypted PEM private key;
 4. if workers do not already trust the issuing PKI, upload the CA-only worker
@@ -311,12 +311,12 @@ open **Admin > Çevrim Dışı İndirmeler > HTTPS & Sertifika Yönetimi**:
 The panel rejects expired/not-yet-valid certificates, SAN mismatches, non-server
 certificates, mismatched private keys, and oversized uploads. Nginx is tested
 before reload and the previous active files are restored on failure. The
-root-owned devcloud-ingress.path unit handles only fixed files under
-/var/lib/devcloud/ingress; the application user is not granted passwordless
+root-owned aifactory-ingress.path unit handles only fixed files under
+/var/lib/aifactory/ingress; the application user is not granted passwordless
 sudo.
 
 The application URL used by worker bootstrap changes to
-https://devcloud.example.com when HTTPS is enabled. New remote worker commands
+https://aifactory.example.com when HTTPS is enabled. New remote worker commands
 require this HTTPS FQDN. The command uses an Admin-delivered SPKI pin to
 bootstrap an uploaded private CA bundle, then keeps normal CA and hostname
 validation enabled. A configured fallback IPv4 is tried only after FQDN network

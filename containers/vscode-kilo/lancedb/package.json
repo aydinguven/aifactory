@@ -1,5 +1,5 @@
 {
-  "name": "devcloud-kilo-lancedb",
+  "name": "aifactory-kilo-lancedb",
   "private": true,
   "description": "LanceDB runtime that Kilo Code loads through KILO_LANCEDB_PATH for codebase indexing.",
   "dependencies": {

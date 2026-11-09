@@ -8,6 +8,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from app.installer.engine import InstallerEngine
+from app.installer.layout import CURRENT, LEGACY
+from app.installer.legacy_layout import (
+    LegacyMigration,
+    legacy_state_file,
+    migrated_configuration,
+    needs_migration,
+    recover_interrupted_migration,
+)
+from app.installer.state import InstallationState
 from app.installer.models import (
     DeploymentRole,
     InstallConfig,
@@ -27,12 +36,14 @@ from app.platform_release import (
 from deploy.package_offline import PackageError, verify_staged_bundle
 
 
-DEFAULT_STATE_ROOT = "/var/lib/devcloud/installer"
+DEFAULT_STATE_ROOT = CURRENT.state_root
+DEFAULT_KEYRING = Path(f"{CURRENT.etc_dir}/release-keyring.gpg")
+LEGACY_KEYRING = Path(f"{LEGACY.etc_dir}/release-keyring.gpg")
 # The update was applied, but publishing the worker bundle failed. The root
 # updater reports this as a successful update with a warning.
 EXIT_APPLIED_PUBLISH_FAILED = 3
 REPUBLISH_HINT = (
-    "Free disk space, then run: bash /opt/devcloud/current/deploy/devcloud-setup.sh "
+    "Free disk space, then run: bash /opt/aifactory/current/deploy/aifactory-setup.sh "
     "--yes publish-worker-bundle"
 )
 
@@ -54,15 +65,15 @@ def _worker_config_from_environment(
     """Build a non-interactive worker config for the shell bootstrap.
 
     The shell bootstrap deliberately cannot depend on Python being present:
-    devcloud-setup installs Python after subscription-manager is available.
+    aifactory-setup installs Python after subscription-manager is available.
     Environment variables carry the enrollment answers across that boundary.
     """
     if role != DeploymentRole.WORKER:
         return None
     names = {
-        "controller_url": "DEVCLOUD_INSTALL_CONTROLLER_URL",
-        "worker_id": "DEVCLOUD_INSTALL_WORKER_ID",
-        "enrollment_token_file": "DEVCLOUD_INSTALL_TOKEN_FILE",
+        "controller_url": "AIFACTORY_INSTALL_CONTROLLER_URL",
+        "worker_id": "AIFACTORY_INSTALL_WORKER_ID",
+        "enrollment_token_file": "AIFACTORY_INSTALL_TOKEN_FILE",
     }
     values = {key: os.environ.get(name, "").strip() for key, name in names.items()}
     if not any(values.values()):
@@ -74,36 +85,36 @@ def _worker_config_from_environment(
             + ", ".join(missing)
         )
     runtime_value = (
-        os.environ.get("DEVCLOUD_INSTALL_WORKER_RUNTIME", "").strip()
+        os.environ.get("AIFACTORY_INSTALL_WORKER_RUNTIME", "").strip()
         or WorkerRuntime.CONTAINER.value
     )
     try:
         worker_runtime = WorkerRuntime(runtime_value)
     except ValueError as exc:
         raise InstallerError(
-            "DEVCLOUD_INSTALL_WORKER_RUNTIME must be container or native"
+            "AIFACTORY_INSTALL_WORKER_RUNTIME must be container or native"
         ) from exc
     return InstallConfig(
         role=role,
         controller_url=values["controller_url"],
         controller_fallback_ipv4=os.environ.get(
-            "DEVCLOUD_INSTALL_CONTROLLER_FALLBACK_IPV4", ""
+            "AIFACTORY_INSTALL_CONTROLLER_FALLBACK_IPV4", ""
         ).strip(),
         agent_ca_file=os.environ.get(
-            "DEVCLOUD_INSTALL_AGENT_CA_FILE", ""
+            "AIFACTORY_INSTALL_AGENT_CA_FILE", ""
         ).strip(),
         worker_id=values["worker_id"],
         enrollment_token_file=values["enrollment_token_file"],
         worker_name=(
-            os.environ.get("DEVCLOUD_INSTALL_WORKER_NAME", "").strip()
+            os.environ.get("AIFACTORY_INSTALL_WORKER_NAME", "").strip()
             or socket.gethostname()
         ),
         workspace_root=(
-            os.environ.get("DEVCLOUD_INSTALL_WORKSPACE_ROOT", "").strip()
-            or "/var/lib/devcloud/workspaces"
+            os.environ.get("AIFACTORY_INSTALL_WORKSPACE_ROOT", "").strip()
+            or "/var/lib/aifactory/workspaces"
         ),
         preload_images=os.environ.get(
-            "DEVCLOUD_INSTALL_PRELOAD_IMAGES", "false"
+            "AIFACTORY_INSTALL_PRELOAD_IMAGES", "false"
         ).strip().lower()
         not in {"0", "false", "no"},
         worker_runtime=worker_runtime,
@@ -112,7 +123,7 @@ def _worker_config_from_environment(
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="devcloud-setup",
+        prog="aifactory-setup",
         description="Interactive installer and lifecycle manager for AI Factory",
     )
     parser.add_argument("--dry-run", action="store_true", help="show and record commands without changing the host")
@@ -146,7 +157,8 @@ def _parser() -> argparse.ArgumentParser:
     update.add_argument(
         "--keyring",
         type=Path,
-        default=Path("/etc/devcloud/release-keyring.gpg"),
+        default=None,
+        help=f"release verification keyring (default: {DEFAULT_KEYRING})",
     )
     # Internal: apply an already verified, extracted release with this code.
     update.add_argument("--prepared-root", type=Path, help=argparse.SUPPRESS)
@@ -177,7 +189,11 @@ def _parser() -> argparse.ArgumentParser:
 
 def _should_delegate(target_root: Path, args) -> bool:
     """Run the target release's installer unless it is this very code."""
-    if args.dry_run or os.environ.get("DEVCLOUD_INSTALLER_DELEGATED") == "1":
+    if args.dry_run or "1" in {
+        os.environ.get("AIFACTORY_INSTALLER_DELEGATED"),
+        # Set by the devcloud installer (before 3.49.1).
+        os.environ.get("DEVCLOUD_INSTALLER_DELEGATED"),
+    }:
         return False
     own_root = Path(__file__).resolve().parents[2]
     return (
@@ -199,7 +215,7 @@ def _delegate_update(target_root: Path, args) -> int:
     env = {
         **os.environ,
         "PYTHONPATH": str(target_root.resolve()),
-        "DEVCLOUD_INSTALLER_DELEGATED": "1",
+        "AIFACTORY_INSTALLER_DELEGATED": "1",
     }
     return subprocess.run(command, cwd="/", env=env, check=False).returncode
 
@@ -209,6 +225,35 @@ def _config_from_state(engine: InstallerEngine) -> InstallConfig:
     if state is None:
         raise InstallerError("No managed AI Factory installation was found")
     return InstallConfig.from_dict({**state.configuration, "role": state.role})
+
+
+def _legacy_state(engine: InstallerEngine) -> InstallationState | None:
+    return InstallationState.load(legacy_state_file(engine.host_path))
+
+
+def _legacy_configs(engine: InstallerEngine) -> tuple[InstallConfig, InstallConfig]:
+    """Installed devcloud configuration and the same one with the new names."""
+    state = _legacy_state(engine) or engine.current_state(DEFAULT_STATE_ROOT)
+    if state is None:
+        raise InstallerError("No managed AI Factory installation was found")
+    values = {**state.configuration, "role": state.role}
+    return (
+        InstallConfig.from_dict(values),
+        InstallConfig.from_dict(migrated_configuration(values)),
+    )
+
+
+def _migration_for(update_engine: InstallerEngine, legacy: bool) -> LegacyMigration | None:
+    if not legacy:
+        return None
+    legacy_config, config = _legacy_configs(update_engine)
+    state = _legacy_state(update_engine)
+    return LegacyMigration(
+        update_engine,
+        legacy_config,
+        config,
+        legacy_version=state.version if state else "unknown",
+    )
 
 
 def _execute_plan(plan, ui: InstallerUI, *, assume_yes: bool) -> bool:
@@ -255,7 +300,9 @@ def main(argv: list[str] | None = None) -> int:
         command = args.command
         if command is None:
             command = _interactive_command(
-                ui, engine.current_state(DEFAULT_STATE_ROOT) is not None
+                ui,
+                engine.current_state(DEFAULT_STATE_ROOT) is not None
+                or needs_migration(engine.host_path),
             )
             if command == "quit":
                 return 0
@@ -290,10 +337,26 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if command == "status":
-            ui.write(json.dumps(engine.status(DEFAULT_STATE_ROOT), indent=2))
+            state_root = (
+                LEGACY.state_root if needs_migration(engine.host_path) else DEFAULT_STATE_ROOT
+            )
+            ui.write(json.dumps(engine.status(state_root), indent=2))
             return 0
 
-        config = _config_from_state(engine)
+        if not args.dry_run and recover_interrupted_migration(
+            engine, lambda: _legacy_configs(engine)
+        ):
+            ui.write("An interrupted move to the aifactory names was undone.")
+        legacy = needs_migration(engine.host_path)
+        if legacy:
+            if command != "update":
+                raise InstallerError(
+                    "This host still uses the devcloud names. Update it to "
+                    "3.49.1 or later first; the update moves it to the aifactory names."
+                )
+            config = _legacy_configs(engine)[1]
+        else:
+            config = _config_from_state(engine)
 
         if command == "publish-worker-bundle":
             if not config.installs_controller:
@@ -315,7 +378,7 @@ def main(argv: list[str] | None = None) -> int:
 
         if command == "backup":
             default_output = Path.cwd() / (
-                "devcloud-backup-"
+                "aifactory-backup-"
                 + datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
                 + ".tar.gz"
             )
@@ -367,7 +430,9 @@ def main(argv: list[str] | None = None) -> int:
                 runner=runner,
             )
             applied = _execute_plan(
-                update_engine.build_update_plan(config),
+                update_engine.build_update_plan(
+                    config, migration=_migration_for(update_engine, legacy)
+                ),
                 ui,
                 assume_yes=args.yes,
             )
@@ -428,9 +493,10 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 if not ui.confirm("Continue with this unsigned source?", False):
                     return 0
-            keyring = engine.host_path(
-                getattr(args, "keyring", Path("/etc/devcloud/release-keyring.gpg"))
-            )
+            keyring = getattr(args, "keyring", None)
+            if keyring is None:
+                keyring = LEGACY_KEYRING if legacy else DEFAULT_KEYRING
+            keyring = engine.host_path(keyring)
             with resolve_update_bundle(
                 source_type=source_type,
                 location=location,
@@ -464,7 +530,10 @@ def main(argv: list[str] | None = None) -> int:
                             runner=runner,
                         )
                         applied = _execute_plan(
-                            update_engine.build_update_plan(config),
+                            update_engine.build_update_plan(
+                                config,
+                                migration=_migration_for(update_engine, legacy),
+                            ),
                             ui,
                             assume_yes=args.yes,
                         )

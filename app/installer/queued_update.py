@@ -55,7 +55,7 @@ def _open_output(path: Path):
 
 def main() -> int:
     root = Path(
-        os.environ.get("UPDATE_QUEUE_ROOT", "/var/lib/devcloud/update-queue")
+        os.environ.get("UPDATE_QUEUE_ROOT", "/var/lib/aifactory/update-queue")
     ).resolve()
     pending = root / "pending.json"
     running = root / "running.json"
@@ -72,7 +72,7 @@ def main() -> int:
         return 0
     try:
         request = json.loads(running.read_text(encoding="utf-8"))
-        setup = Path(__file__).resolve().parents[2] / "deploy" / "devcloud-setup.sh"
+        setup = Path(__file__).resolve().parents[2] / "deploy" / "aifactory-setup.sh"
         if not setup.is_file():
             raise RuntimeError(f"Active release installer is missing: {setup}")
         source_type = str(request.get("source_type") or "bundle")
@@ -131,7 +131,7 @@ def main() -> int:
                         "warning": (
                             "Platform güncellendi ancak worker güncelleme paketi "
                             "yayınlanamadı (genellikle disk dolu). Yer açıp "
-                            "'devcloud-setup.sh --yes publish-worker-bundle' çalıştırın."
+                            "'aifactory-setup.sh --yes publish-worker-bundle' çalıştırın."
                         )
                     }
                     if returncode == PUBLISH_FAILED_EXIT_CODE

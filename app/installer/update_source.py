@@ -19,7 +19,9 @@ from app.platform_release import sha256_file
 
 
 MAX_UPDATE_BYTES = 32 * 1024 * 1024 * 1024
-CHANNEL_FILENAME = "devcloud-update-channel.json"
+CHANNEL_FILENAME = "aifactory-update-channel.json"
+# Channel name read by releases before 3.49.1; it stays frozen at 3.49.1.
+LEGACY_CHANNEL_FILENAME = "devcloud-update-channel.json"
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,6 +83,8 @@ def parse_channel(value: object) -> ReleaseChannel:
 
 def read_channel(repository: Path) -> ReleaseChannel:
     path = repository / CHANNEL_FILENAME
+    if not path.is_file() or path.is_symlink():
+        path = repository / LEGACY_CHANNEL_FILENAME
     if not path.is_file() or path.is_symlink():
         raise InstallerError(f"Update channel file is missing: {CHANNEL_FILENAME}")
     try:
@@ -171,7 +175,7 @@ def resolve_update_bundle(
     if source_type != "git":
         raise InstallerError(f"Unsupported update source: {source_type}")
     location, ref = validate_git_source(location, ref)
-    with tempfile.TemporaryDirectory(prefix="devcloud-update-source-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="aifactory-update-source-") as temporary:
         root = Path(temporary)
         checkout = root / "repository"
         checkout.mkdir()

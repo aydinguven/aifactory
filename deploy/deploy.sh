@@ -24,15 +24,15 @@ fi
 
 # 2. Setup Workspace Directory and Permissions
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-WORKSPACES_DIR="/var/lib/devcloud/workspaces"
+WORKSPACES_DIR="/var/lib/aifactory/workspaces"
 
 echo "Creating workspace directory at: ${WORKSPACES_DIR}"
 sudo mkdir -p "${WORKSPACES_DIR}"
 sudo chown "$USER:$USER" "${WORKSPACES_DIR}"
 sudo chmod 755 "${WORKSPACES_DIR}"
 
-DOWNLOADS_DIR="/srv/devcloud-downloads"
-DOWNLOAD_BUILD_DIR="/var/lib/devcloud/download-builds"
+DOWNLOADS_DIR="/srv/aifactory-downloads"
+DOWNLOAD_BUILD_DIR="/var/lib/aifactory/download-builds"
 echo "Preparing offline download publication directories..."
 sudo install -d -o "$USER" -g "$USER" -m 0755 "${DOWNLOADS_DIR}"
 sudo install -d -o "$USER" -g "$USER" -m 0750 "${DOWNLOAD_BUILD_DIR}"
@@ -42,7 +42,7 @@ if command -v restorecon >/dev/null 2>&1; then
 fi
 
 echo "Configuring SELinux workspace labels when supported..."
-DEVCLOUD_SERVICE_USER="$USER" bash "${PROJECT_DIR}/deploy/configure_selinux.sh"
+AIFACTORY_SERVICE_USER="$USER" bash "${PROJECT_DIR}/deploy/configure_selinux.sh"
 
 # 3. Create Python Virtual Environment & Install Dependencies
 echo "Setting up Python virtual environment..."
@@ -58,13 +58,13 @@ bash containers/build_images.sh
 
 # 5. Setup Systemd Service
 echo "Installing AI Factory systemd service..."
-SERVICE_FILE="/etc/systemd/system/devcloud.service"
+SERVICE_FILE="/etc/systemd/system/aifactory.service"
 sudo sed -e "s|{{USER}}|$USER|g" \
          -e "s|{{PROJECT_DIR}}|$PROJECT_DIR|g" \
-         "${PROJECT_DIR}/deploy/devcloud.service" | sudo tee "${SERVICE_FILE}" > /dev/null
+         "${PROJECT_DIR}/deploy/aifactory.service" | sudo tee "${SERVICE_FILE}" > /dev/null
 
 sudo systemctl daemon-reload
-sudo systemctl enable devcloud
+sudo systemctl enable aifactory
 sudo bash "${PROJECT_DIR}/deploy/install_ingress.sh" "$USER"
 bash "${PROJECT_DIR}/deploy/restart.sh"
 

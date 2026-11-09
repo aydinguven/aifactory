@@ -58,7 +58,7 @@ def normalize_https_hostname(value: str) -> str:
         for label in labels
     ):
         raise IngressConfigurationError(
-            "HTTPS hostname tam bir DNS adı olmalıdır (ör. devcloud.example.com)."
+            "HTTPS hostname tam bir DNS adı olmalıdır (ör. aifactory.example.com)."
         )
     return hostname
 
@@ -297,7 +297,7 @@ class IngressManager:
             )
         raise IngressApplyError(
             "Nginx uygulama servisi yanıt vermedi. "
-            "devcloud-ingress.path ve devcloud-ingress.service durumunu kontrol edin."
+            "aifactory-ingress.path ve aifactory-ingress.service durumunu kontrol edin."
         )
 
     async def apply(

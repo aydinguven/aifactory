@@ -146,11 +146,19 @@
       compare.textContent = count ? `${count} run'ı karşılaştır` : "Seçilen run'ları karşılaştır";
     };
     const readSaved = () => {
-      try { return JSON.parse(localStorage.getItem("devcloud.mlflow.savedFilters.v1") || "{}"); }
+      try {
+        // Filters saved before 3.49.1 use the devcloud key; move them once.
+        const legacy = localStorage.getItem("devcloud.mlflow.savedFilters.v1");
+        if (legacy !== null && localStorage.getItem("aifactory.mlflow.savedFilters.v1") === null) {
+          localStorage.setItem("aifactory.mlflow.savedFilters.v1", legacy);
+        }
+        localStorage.removeItem("devcloud.mlflow.savedFilters.v1");
+        return JSON.parse(localStorage.getItem("aifactory.mlflow.savedFilters.v1") || "{}");
+      }
       catch (_) { return {}; }
     };
     const writeSaved = data => {
-      try { localStorage.setItem("devcloud.mlflow.savedFilters.v1", JSON.stringify(data)); }
+      try { localStorage.setItem("aifactory.mlflow.savedFilters.v1", JSON.stringify(data)); }
       catch (_) { builderStatus.textContent = "Tarayıcı filtreleri kaydedemedi."; }
     };
     const renderSaved = () => {

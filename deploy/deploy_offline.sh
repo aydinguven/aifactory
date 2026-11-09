@@ -20,7 +20,7 @@ PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OFFLINE_DIR="${PROJECT_DIR}/offline"
 WHEELS_DIR="${OFFLINE_DIR}/wheels"
 IMAGES_DIR="${OFFLINE_DIR}/images"
-WORKSPACES_DIR="/var/lib/devcloud/workspaces"
+WORKSPACES_DIR="/var/lib/aifactory/workspaces"
 # Fix Podman RunRoot & Storage permissions (prevent "RunRoot is pointing to a path which is not writeable")
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/0}"
 mkdir -p /run/user/0 /run/containers/storage /var/lib/containers/storage
@@ -102,7 +102,7 @@ echo "--> Detected Host OS: $(cat /etc/redhat-release 2>/dev/null || cat /etc/os
 # 2. Setup Persistent Storage Directory and SELinux
 echo "=== [1/5] Configuring workspace persistent storage directory ==="
 echo "--> Configuring persistent SELinux workspace labels when supported..."
-DEVCLOUD_SERVICE_USER="root" bash "${PROJECT_DIR}/deploy/configure_selinux.sh"
+AIFACTORY_SERVICE_USER="root" bash "${PROJECT_DIR}/deploy/configure_selinux.sh"
 
 # 3. Create Virtualenv and Install Cached Linux Wheels
 echo "=== [2/5] Installing Python packages from offline wheels ==="
@@ -133,7 +133,7 @@ fi
 echo "Loaded ${IMAGE_COUNT} legacy image archive(s). Managed workspace images are added in Admin after installation."
 
 echo "Available Podman images:"
-podman images | grep -E "devcloud|REPOSITORY" || true
+podman images | grep -E "aifactory|REPOSITORY" || true
 
 # 5. Configure the Nginx HTTP ingress. HTTPS can be enabled later in Admin.
 echo "=== [4/5] Configuring Nginx ingress on port 80 ==="
@@ -141,20 +141,20 @@ bash "${PROJECT_DIR}/deploy/install_ingress.sh" root
 
 # 6. Install and Start Systemd Service
 echo "=== [5/5] Configuring and starting systemd service ==="
-SERVICE_FILE="/etc/systemd/system/devcloud.service"
+SERVICE_FILE="/etc/systemd/system/aifactory.service"
 sed -e "s|{{USER}}|root|g" \
     -e "s|{{PROJECT_DIR}}|$PROJECT_DIR|g" \
-    "${PROJECT_DIR}/deploy/devcloud.service" | tee "${SERVICE_FILE}" > /dev/null
+    "${PROJECT_DIR}/deploy/aifactory.service" | tee "${SERVICE_FILE}" > /dev/null
 
 systemctl daemon-reload
-systemctl enable devcloud
+systemctl enable aifactory
 bash "${PROJECT_DIR}/deploy/restart.sh"
 
 IP_ADDR=$(hostname -I 2>/dev/null | awk '{print $1}' || echo '127.0.0.1')
 
 echo "=============================================================================="
 echo "AI Factory Deployment Completed Successfully on Fedora-based VM!"
-echo "Status: Active and running on systemd service 'devcloud'"
+echo "Status: Active and running on systemd service 'aifactory'"
 echo "Dashboard URL: http://${IP_ADDR}"
-echo "Check logs: sudo journalctl -u devcloud -f"
+echo "Check logs: sudo journalctl -u aifactory -f"
 echo "=============================================================================="

@@ -7,7 +7,7 @@ from threading import Event
 from app.models.workspace import Workspace
 from app.orchestrator.podman_service import podman_service
 
-logger = logging.getLogger("devcloud.backup")
+logger = logging.getLogger("aifactory.backup")
 
 
 class BackupCancelled(RuntimeError):

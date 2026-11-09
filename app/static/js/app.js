@@ -1035,7 +1035,7 @@ function initWorkspaceCreationModal() {
       modalBackdrop.setAttribute("aria-hidden", "false");
       if (dialog && !dialog.hasAttribute("tabindex")) dialog.setAttribute("tabindex", "-1");
       window.requestAnimationFrame(() => (closeBtn || dialog)?.focus());
-      modalBackdrop.dispatchEvent(new CustomEvent("devcloud:workspace-modal-opened"));
+      modalBackdrop.dispatchEvent(new CustomEvent("aifactory:workspace-modal-opened"));
     }
     return true;
   }
@@ -1046,7 +1046,7 @@ function initWorkspaceCreationModal() {
     modalBackdrop.classList.remove("open");
     modalBackdrop.setAttribute("aria-hidden", "true");
     restoreBackground();
-    modalBackdrop.dispatchEvent(new CustomEvent("devcloud:workspace-modal-closed"));
+    modalBackdrop.dispatchEvent(new CustomEvent("aifactory:workspace-modal-closed"));
     if (previousFocus instanceof HTMLElement && previousFocus.isConnected) {
       previousFocus.focus();
     }
@@ -1781,10 +1781,10 @@ function initNodeManagement() {
         <div><strong>Node ID:</strong> <code style="color:#e2e8f0;">${data.id}</code></div>
         <div><strong>Token:</strong> <code style="color:#e2e8f0;">${data.enrollment_token}</code></div>
         <div style="margin-top:0.5rem;font-size:0.75rem;">
-          <strong>Manuel Yapılandırma (/etc/devcloud/worker.env):</strong>
-          <pre style="background:rgba(0,0,0,0.25);padding:0.5rem;border-radius:4px;margin-top:0.25rem;font-size:0.75rem;color:#e2e8f0;white-space:pre;">DEVCLOUD_CONTROLLER_URL=${controllerUrl}
-DEVCLOUD_NODE_ID=${data.id}
-DEVCLOUD_NODE_TOKEN=${data.enrollment_token}</pre>
+          <strong>Manuel Yapılandırma (/etc/aifactory/worker.env):</strong>
+          <pre style="background:rgba(0,0,0,0.25);padding:0.5rem;border-radius:4px;margin-top:0.25rem;font-size:0.75rem;color:#e2e8f0;white-space:pre;">AIFACTORY_CONTROLLER_URL=${controllerUrl}
+AIFACTORY_NODE_ID=${data.id}
+AIFACTORY_NODE_TOKEN=${data.enrollment_token}</pre>
         </div>
       </div>
     `;

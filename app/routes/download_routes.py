@@ -18,7 +18,7 @@ from app.static_assets import STATIC_ASSET_VERSION
 
 
 DOWNLOAD_NAME_PATTERN = re.compile(
-    r"^devcloud-(?:worker-)?offline-(?:v?[0-9]+\.[0-9]+\.[0-9]+-[0-9]{8}-)?[0-9a-f]{12}\.tar(?:\.gz)?(?:\.sha256)?$"
+    r"^(?:aifactory|devcloud)-(?:worker-)?offline-(?:v?[0-9]+\.[0-9]+\.[0-9]+-[0-9]{8}-)?[0-9a-f]{12}\.tar(?:\.gz)?(?:\.sha256)?$"
 )
 templates = Jinja2Templates(
     directory=str(Path(__file__).resolve().parent.parent / "templates")
@@ -60,7 +60,7 @@ async def download_index(
     bundles = []
     candidates = [
         path
-        for path in root.glob("devcloud*-offline-*")
+        for path in [*root.glob("aifactory*-offline-*"), *root.glob("devcloud*-offline-*")]
         if path.is_file()
         and not path.is_symlink()
         and not path.name.endswith(".sha256")
@@ -77,7 +77,9 @@ async def download_index(
             {
                 "filename": archive.name,
                 "bundle_role": (
-                    "worker" if archive.name.startswith("devcloud-worker-") else "server"
+                    "worker"
+                    if archive.name.startswith(("aifactory-worker-", "devcloud-worker-"))
+                    else "server"
                 ),
                 "url": f"/download/{archive.name}",
                 "size_display": _format_size(archive.stat().st_size),

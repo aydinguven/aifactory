@@ -1,7 +1,7 @@
 """Outbound-only AI Factory worker agent.
 
-Run with DEVCLOUD_CONTROLLER_URL, DEVCLOUD_NODE_ID and DEVCLOUD_NODE_TOKEN set.
-The legacy DEVCLOUD_MASTER_URL name remains an upgrade compatibility fallback.
+Run with AIFACTORY_CONTROLLER_URL, AIFACTORY_NODE_ID and AIFACTORY_NODE_TOKEN set.
+The legacy AIFACTORY_MASTER_URL name remains an upgrade compatibility fallback.
 """
 
 import asyncio
@@ -43,7 +43,7 @@ from app.jupyter_ai import normalize_ca_bundle
 from app.schemas.jupyter_ai_settings import JupyterAiModel
 from app.worker_gpu import discover_nvidia_capabilities
 
-logger = logging.getLogger("devcloud.worker")
+logger = logging.getLogger("aifactory.worker")
 
 
 def _download_progress(done: int, total: int) -> dict:
@@ -62,7 +62,7 @@ def _download_progress(done: int, total: int) -> dict:
 def _storage_writable(root: str) -> dict:
     """Create and remove a probe file so a read-only remount is caught."""
     try:
-        with tempfile.NamedTemporaryFile(dir=root, prefix=".devcloud-health-"):
+        with tempfile.NamedTemporaryFile(dir=root, prefix=".aifactory-health-"):
             pass
         return {"ok": True, "message": ""}
     except OSError as exc:
@@ -103,43 +103,65 @@ def _model_registry_config_from_payload(payload: dict) -> ModelContainerRegistry
 
 def _connection_url() -> str:
     base = (
-        os.environ.get("DEVCLOUD_CONTROLLER_URL", "").strip()
-        or os.environ.get("DEVCLOUD_MASTER_URL", "").strip()
+        os.environ.get("AIFACTORY_CONTROLLER_URL", "").strip()
+        or os.environ.get("AIFACTORY_MASTER_URL", "").strip()
     ).rstrip("/")
     if not base:
-        raise RuntimeError("DEVCLOUD_CONTROLLER_URL ayarlanmalıdır.")
+        raise RuntimeError("AIFACTORY_CONTROLLER_URL ayarlanmalıdır.")
     if base.startswith("https://"):
         base = "wss://" + base[len("https://"):]
     elif base.startswith("http://"):
         base = "ws://" + base[len("http://"):]
     if not base.startswith(("ws://", "wss://")):
-        raise RuntimeError("DEVCLOUD_CONTROLLER_URL http:// veya https:// ile başlamalıdır.")
-    return f"{base}/api/agent/connect/{_required_env('DEVCLOUD_NODE_ID')}"
+        raise RuntimeError("AIFACTORY_CONTROLLER_URL http:// veya https:// ile başlamalıdır.")
+    return f"{base}/api/agent/connect/{_required_env('AIFACTORY_NODE_ID')}"
 
 
 def _controller_http_url() -> str:
     base = (
-        os.environ.get("DEVCLOUD_CONTROLLER_URL", "").strip()
-        or os.environ.get("DEVCLOUD_MASTER_URL", "").strip()
+        os.environ.get("AIFACTORY_CONTROLLER_URL", "").strip()
+        or os.environ.get("AIFACTORY_MASTER_URL", "").strip()
     ).rstrip("/")
     if not base.startswith(("http://", "https://")):
-        raise RuntimeError("DEVCLOUD_CONTROLLER_URL http:// veya https:// ile başlamalıdır.")
+        raise RuntimeError("AIFACTORY_CONTROLLER_URL http:// veya https:// ile başlamalıdır.")
     return base
 
 
 def _tls_context(connection_url: str) -> ssl.SSLContext | None:
     if not connection_url.startswith("wss://"):
         return None
-    ca_file = os.environ.get("DEVCLOUD_AGENT_CA_FILE", "").strip() or None
+    ca_file = os.environ.get("AIFACTORY_AGENT_CA_FILE", "").strip() or None
     context = ssl.create_default_context(cafile=ca_file)
-    cert_file = os.environ.get("DEVCLOUD_AGENT_CERT_FILE", "").strip()
-    key_file = os.environ.get("DEVCLOUD_AGENT_KEY_FILE", "").strip()
+    cert_file = os.environ.get("AIFACTORY_AGENT_CERT_FILE", "").strip()
+    key_file = os.environ.get("AIFACTORY_AGENT_KEY_FILE", "").strip()
     if bool(cert_file) != bool(key_file):
         raise RuntimeError("Agent client sertifikası için cert ve key birlikte ayarlanmalıdır.")
     if cert_file:
         context.load_cert_chain(certfile=cert_file, keyfile=key_file)
     return context
 
+
+
+# Workspace image tags move from localhost/devcloud-* to localhost/aifactory-*
+# (3.50.1). Archives and local images built before keep the old tag.
+_RENAMED_IMAGE_PREFIXES = (
+    ("localhost/aifactory-", "localhost/devcloud-"),
+    ("localhost/devcloud-", "localhost/aifactory-"),
+)
+
+
+async def _adopt_renamed_image(image_ref: str) -> bool:
+    """Tag the local copy of ``image_ref`` stored under the other product prefix."""
+    for prefix, other in _RENAMED_IMAGE_PREFIXES:
+        if not image_ref.startswith(prefix):
+            continue
+        twin = other + image_ref[len(prefix):]
+        code, _, _ = await podman_service.run_cmd("image", "exists", twin, timeout=30)
+        if code != 0:
+            return False
+        code, _, _ = await podman_service.run_cmd("tag", twin, image_ref, timeout=60)
+        return code == 0
+    return False
 
 class WorkerAgent:
     def __init__(self):
@@ -152,9 +174,9 @@ class WorkerAgent:
         self.stream_tasks = {}
         self.stream_windows = {}
         self.transfers = WorkerTransfers(self._safe_workspace_path)
-        self.registry_path = Path(settings.STORAGE_ROOT) / ".devcloud-agent-registry.json"
+        self.registry_path = Path(settings.STORAGE_ROOT) / ".aifactory-agent-registry.json"
         self.registry = self._load_registry()
-        self.image_state_path = Path(settings.STORAGE_ROOT) / ".devcloud-image-state.json"
+        self.image_state_path = Path(settings.STORAGE_ROOT) / ".aifactory-image-state.json"
         self.image_state = self._load_image_state()
         self.image_progress: dict[str, dict] = {}
         self.upgrade_status: dict = {
@@ -254,7 +276,7 @@ class WorkerAgent:
             if state == "failed" and "release manifest signature is missing" in message.lower():
                 message = (
                     "Release manifest imzası bulunamadı. Geçici imzasız OTA için controller "
-                    "üzerinde WORKER_OTA_ALLOW_UNSIGNED=true ayarlayıp devcloud-controller "
+                    "üzerinde WORKER_OTA_ALLOW_UNSIGNED=true ayarlayıp aifactory-controller "
                     "servisini yeniden başlatın. Teknik hata: release manifest signature is missing"
                 )
             if state == "failed" and target_version == __version__:
@@ -283,10 +305,10 @@ class WorkerAgent:
     def _http_verify_context(base_url: str):
         if not base_url.startswith("https://"):
             return True
-        ca_file = os.environ.get("DEVCLOUD_AGENT_CA_FILE", "").strip() or None
+        ca_file = os.environ.get("AIFACTORY_AGENT_CA_FILE", "").strip() or None
         context = ssl.create_default_context(cafile=ca_file)
-        cert_file = os.environ.get("DEVCLOUD_AGENT_CERT_FILE", "").strip()
-        key_file = os.environ.get("DEVCLOUD_AGENT_KEY_FILE", "").strip()
+        cert_file = os.environ.get("AIFACTORY_AGENT_CERT_FILE", "").strip()
+        key_file = os.environ.get("AIFACTORY_AGENT_KEY_FILE", "").strip()
         if bool(cert_file) != bool(key_file):
             raise RuntimeError(
                 "Agent client sertifikası için cert ve key birlikte ayarlanmalıdır."
@@ -302,8 +324,8 @@ class WorkerAgent:
 
     async def _sync_workspace_images(self) -> list[dict]:
         base_url = _controller_http_url()
-        node_id = _required_env("DEVCLOUD_NODE_ID")
-        headers = {"Authorization": f"Bearer {_required_env('DEVCLOUD_NODE_TOKEN')}"}
+        node_id = _required_env("AIFACTORY_NODE_ID")
+        headers = {"Authorization": f"Bearer {_required_env('AIFACTORY_NODE_TOKEN')}"}
         timeout = httpx.Timeout(connect=30.0, read=None, write=30.0, pool=30.0)
         async with httpx.AsyncClient(
             headers=headers,
@@ -321,7 +343,7 @@ class WorkerAgent:
                 raise RuntimeError("Controller workspace image catalog is invalid")
 
             desired_ids: set[str] = set()
-            cache_root = Path(settings.STORAGE_ROOT) / ".devcloud-image-cache"
+            cache_root = Path(settings.STORAGE_ROOT) / ".aifactory-image-cache"
             cache_root.mkdir(parents=True, exist_ok=True)
             for item in catalog:
                 if not isinstance(item, dict):
@@ -364,6 +386,12 @@ class WorkerAgent:
                 exists_code, _, _ = await podman_service.run_cmd(
                     "image", "exists", image_ref, timeout=30
                 )
+                if (
+                    exists_code != 0
+                    and current.get("sha256") == expected_sha256
+                    and await _adopt_renamed_image(image_ref)
+                ):
+                    exists_code = 0
                 if current.get("sha256") == expected_sha256 and exists_code == 0:
                     self.image_progress[image_id].update(
                         state="ready", downloaded_bytes=expected_size
@@ -405,7 +433,7 @@ class WorkerAgent:
                     exists_code, _, _ = await podman_service.run_cmd(
                         "image", "exists", image_ref, timeout=30
                     )
-                    if exists_code != 0:
+                    if exists_code != 0 and not await _adopt_renamed_image(image_ref):
                         raise RuntimeError(
                             f"Loaded archive did not provide expected image {image_ref}"
                         )
@@ -450,8 +478,8 @@ class WorkerAgent:
     async def sync_jupyter_ai_settings(self) -> bool:
         """Apply centrally managed Jupyter AI settings to new containers."""
         base_url = _controller_http_url()
-        node_id = _required_env("DEVCLOUD_NODE_ID")
-        headers = {"Authorization": f"Bearer {_required_env('DEVCLOUD_NODE_TOKEN')}"}
+        node_id = _required_env("AIFACTORY_NODE_ID")
+        headers = {"Authorization": f"Bearer {_required_env('AIFACTORY_NODE_TOKEN')}"}
         async with httpx.AsyncClient(
             headers=headers,
             timeout=30.0,
@@ -915,7 +943,7 @@ class WorkerAgent:
             await self.result(request_id, error="Workspace storage bulunamadı.")
             return
         descriptor, archive_name = tempfile.mkstemp(
-            prefix=f"devcloud-{workspace_id[:8]}-", suffix=".zip"
+            prefix=f"aifactory-{workspace_id[:8]}-", suffix=".zip"
         )
         os.close(descriptor)
         archive = Path(archive_name)
@@ -1305,7 +1333,7 @@ class WorkerAgent:
                             "Authorization": f"Bearer {shared_token}",
                             "anthropic-version": "2023-06-01",
                             "content-type": "application/json",
-                            "user-agent": "devcloud-jupyter-ai-connectivity-test",
+                            "user-agent": "aifactory-jupyter-ai-connectivity-test",
                         },
                         json={
                             "model": model_id,
@@ -1374,8 +1402,8 @@ class WorkerAgent:
 
         if action == "system.upgrade":
             controller_url = (
-                os.environ.get("DEVCLOUD_CONTROLLER_URL", "").strip()
-                or _required_env("DEVCLOUD_MASTER_URL")
+                os.environ.get("AIFACTORY_CONTROLLER_URL", "").strip()
+                or _required_env("AIFACTORY_MASTER_URL")
             )
             if self.upgrade_task is not None and not self.upgrade_task.done():
                 return {
@@ -1398,8 +1426,8 @@ class WorkerAgent:
         destination: Path | None = None
         target_version = ""
         try:
-            node_id = _required_env("DEVCLOUD_NODE_ID")
-            token = _required_env("DEVCLOUD_NODE_TOKEN")
+            node_id = _required_env("AIFACTORY_NODE_ID")
+            token = _required_env("AIFACTORY_NODE_TOKEN")
             headers = {"Authorization": f"Bearer {token}"}
             async with httpx.AsyncClient(
                 timeout=60.0,
@@ -1574,7 +1602,7 @@ class WorkerAgent:
             await asyncio.to_thread(self.transfers.expire)
 
     async def run_once(self) -> None:
-        headers = {"Authorization": f"Bearer {_required_env('DEVCLOUD_NODE_TOKEN')}"}
+        headers = {"Authorization": f"Bearer {_required_env('AIFACTORY_NODE_TOKEN')}"}
         connection_url = _connection_url()
         try:
             await self.sync_jupyter_ai_settings()

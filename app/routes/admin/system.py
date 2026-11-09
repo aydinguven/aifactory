@@ -32,6 +32,7 @@ from app.config import settings
 from app.installer.platform import InstallerError
 from app.installer.update_source import (
     CHANNEL_FILENAME,
+    LEGACY_CHANNEL_FILENAME,
     parse_channel,
     validate_git_source,
 )
@@ -65,7 +66,9 @@ async def update_session_settings(
     return {"timeout_minutes": record.timeout_minutes}
 
 
-def _github_channel_url(repository: str, ref: str) -> str:
+def _github_channel_url(
+    repository: str, ref: str, filename: str = CHANNEL_FILENAME
+) -> str:
     repository, ref = validate_git_source(repository, ref)
     parsed = urllib.parse.urlparse(repository)
     parts = [part for part in parsed.path.strip("/").split("/") if part]
@@ -81,7 +84,7 @@ def _github_channel_url(repository: str, ref: str) -> str:
     return (
         "https://raw.githubusercontent.com/"
         f"{urllib.parse.quote(owner, safe='')}/{urllib.parse.quote(project, safe='')}/"
-        f"{urllib.parse.quote(ref, safe='/')}/{CHANNEL_FILENAME}"
+        f"{urllib.parse.quote(ref, safe='/')}/{filename}"
     )
 
 
@@ -92,6 +95,12 @@ async def _fetch_release_channel(repository: str, ref: str):
             response = await client.get(
                 channel_url, headers={"User-Agent": "AIFactory-Controller/1"}
             )
+            if response.status_code == 404:
+                # Channels written before 3.49.1 only have the devcloud name.
+                response = await client.get(
+                    _github_channel_url(repository, ref, LEGACY_CHANNEL_FILENAME),
+                    headers={"User-Agent": "AIFactory-Controller/1"},
+                )
             response.raise_for_status()
             return parse_channel(response.json())
     except (httpx.HTTPError, ValueError, InstallerError) as exc:

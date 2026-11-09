@@ -35,7 +35,7 @@ from app.database import release_read_only_connection
 from app.task_health import task_health
 from app.time_utils import ensure_utc
 
-logger = logging.getLogger("devcloud.health")
+logger = logging.getLogger("aifactory.health")
 
 OK = "ok"
 DEGRADED = "degraded"
@@ -254,13 +254,15 @@ async def check_database(db: AsyncSession) -> Component:
         return component.set(DOWN, "Veritabanına ulaşılamıyor.", _error(exc))
     component.latency_ms = _elapsed_ms(started)
 
-    try:
-        version = (
-            await db.execute(text("SELECT MAX(version) FROM devcloud_schema_migrations"))
-        ).scalar_one_or_none()
-    except Exception:  # noqa: BLE001 - a missing table reads as "unknown version"
-        await _rollback(db)
-        version = None
+    version = None
+    for table in ("aifactory_schema_migrations", "devcloud_schema_migrations"):
+        try:
+            version = (
+                await db.execute(text(f"SELECT MAX(version) FROM {table}"))
+            ).scalar_one_or_none()
+            break
+        except Exception:  # noqa: BLE001 - a missing table reads as "unknown version"
+            await _rollback(db)
     component.details["schema_version"] = version
     component.details["expected_schema_version"] = CURRENT_SCHEMA_VERSION
     if version != CURRENT_SCHEMA_VERSION:
@@ -319,7 +321,7 @@ def classify_path(label: str, path: str, critical: bool) -> dict:
     entry.update(used_percent=used_percent, free_mb=usage.free // (1024 * 1024))
     if not note:
         try:
-            with tempfile.NamedTemporaryFile(dir=target, prefix=".devcloud-health-"):
+            with tempfile.NamedTemporaryFile(dir=target, prefix=".aifactory-health-"):
                 pass
         except OSError as exc:
             return {**entry, "status": failed, "message": f"Yazılamıyor: {_error(exc)}"}

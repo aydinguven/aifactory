@@ -3,11 +3,11 @@
 set -Eeuo pipefail
 
 log() {
-    printf '[devcloud-worker-install] %s\n' "$*"
+    printf '[aifactory-worker-install] %s\n' "$*"
 }
 
 fail() {
-    printf '[devcloud-worker-install] ERROR: %s\n' "$*" >&2
+    printf '[aifactory-worker-install] ERROR: %s\n' "$*" >&2
     exit 1
 }
 
@@ -17,30 +17,30 @@ PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WHEELS_DIR="${PROJECT_DIR}/offline/wheels"
 IMAGES_DIR="${PROJECT_DIR}/offline/images"
 WORKER_IMAGES_DIR="${PROJECT_DIR}/offline/worker-images"
-WORKSPACES_DIR="/var/lib/devcloud/workspaces"
+WORKSPACES_DIR="/var/lib/aifactory/workspaces"
 VERSION="$(cd "${PROJECT_DIR}" && python3 -c 'from app import __version__; print(__version__)')"
-WORKER_IMAGE="localhost/devcloud-worker:${VERSION}"
-WORKER_ENV_FILE="/etc/devcloud/worker.env"
-WORKER_ENV_SOURCE="${DEVCLOUD_WORKER_ENV_FILE:-${WORKER_ENV_FILE}}"
+WORKER_IMAGE="localhost/aifactory-worker:${VERSION}"
+WORKER_ENV_FILE="/etc/aifactory/worker.env"
+WORKER_ENV_SOURCE="${AIFACTORY_WORKER_ENV_FILE:-${WORKER_ENV_FILE}}"
 
 [[ -d "${WHEELS_DIR}" ]] || fail "Offline wheels directory is missing: ${WHEELS_DIR}"
 [[ -d "${IMAGES_DIR}" ]] || fail "Offline image directory is missing: ${IMAGES_DIR}"
 [[ -d "${WORKER_IMAGES_DIR}" ]] || fail "Offline worker image directory is missing: ${WORKER_IMAGES_DIR}"
 [[ -f "${WORKER_ENV_SOURCE}" ]] || fail \
-    "Create ${WORKER_ENV_FILE} from deploy/worker.env.example before installation, or set DEVCLOUD_WORKER_ENV_FILE."
+    "Create ${WORKER_ENV_FILE} from deploy/worker.env.example before installation, or set AIFACTORY_WORKER_ENV_FILE."
 
-for required_key in DEVCLOUD_NODE_ID DEVCLOUD_NODE_TOKEN; do
+for required_key in AIFACTORY_NODE_ID AIFACTORY_NODE_TOKEN; do
     grep -Eq "^${required_key}=[^[:space:]]+$" "${WORKER_ENV_SOURCE}" || fail \
         "${required_key} is missing from ${WORKER_ENV_SOURCE}."
 done
-if ! grep -Eq '^DEVCLOUD_CONTROLLER_URL=https?://[^[:space:]]+$' "${WORKER_ENV_SOURCE}"; then
-    grep -Eq '^DEVCLOUD_MASTER_URL=https?://[^[:space:]]+$' "${WORKER_ENV_SOURCE}" || fail \
-        "DEVCLOUD_CONTROLLER_URL must start with http:// or https://."
+if ! grep -Eq '^AIFACTORY_CONTROLLER_URL=https?://[^[:space:]]+$' "${WORKER_ENV_SOURCE}"; then
+    grep -Eq '^AIFACTORY_MASTER_URL=https?://[^[:space:]]+$' "${WORKER_ENV_SOURCE}" || fail \
+        "AIFACTORY_CONTROLLER_URL must start with http:// or https://."
 fi
-grep -Eq '^DEVCLOUD_NODE_ID=(replace-with-node-id)?$' "${WORKER_ENV_SOURCE}" && fail \
-    "Replace the placeholder DEVCLOUD_NODE_ID in ${WORKER_ENV_SOURCE}."
-grep -Eq '^DEVCLOUD_NODE_TOKEN=(replace-with-node-token)?$' "${WORKER_ENV_SOURCE}" && fail \
-    "Replace the placeholder DEVCLOUD_NODE_TOKEN in ${WORKER_ENV_SOURCE}."
+grep -Eq '^AIFACTORY_NODE_ID=(replace-with-node-id)?$' "${WORKER_ENV_SOURCE}" && fail \
+    "Replace the placeholder AIFACTORY_NODE_ID in ${WORKER_ENV_SOURCE}."
+grep -Eq '^AIFACTORY_NODE_TOKEN=(replace-with-node-token)?$' "${WORKER_ENV_SOURCE}" && fail \
+    "Replace the placeholder AIFACTORY_NODE_TOKEN in ${WORKER_ENV_SOURCE}."
 
 bash "${PROJECT_DIR}/deploy/install_offline_system_packages.sh" "${PROJECT_DIR}"
 
@@ -70,7 +70,7 @@ runtime = "${OCI_RUNTIME}"
 EOF
 
 log "Preparing worker storage and SELinux labels..."
-DEVCLOUD_SERVICE_USER=root bash "${PROJECT_DIR}/deploy/configure_selinux.sh"
+AIFACTORY_SERVICE_USER=root bash "${PROJECT_DIR}/deploy/configure_selinux.sh"
 
 log "Installing Python packages from the offline wheel set..."
 cd "${PROJECT_DIR}"
@@ -97,7 +97,7 @@ done
 podman image exists "${WORKER_IMAGE}" || fail "Worker image is missing after archive load: ${WORKER_IMAGE}"
 
 log "Installing worker enrollment and rootful Podman Quadlet..."
-install -d -m 0755 /etc/devcloud
+install -d -m 0755 /etc/aifactory
 if [[ "${WORKER_ENV_SOURCE}" != "${WORKER_ENV_FILE}" ]]; then
     install -m 0600 "${WORKER_ENV_SOURCE}" "${WORKER_ENV_FILE}"
 else
@@ -107,14 +107,14 @@ fi
 install -d -m 0755 /etc/containers/systemd
 sed -e "s|{{WORKER_IMAGE}}|${WORKER_IMAGE}|g" \
     -e "s|{{WORKSPACE_ROOT}}|${WORKSPACES_DIR}|g" \
-    "${PROJECT_DIR}/deploy/container/quadlet/devcloud-worker.container" \
-    > /etc/containers/systemd/devcloud-worker.container
-chmod 0644 /etc/containers/systemd/devcloud-worker.container
+    "${PROJECT_DIR}/deploy/container/quadlet/aifactory-worker.container" \
+    > /etc/containers/systemd/aifactory-worker.container
+chmod 0644 /etc/containers/systemd/aifactory-worker.container
 
 systemctl daemon-reload
 systemctl enable --now podman.socket
-systemctl enable --now devcloud-worker.service
+systemctl enable --now aifactory-worker.service
 
-podman exec devcloud-worker python -m app.installer.verify_worker
+podman exec aifactory-worker python -m app.installer.verify_worker
 log "Rootful container worker installed and connected to the configured controller."
-log "Follow logs with: sudo journalctl -u devcloud-worker -f"
+log "Follow logs with: sudo journalctl -u aifactory-worker -f"

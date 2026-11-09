@@ -22,7 +22,7 @@ def test_controller_image_runs_migrations_before_single_uvicorn_process():
         ROOT / "deploy" / "container" / "controller-entrypoint.sh"
     ).read_text(encoding="utf-8")
     containerfile = (
-        ROOT / "containers" / "devcloud-controller" / "Containerfile"
+        ROOT / "containers" / "aifactory-controller" / "Containerfile"
     ).read_text(encoding="utf-8")
 
     assert "python -m app.migrations upgrade" in entrypoint
@@ -32,34 +32,34 @@ def test_controller_image_runs_migrations_before_single_uvicorn_process():
 
 def test_controller_quadlet_is_offline_and_loopback_only():
     quadlet = (
-        ROOT / "deploy" / "container" / "quadlet" / "devcloud-controller.container"
+        ROOT / "deploy" / "container" / "quadlet" / "aifactory-controller.container"
     ).read_text(encoding="utf-8")
 
     assert "Pull=never" in quadlet
     assert "PublishPort=127.0.0.1:8000:8000" in quadlet
     assert "ReadOnly=true" in quadlet
-    assert "EnvironmentFile=/etc/devcloud/controller.env" in quadlet
+    assert "EnvironmentFile=/etc/aifactory/controller.env" in quadlet
 
 
 def test_postgresql_is_not_published_to_the_host():
     quadlet = (
-        ROOT / "deploy" / "container" / "quadlet" / "devcloud-postgresql.container"
+        ROOT / "deploy" / "container" / "quadlet" / "aifactory-postgresql.container"
     ).read_text(encoding="utf-8")
 
-    assert "Network=devcloud.network" in quadlet
+    assert "Network=aifactory.network" in quadlet
     assert "PublishPort=" not in quadlet
     assert "Pull=never" in quadlet
 
 
 def test_worker_image_and_quadlet_use_rootful_host_podman_socket():
     containerfile = (
-        ROOT / "containers" / "devcloud-worker" / "Containerfile"
+        ROOT / "containers" / "aifactory-worker" / "Containerfile"
     ).read_text(encoding="utf-8")
     entrypoint = (
         ROOT / "deploy" / "container" / "worker-entrypoint.sh"
     ).read_text(encoding="utf-8")
     quadlet = (
-        ROOT / "deploy" / "container" / "quadlet" / "devcloud-worker.container"
+        ROOT / "deploy" / "container" / "quadlet" / "aifactory-worker.container"
     ).read_text(encoding="utf-8")
 
     assert "microdnf install -y podman" in containerfile
@@ -134,12 +134,12 @@ def test_terminal_workspace_image_is_pinned_and_proxy_compatible():
     # ttyd must be writable, or the terminal is read-only.
     assert "--writable" in entrypoint
     # tmux keeps a dropped WebSocket from killing the user's work.
-    assert "tmux new-session -A -s devcloud" in entrypoint
+    assert "tmux new-session -A -s aifactory" in entrypoint
     # No upstream credential: AI Factory is the only authenticator.
     assert "--credential" not in entrypoint
     # The home volume is seeded on first start, since the mount hides the image
     # skeleton.
-    assert "/opt/devcloud-home-skel.tar" in entrypoint
+    assert "/opt/aifactory-home-skel.tar" in entrypoint
 
 
 def test_terminal_template_matches_its_image_contract():

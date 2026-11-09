@@ -37,7 +37,7 @@ def _publish_fake_release(tmp_path, monkeypatch):
     downloads = tmp_path / "downloads"
     releases = downloads / "releases"
     releases.mkdir(parents=True)
-    bundle = releases / "devcloud-platform-update-v3.4.5-abcdef123456.tar.gz"
+    bundle = releases / "aifactory-platform-update-v3.4.5-abcdef123456.tar.gz"
     bundle.write_bytes(b"authenticated-platform-release")
     monkeypatch.setattr(settings, "DOWNLOADS_ROOT", str(downloads))
     monkeypatch.setattr(settings, "DOWNLOAD_PUBLIC_BASE_URL", "")
@@ -55,9 +55,9 @@ async def test_admin_ticket_enrolls_exactly_one_worker_and_renders_name_only_scr
     db_session.add(
         DownloadSettings(
             id=1,
-            public_base_url="https://devcloud.test",
+            public_base_url="https://aifactory.test",
             https_enabled=True,
-            https_hostname="devcloud.test",
+            https_hostname="aifactory.test",
         )
     )
     await db_session.commit()
@@ -75,7 +75,7 @@ async def test_admin_ticket_enrolls_exactly_one_worker_and_renders_name_only_scr
     )
 
     created = await client.post(
-        "https://devcloud.test/api/admin/worker-bootstrap-tickets",
+        "https://aifactory.test/api/admin/worker-bootstrap-tickets",
         headers=headers,
     )
 
@@ -97,12 +97,12 @@ async def test_admin_ticket_enrolls_exactly_one_worker_and_renders_name_only_scr
     assert "--location" not in script.text
     assert "__CONTROLLER_URL__" not in script.text
     assert "__ENROLLMENT_URL__" not in script.text
-    assert 'DEVCLOUD_WORKER_GPU_MODE' in script.text
+    assert 'AIFACTORY_WORKER_GPU_MODE' in script.text
     assert 'command -v nvidia-smi' in script.text
     assert 'command -v nvidia-ctk' in script.text
     assert 'nvidia-ctk cdi list' in script.text
     assert 'WORKER_RUNTIME=native' in script.text
-    assert 'DEVCLOUD_INSTALL_WORKER_RUNTIME="$WORKER_RUNTIME"' in script.text
+    assert 'AIFACTORY_INSTALL_WORKER_RUNTIME="$WORKER_RUNTIME"' in script.text
     assert script.text.index('NVIDIA GPU detected') < script.text.index(
         'Enrolling $' + '{WORKER_NAME}'
     )
@@ -110,7 +110,7 @@ async def test_admin_ticket_enrolls_exactly_one_worker_and_renders_name_only_scr
 
     raw_ticket = ticket["install_url"].split("/")[-2]
     enrolled = await client.post(
-        f"https://devcloud.test/api/bootstrap/workers/{raw_ticket}/enroll",
+        f"https://aifactory.test/api/bootstrap/workers/{raw_ticket}/enroll",
         json={"name": "company-worker-01"},
     )
 
@@ -118,7 +118,7 @@ async def test_admin_ticket_enrolls_exactly_one_worker_and_renders_name_only_scr
     credentials = enrolled.json()
     assert credentials["node_id"]
     assert credentials["enrollment_token"]
-    assert credentials["controller_url"] == "https://devcloud.test"
+    assert credentials["controller_url"] == "https://aifactory.test"
     check = await client.get(
         "/api/agent/check",
         params={"node_id": credentials["node_id"]},
@@ -128,7 +128,7 @@ async def test_admin_ticket_enrolls_exactly_one_worker_and_renders_name_only_scr
     assert check.json()["accepted"] is True
 
     reused = await client.post(
-        f"https://devcloud.test/api/bootstrap/workers/{raw_ticket}/enroll",
+        f"https://aifactory.test/api/bootstrap/workers/{raw_ticket}/enroll",
         json={"name": "company-worker-02"},
     )
     assert reused.status_code == 410
@@ -209,18 +209,18 @@ async def test_bootstrap_uses_configured_public_controller_url(
 ):
     _publish_fake_release(tmp_path, monkeypatch)
     db_session.add(
-        DownloadSettings(id=1, public_base_url="https://devcloud.example.com")
+        DownloadSettings(id=1, public_base_url="https://aifactory.example.com")
     )
     await db_session.commit()
     headers = await _admin_headers(client)
 
     created = await client.post(
-        "https://devcloud.example.com/api/admin/worker-bootstrap-tickets",
+        "https://aifactory.example.com/api/admin/worker-bootstrap-tickets",
         headers=headers,
         json={},
     )
 
     assert created.status_code == 201
     assert created.json()["install_url"].startswith(
-        "https://devcloud.example.com/api/bootstrap/workers/"
+        "https://aifactory.example.com/api/bootstrap/workers/"
     )

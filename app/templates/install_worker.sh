@@ -4,11 +4,11 @@ set -Eeuo pipefail
 umask 077
 
 log() {
-    printf '[devcloud-worker-bootstrap] %s\n' "$*"
+    printf '[aifactory-worker-bootstrap] %s\n' "$*"
 }
 
 fail() {
-    printf '[devcloud-worker-bootstrap] ERROR: %s\n' "$*" >&2
+    printf '[aifactory-worker-bootstrap] ERROR: %s\n' "$*" >&2
     exit 1
 }
 
@@ -26,13 +26,14 @@ if ! command -v python3 >/dev/null 2>&1; then
     dnf install -y python3 || fail "Configured repositories could not install Python 3."
 fi
 
-[[ ! -f /var/lib/devcloud/installer/install-state.json ]] || fail \
+[[ ! -f /var/lib/aifactory/installer/install-state.json \
+    && ! -f /var/lib/devcloud/installer/install-state.json ]] || fail \
     "A managed AI Factory installation already exists; purge it or run update."
 
-GPU_MODE="$(printenv DEVCLOUD_WORKER_GPU_MODE || true)"
+GPU_MODE="$(printenv AIFACTORY_WORKER_GPU_MODE || printenv DEVCLOUD_WORKER_GPU_MODE || true)"
 [[ -n "$GPU_MODE" ]] || GPU_MODE=auto
 [[ "$GPU_MODE" == "auto" || "$GPU_MODE" == "required" ]] || fail \
-    "DEVCLOUD_WORKER_GPU_MODE must be auto or required."
+    "AIFACTORY_WORKER_GPU_MODE must be auto or required."
 
 NVIDIA_HARDWARE=false
 for vendor_file in /sys/bus/pci/devices/*/vendor; do
@@ -80,10 +81,10 @@ CONTROLLER_PORT=__CONTROLLER_PORT__
 CONTROLLER_FALLBACK_IPV4=__CONTROLLER_FALLBACK_IPV4__
 AGENT_CA_BASE64=__AGENT_CA_BASE64__
 AGENT_CA_SHA256=__AGENT_CA_SHA256__
-WORKER_NAME="${DEVCLOUD_WORKER_NAME:-}"
+WORKER_NAME="${AIFACTORY_WORKER_NAME:-${DEVCLOUD_WORKER_NAME:-}}"
 if [[ -z "${WORKER_NAME}" ]]; then
     [[ -r /dev/tty && -w /dev/tty ]] || fail \
-        "Set DEVCLOUD_WORKER_NAME when running without a terminal."
+        "Set AIFACTORY_WORKER_NAME when running without a terminal."
     DEFAULT_WORKER_NAME="$(hostname -s)"
     printf 'Worker name [%s]: ' "${DEFAULT_WORKER_NAME}" >/dev/tty
     read -r entered_worker_name </dev/tty
@@ -92,7 +93,7 @@ fi
 [[ "${WORKER_NAME}" =~ ^[a-zA-Z0-9_.-]{2,100}$ ]] || fail \
     "Worker name must be 2-100 letters, digits, dots, underscores, or hyphens."
 
-TEMP_DIR="$(mktemp -d -t devcloud-worker-bootstrap.XXXXXX)"
+TEMP_DIR="$(mktemp -d -t aifactory-worker-bootstrap.XXXXXX)"
 cleanup() {
     rm -rf -- "${TEMP_DIR}"
 }
@@ -107,10 +108,10 @@ if [[ -n "${AGENT_CA_BASE64}" ]]; then
         "Controller CA bundle could not be decoded."
     printf '%s  %s\n' "${AGENT_CA_SHA256}" "${AGENT_CA_TEMP}" | sha256sum -c - >/dev/null || fail \
         "Controller CA bundle checksum validation failed."
-    install -d -o root -g root -m 0755 /etc/devcloud/pki
+    install -d -o root -g root -m 0755 /etc/aifactory/pki
     install -o root -g root -m 0644 \
-        "${AGENT_CA_TEMP}" /etc/devcloud/pki/controller-ca.pem
-    AGENT_CA_FILE=/etc/devcloud/pki/controller-ca.pem
+        "${AGENT_CA_TEMP}" /etc/aifactory/pki/controller-ca.pem
+    AGENT_CA_FILE=/etc/aifactory/pki/controller-ca.pem
     CURL_TLS_ARGS=(--cacert "${AGENT_CA_FILE}")
 fi
 
@@ -122,7 +123,7 @@ import os
 from pathlib import Path
 
 path = Path("/etc/hosts")
-marker = "# devcloud-controller-fallback"
+marker = "# aifactory-controller-fallback"
 hostname = os.environ["CONTROLLER_HOST"]
 fallback = os.environ.get("CONTROLLER_FALLBACK_IPV4", "")
 original = path.read_text(encoding="utf-8")
@@ -238,26 +239,26 @@ printf '%s  %s\n' "${EXPECTED_SHA256}" "${BUNDLE_FILENAME}" \
 RELEASE_DIRECTORY="$(python3 -c \
     'import sys, tarfile; archive=tarfile.open(sys.argv[1]); roots={name.split("/", 1)[0] for name in archive.getnames() if name}; print(next(iter(roots)) if len(roots) == 1 else "")' \
     "${BUNDLE_PATH}")"
-[[ "${RELEASE_DIRECTORY}" =~ ^devcloud-[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail \
+[[ "${RELEASE_DIRECTORY}" =~ ^(aifactory|devcloud)-[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail \
     "Platform release has an unexpected top-level directory."
 tar -xf "${BUNDLE_PATH}" -C "${TEMP_DIR}"
 RELEASE_ROOT="${TEMP_DIR}/${RELEASE_DIRECTORY}"
-[[ -f "${RELEASE_ROOT}/deploy/devcloud-setup.sh" ]] || fail \
+[[ -f "${RELEASE_ROOT}/deploy/aifactory-setup.sh" ]] || fail \
     "Platform release does not contain the managed installer."
 
 TOKEN_FILE="${TEMP_DIR}/enrollment-token"
 printf '%s\n' "${NODE_TOKEN}" > "${TOKEN_FILE}"
 chmod 0600 "${TOKEN_FILE}"
-export DEVCLOUD_INSTALL_CONTROLLER_URL="${CONTROLLER_URL}"
-export DEVCLOUD_INSTALL_CONTROLLER_FALLBACK_IPV4="${CONTROLLER_FALLBACK_IPV4}"
-export DEVCLOUD_INSTALL_AGENT_CA_FILE="${AGENT_CA_FILE}"
-export DEVCLOUD_INSTALL_WORKER_ID="${NODE_ID}"
-export DEVCLOUD_INSTALL_TOKEN_FILE="${TOKEN_FILE}"
-export DEVCLOUD_INSTALL_WORKER_NAME="${WORKER_NAME}"
-export DEVCLOUD_INSTALL_WORKSPACE_ROOT="${STORAGE_ROOT:-/var/lib/devcloud/workspaces}"
-export DEVCLOUD_INSTALL_PRELOAD_IMAGES=false
-export DEVCLOUD_INSTALL_WORKER_RUNTIME="$WORKER_RUNTIME"
+export AIFACTORY_INSTALL_CONTROLLER_URL="${CONTROLLER_URL}"
+export AIFACTORY_INSTALL_CONTROLLER_FALLBACK_IPV4="${CONTROLLER_FALLBACK_IPV4}"
+export AIFACTORY_INSTALL_AGENT_CA_FILE="${AGENT_CA_FILE}"
+export AIFACTORY_INSTALL_WORKER_ID="${NODE_ID}"
+export AIFACTORY_INSTALL_TOKEN_FILE="${TOKEN_FILE}"
+export AIFACTORY_INSTALL_WORKER_NAME="${WORKER_NAME}"
+export AIFACTORY_INSTALL_WORKSPACE_ROOT="${STORAGE_ROOT:-/var/lib/aifactory/workspaces}"
+export AIFACTORY_INSTALL_PRELOAD_IMAGES=false
+export AIFACTORY_INSTALL_WORKER_RUNTIME="$WORKER_RUNTIME"
 
 log "Installing the verified worker release..."
-bash "${RELEASE_ROOT}/deploy/devcloud-setup.sh" --yes install worker
+bash "${RELEASE_ROOT}/deploy/aifactory-setup.sh" --yes install worker
 log "Worker ${WORKER_NAME} enrolled and installed successfully."

@@ -41,7 +41,7 @@ PATCH_SOURCE_PATHS = (
     "README.md",
     "app/installer/engine.py",
     "deploy/deploy.sh",
-    "deploy/devcloud-setup.sh",
+    "deploy/aifactory-setup.sh",
     "deploy/install_offline_system_packages.sh",
     "deploy/package_offline.py",
     "deploy/package_offline_patch.py",
@@ -236,8 +236,8 @@ def apply_script(
     return f"""#!/usr/bin/env bash
 set -Eeuo pipefail
 
-log() {{ printf '[devcloud-patch] %s\\n' "$*"; }}
-fail() {{ printf '[devcloud-patch] ERROR: %s\\n' "$*" >&2; exit 1; }}
+log() {{ printf '[aifactory-patch] %s\\n' "$*"; }}
+fail() {{ printf '[aifactory-patch] ERROR: %s\\n' "$*" >&2; exit 1; }}
 
 PATCH_DIR="$(cd "$(dirname "${{BASH_SOURCE[0]}}")" && pwd)"
 TARGET_INPUT="${{1:-/root/{bundle_root_name}}}"
@@ -248,7 +248,8 @@ TARGET_DIR="$(cd "${{TARGET_INPUT}}" && pwd -P)"
     "Expected a directory named {bundle_root_name}; got ${{TARGET_DIR}}"
 [[ -f "${{TARGET_DIR}}/offline/MANIFEST.json" ]] || fail \
     "The target has no offline bundle manifest."
-[[ -f "${{TARGET_DIR}}/deploy/devcloud-setup.sh" ]] || fail \
+[[ -f "${{TARGET_DIR}}/deploy/aifactory-setup.sh" \
+    || -f "${{TARGET_DIR}}/deploy/devcloud-setup.sh" ]] || fail \
     "The target is not an extracted AI Factory bundle."
 command -v sha256sum >/dev/null 2>&1 || fail "sha256sum is required."
 command -v python3 >/dev/null 2>&1 || fail "python3 is required to merge bundle manifests."
@@ -289,7 +290,7 @@ python3 "${{TARGET_DIR}}/deploy/package_offline.py" \
     --expected-role {bundle_role}
 
 log "Patch applied successfully. The recoverable old RPM payload remains at ${{BACKUP_DIR}}"
-log "Continue with: cd ${{TARGET_DIR}} && bash deploy/devcloud-setup.sh"
+log "Continue with: cd ${{TARGET_DIR}} && bash deploy/aifactory-setup.sh"
 """
 
 

@@ -15,12 +15,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import websockets
 
-from app.auth.dependencies import get_current_user_optional
+from app.auth.dependencies import get_current_user_optional, session_cookie_names
 from app.config import settings
 from app.shares import (
-    COOKIE_PREFIX,
+    COOKIE_PREFIXES,
     ShareAccessError,
-    cookie_name,
+    share_cookie_names,
     shared_workspace,
 )
 from app.share_pages import render_share_error, render_share_page
@@ -31,7 +31,7 @@ from app.models.mlflow_deployment import MlflowDeployment, MlflowDeploymentStatu
 from app.orchestrator.runtime_backend import runtime_for_node
 from app.agents.manager import AgentCommandError, AgentUnavailable, agent_manager
 
-logger = logging.getLogger("devcloud.proxy")
+logger = logging.getLogger("aifactory.proxy")
 proxy_router = APIRouter(prefix="/proxy", tags=["Proxy"])
 model_endpoint_router = APIRouter(
     prefix="/api/model-endpoints", tags=["Model Endpoints"]
@@ -219,7 +219,7 @@ def render_starting_page(workspace: Workspace) -> str:
         .replace("__TEMPLATE_ID__", escape(workspace.template_id))
         .replace(
             "__STATUS_URL__",
-            escape(f"/proxy/{workspace.id}/_devcloud/status?tail=120", quote=True),
+            escape(f"/proxy/{workspace.id}/_aifactory/status?tail=120", quote=True),
         )
         .replace("__DETAIL_URL__", escape(f"/workspaces/{workspace.id}", quote=True))
     )
@@ -250,9 +250,10 @@ def _forward_headers(request: Request, workspace: Workspace, custom_port: int | 
     if incoming_cookie:
         parsed = SimpleCookie()
         parsed.load(incoming_cookie)
-        parsed.pop(settings.COOKIE_NAME, None)
+        for name in session_cookie_names():
+            parsed.pop(name, None)
         for name in list(parsed):
-            if name.startswith(COOKIE_PREFIX):
+            if name.startswith(COOKIE_PREFIXES):
                 parsed.pop(name, None)
         if parsed:
             headers["Cookie"] = "; ".join(
@@ -453,7 +454,9 @@ async def proxy_remote_websocket(
         await connection.close_stream(stream.id)
 
 
-@proxy_router.get("/{workspace_id}/_devcloud/status")
+@proxy_router.get("/{workspace_id}/_aifactory/status")
+# Startup pages opened before 3.49.1 still poll the old path.
+@proxy_router.get("/{workspace_id}/_devcloud/status", include_in_schema=False)
 async def proxy_workspace_status(
     workspace_id: str,
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -540,7 +543,14 @@ async def proxy_websocket(
         await websocket.close(code=code, reason=reason)
 
     # Extract auth token from query params or cookies
-    token = websocket.query_params.get("token") or websocket.cookies.get(settings.COOKIE_NAME)
+    token = websocket.query_params.get("token") or next(
+        (
+            websocket.cookies[name]
+            for name in session_cookie_names()
+            if websocket.cookies.get(name)
+        ),
+        None,
+    )
     from app.auth.internal import decode_access_token
     payload = decode_access_token(token) if token else None
     user_id = payload.get("user_id") if payload else None
@@ -560,7 +570,10 @@ async def proxy_websocket(
         try:
             workspace = await get_authorized_workspace(workspace_id, db, current_user if current_user and current_user.is_active else None)
         except HTTPException as exc:
-            if custom_port is None or exc.status_code not in {401, 403} or not websocket.cookies.get(cookie_name(workspace_id, custom_port)):
+            if custom_port is None or exc.status_code not in {401, 403} or not any(
+                websocket.cookies.get(name)
+                for name in share_cookie_names(workspace_id, custom_port)
+            ):
                 raise
             workspace = await shared_workspace(db, websocket.cookies, workspace_id, custom_port)
             using_share = True
@@ -638,8 +651,8 @@ async def proxy_custom_port_http(
     try:
         workspace = await get_authorized_workspace(workspace_id, db, current_user)
     except HTTPException as exc:
-        if exc.status_code not in {401, 403} or not request.cookies.get(
-            cookie_name(workspace_id, port)
+        if exc.status_code not in {401, 403} or not any(
+            request.cookies.get(name) for name in share_cookie_names(workspace_id, port)
         ):
             raise
         try:

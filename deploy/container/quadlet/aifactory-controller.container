@@ -6,16 +6,16 @@ Wants=network-online.target
 
 [Container]
 Image={{CONTROLLER_IMAGE}}
-ContainerName=devcloud-controller
+ContainerName=aifactory-controller
 Pull=never
-Network=devcloud.network
-EnvironmentFile=/etc/devcloud/controller.env
+Network=aifactory.network
+EnvironmentFile=/etc/aifactory/controller.env
 PublishPort=127.0.0.1:8000:8000
-Volume=/var/lib/devcloud/database:/var/lib/devcloud/database:Z
-Volume=/var/lib/devcloud/download-builds:/var/lib/devcloud/download-builds:Z
-Volume=/var/lib/devcloud/ingress:/var/lib/devcloud/ingress:Z
-Volume=/var/lib/devcloud/update-queue:/var/lib/devcloud/update-queue:Z
-Volume=/srv/devcloud-downloads:/srv/devcloud-downloads:Z
+Volume=/var/lib/aifactory/database:/var/lib/aifactory/database:Z
+Volume=/var/lib/aifactory/download-builds:/var/lib/aifactory/download-builds:Z
+Volume=/var/lib/aifactory/ingress:/var/lib/aifactory/ingress:Z
+Volume=/var/lib/aifactory/update-queue:/var/lib/aifactory/update-queue:Z
+Volume=/srv/aifactory-downloads:/srv/aifactory-downloads:Z
 HealthCmd=python -m app.container_healthcheck
 HealthInterval=10s
 HealthTimeout=5s

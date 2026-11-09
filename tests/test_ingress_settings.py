@@ -87,7 +87,7 @@ async def test_ingress_manager_stages_only_fixed_files_and_rolls_back(tmp_path, 
     certificate, private_key = certificate_pair()
     manager = IngressManager(
         staging_root=tmp_path / "ingress",
-        helper=tmp_path / "devcloud-apply-ingress",
+        helper=tmp_path / "aifactory-apply-ingress",
     )
     manager.helper.write_text("# helper", encoding="utf-8")
     applied_request_ids = []
@@ -132,8 +132,8 @@ def test_nginx_config_preserves_http_fallback_and_workspace_websockets():
     assert "listen 443 ssl;" in fallback
     assert fallback.count("proxy_pass http://127.0.0.1:8000;") == 2
     assert "proxy_set_header Upgrade $http_upgrade;" in fallback
-    assert "proxy_set_header Connection $devcloud_connection_upgrade;" in fallback
-    assert "map $http_upgrade $devcloud_connection_upgrade" in fallback
+    assert "proxy_set_header Connection $aifactory_connection_upgrade;" in fallback
+    assert "map $http_upgrade $aifactory_connection_upgrade" in fallback
     assert "proxy_read_timeout 86400s;" in fallback
     assert "proxy_buffering off;" in fallback
     assert "Strict-Transport-Security" not in fallback
@@ -154,7 +154,7 @@ async def test_non_root_controller_uses_watcher_without_helper_binary(
 ):
     manager = IngressManager(
         staging_root=tmp_path / "ingress",
-        helper=tmp_path / "missing-devcloud-apply-ingress",
+        helper=tmp_path / "missing-aifactory-apply-ingress",
     )
     manager.staging_root.mkdir()
     request_id = str(uuid.uuid4())

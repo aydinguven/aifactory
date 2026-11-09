@@ -6,15 +6,15 @@ Requires=podman.socket
 
 [Container]
 Image={{WORKER_IMAGE}}
-ContainerName=devcloud-worker
+ContainerName=aifactory-worker
 Pull=never
 Network=host
-EnvironmentFile=/etc/devcloud/worker.env
+EnvironmentFile=/etc/aifactory/worker.env
 Environment=CONTAINER_HOST=unix:///run/podman/podman.sock
 Volume=/run/podman/podman.sock:/run/podman/podman.sock
 Volume={{WORKSPACE_ROOT}}:{{WORKSPACE_ROOT}}
-Volume=/var/lib/devcloud/update-queue:/var/lib/devcloud/update-queue
-Volume=/etc/devcloud:/etc/devcloud:ro
+Volume=/var/lib/aifactory/update-queue:/var/lib/aifactory/update-queue
+Volume=/etc/aifactory:/etc/aifactory:ro
 SecurityLabelDisable=true
 NoNewPrivileges=true
 ReadOnly=true

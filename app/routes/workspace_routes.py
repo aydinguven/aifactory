@@ -80,7 +80,7 @@ from app.workspace_catalog import (
 )
 
 
-logger = logging.getLogger("devcloud.routes.workspaces")
+logger = logging.getLogger("aifactory.routes.workspaces")
 workspace_router = APIRouter(prefix="/api/workspaces", tags=["Workspaces"])
 RETIRED_TEMPLATE_MESSAGE = (
     "Bu VS Code şablonu kullanımdan kaldırıldı; yeni workspace için Kilo Code "
@@ -910,7 +910,7 @@ async def snapshot_workspace_endpoint(
     if workspace.user_id != current_user.id and current_user.role != UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="Access denied.")
     if (
-        settings.DEVCLOUD_DEPLOYMENT_ROLE != "all-in-one"
+        settings.AIFACTORY_DEPLOYMENT_ROLE != "all-in-one"
         and not settings.USE_MOCK_PODMAN
     ):
         raise HTTPException(

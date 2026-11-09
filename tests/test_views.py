@@ -29,7 +29,7 @@ async def test_view_routes_render_html(client: AsyncClient):
     assert '<html lang="tr">' in login_resp.text
     assert f"v{settings.APP_VERSION}" in login_resp.text
     assert f"/static/css/kurumsal.css?v={settings.APP_VERSION}-" in login_resp.text
-    assert 'href="https://git.aydin.cloud/aydin/devcloud"' not in login_resp.text
+    assert 'href="https://git.aydin.cloud/aydin/aifactory"' not in login_resp.text
     assert "Git Deposu" not in login_resp.text
 
     # 2. Register page

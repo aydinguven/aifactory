@@ -17,7 +17,7 @@ async def test_download_listing_file_and_range_support(
 ):
     download_root = tmp_path / "downloads"
     download_root.mkdir()
-    filename = "devcloud-offline-v2.0.0-20260825-abcdef123456.tar.gz"
+    filename = "aifactory-offline-v2.0.0-20260825-abcdef123456.tar.gz"
     content = b"0123456789abcdef"
     archive = download_root / filename
     archive.write_bytes(content)
@@ -25,7 +25,7 @@ async def test_download_listing_file_and_range_support(
         f"{hashlib.sha256(content).hexdigest()}  {filename}\n",
         encoding="ascii",
     )
-    worker_filename = "devcloud-worker-offline-v2.0.0-20260825-fedcba654321.tar.gz"
+    worker_filename = "aifactory-worker-offline-v2.0.0-20260825-fedcba654321.tar.gz"
     worker_content = b"worker-bundle"
     worker_archive = download_root / worker_filename
     worker_archive.write_bytes(worker_content)
@@ -33,7 +33,7 @@ async def test_download_listing_file_and_range_support(
         f"{hashlib.sha256(worker_content).hexdigest()}  {worker_filename}\n",
         encoding="ascii",
     )
-    legacy_filename = "devcloud-offline-v2.0.0-20260824-111111111111.tar"
+    legacy_filename = "aifactory-offline-v2.0.0-20260824-111111111111.tar"
     legacy_archive = download_root / legacy_filename
     legacy_archive.write_bytes(b"legacy-plain-tar-bundle")
     (download_root / f"{legacy_filename}.sha256").write_text(
@@ -93,7 +93,7 @@ async def test_downloads_are_disabled_by_default(
     monkeypatch.setattr(settings, "DOWNLOADS_ENABLED", False)
     assert (await client.get("/download/")).status_code == 404
     assert (
-        await client.get("/download/devcloud-offline-abcdef123456.tar")
+        await client.get("/download/aifactory-offline-abcdef123456.tar")
     ).status_code == 404
     assert (await client.get("/download/install-worker.sh")).status_code == 410
 
@@ -107,7 +107,7 @@ async def test_legacy_worker_bootstrap_is_retired_even_with_public_base_url(
 ):
     download_root = tmp_path / "downloads"
     download_root.mkdir()
-    filename = "devcloud-worker-offline-v2.0.0-20260825-fedcba654321.tar.gz"
+    filename = "aifactory-worker-offline-v2.0.0-20260825-fedcba654321.tar.gz"
     archive = download_root / filename
     archive.write_bytes(b"worker")
     (download_root / f"{filename}.sha256").write_text(
@@ -117,7 +117,7 @@ async def test_legacy_worker_bootstrap_is_retired_even_with_public_base_url(
     monkeypatch.setattr(settings, "DOWNLOADS_ENABLED", True)
     monkeypatch.setattr(settings, "DOWNLOADS_ROOT", str(download_root))
     db_session.add(
-        DownloadSettings(id=1, public_base_url="https://devcloud.example.com")
+        DownloadSettings(id=1, public_base_url="https://aifactory.example.com")
     )
     await db_session.commit()
     monkeypatch.setattr(settings, "DOWNLOAD_PUBLIC_BASE_URL", "https://fallback.invalid")

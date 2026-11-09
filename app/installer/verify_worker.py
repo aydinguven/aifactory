@@ -18,14 +18,14 @@ def _required(name: str) -> str:
 
 def main() -> int:
     controller = (
-        os.environ.get("DEVCLOUD_CONTROLLER_URL", "").strip()
-        or _required("DEVCLOUD_MASTER_URL")
+        os.environ.get("AIFACTORY_CONTROLLER_URL", "").strip()
+        or _required("AIFACTORY_MASTER_URL")
     ).rstrip("/")
-    node_id = _required("DEVCLOUD_NODE_ID")
-    token = _required("DEVCLOUD_NODE_TOKEN")
-    ca_file = os.environ.get("DEVCLOUD_AGENT_CA_FILE", "").strip()
-    cert_file = os.environ.get("DEVCLOUD_AGENT_CERT_FILE", "").strip()
-    key_file = os.environ.get("DEVCLOUD_AGENT_KEY_FILE", "").strip()
+    node_id = _required("AIFACTORY_NODE_ID")
+    token = _required("AIFACTORY_NODE_TOKEN")
+    ca_file = os.environ.get("AIFACTORY_AGENT_CA_FILE", "").strip()
+    cert_file = os.environ.get("AIFACTORY_AGENT_CERT_FILE", "").strip()
+    key_file = os.environ.get("AIFACTORY_AGENT_KEY_FILE", "").strip()
     if bool(cert_file) != bool(key_file):
         raise RuntimeError("Worker client certificate and key must be configured together")
     # Match app.worker_agent: trust the host store (update-ca-trust) or the

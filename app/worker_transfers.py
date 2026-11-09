@@ -90,7 +90,7 @@ class WorkerTransfers:
                 if not item["finished"] and item["purpose"] == "upload":
                     target = item["target"]
                     # Atomic replacement never follows a pre-existing leaf symlink.
-                    descriptor, temporary = tempfile.mkstemp(prefix=".devcloud-upload-", dir=target.parent)
+                    descriptor, temporary = tempfile.mkstemp(prefix=".aifactory-upload-", dir=target.parent)
                     try:
                         with os.fdopen(descriptor, "wb") as output:
                             handle.seek(0)

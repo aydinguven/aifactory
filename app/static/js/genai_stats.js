@@ -72,7 +72,7 @@
   }
 
   const userName = (row) => (row.full_name ? `${row.username} · ${row.full_name}` : row.username);
-  const isMe = (row) => row.devcloud_user_id != null && row.devcloud_user_id === stats.viewer.user_id;
+  const isMe = (row) => row.aifactory_user_id != null && row.aifactory_user_id === stats.viewer.user_id;
 
   function scopeKpis(prefix, row) {
     const t = stats.totals;

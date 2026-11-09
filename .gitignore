@@ -12,6 +12,7 @@ __pycache__/
 .pytest_tmp/
 
 # Runtime Data & Storage
+data/aifactory.db
 data/devcloud.db
 data/workspaces/*
 !data/workspaces/.gitkeep

@@ -3,11 +3,11 @@
 set -Eeuo pipefail
 
 log() {
-    printf '[devcloud-setup] %s\n' "$*"
+    printf '[aifactory-setup] %s\n' "$*"
 }
 
 fail() {
-    printf '[devcloud-setup] ERROR: %s\n' "$*" >&2
+    printf '[aifactory-setup] ERROR: %s\n' "$*" >&2
     exit 1
 }
 
@@ -23,7 +23,7 @@ dnf_disable_repositories_option() {
     fi
 }
 
-[[ "$(id -u)" -eq 0 ]] || fail "Run devcloud-setup as root."
+[[ "$(id -u)" -eq 0 ]] || fail "Run aifactory-setup as root."
 # Hardened hosts often set a 027/077 root umask; files created here must stay
 # readable by the service user (secrets are written with explicit modes).
 umask 0022
@@ -69,7 +69,7 @@ if [[ -f "${OFFLINE_MANIFEST}" ]]; then
     log "Offline bundle detected; verifying and installing from its bundled DNF repository..."
     bash "${PROJECT_DIR}/deploy/install_offline_system_packages.sh" "${PROJECT_DIR}"
     OFFLINE_BUNDLE=1
-    export DEVCLOUD_OFFLINE_INSTALL=1
+    export AIFACTORY_OFFLINE_INSTALL=1
 fi
 
 install_subscription_manager() {
@@ -97,14 +97,14 @@ install_subscription_manager
 if [[ "${OFFLINE_BUNDLE}" -eq 1 ]] && ! subscription-manager identity >/dev/null 2>&1; then
     cat <<'EOF'
 
-[devcloud-setup] subscription-manager was installed successfully.
-[devcloud-setup] Register this VM with Satellite/Foreman now, for example with your
-[devcloud-setup] organization and activation key, then rerun:
+[aifactory-setup] subscription-manager was installed successfully.
+[aifactory-setup] Register this VM with Satellite/Foreman now, for example with your
+[aifactory-setup] organization and activation key, then rerun:
 
-    bash deploy/devcloud-setup.sh
+    bash deploy/aifactory-setup.sh
 
-[devcloud-setup] All remaining operating-system packages will be installed from
-[devcloud-setup] the repositories enabled by that registration.
+[aifactory-setup] All remaining operating-system packages will be installed from
+[aifactory-setup] the repositories enabled by that registration.
 EOF
     exit 0
 fi
@@ -127,6 +127,6 @@ fi
 
 export PYTHONPATH="${PROJECT_DIR}${PYTHONPATH:+:${PYTHONPATH}}"
 # Subprocesses that switch to the service user must not inherit an inaccessible
-# working directory such as /root/devcloud-worker.
+# working directory such as /root/aifactory-worker.
 cd /
 exec "${PYTHON_BIN}" -m app.installer "$@"

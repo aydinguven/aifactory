@@ -27,10 +27,17 @@ async def get_token_from_request(
     if bearer_creds and bearer_creds.credentials:
         return bearer_creds.credentials
     # Fallback to session cookie
-    cookie_token = request.cookies.get(settings.COOKIE_NAME)
-    if cookie_token:
-        return cookie_token
+    for name in session_cookie_names():
+        cookie_token = request.cookies.get(name)
+        if cookie_token:
+            return cookie_token
     return None
+
+
+def session_cookie_names() -> tuple[str, ...]:
+    """The configured session cookie first, then the other release's name."""
+    names = [settings.COOKIE_NAME, "aifactory_session", "devcloud_session"]
+    return tuple(dict.fromkeys(names))
 
 
 async def get_current_user_optional(

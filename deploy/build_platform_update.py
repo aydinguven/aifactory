@@ -125,8 +125,8 @@ def build(
         raise ReleaseBuildError("The Git worktree must be clean")
     commit = command(root, "git", "rev-parse", "HEAD")
     release_version = version(root)
-    controller_image = f"localhost/devcloud-controller:{release_version}"
-    worker_image = f"localhost/devcloud-worker:{release_version}"
+    controller_image = f"localhost/aifactory-controller:{release_version}"
+    worker_image = f"localhost/aifactory-worker:{release_version}"
     controller_source = controller_source or f"ghcr.io/aydinguven/devcloud:controller-{release_version}"
     worker_source = worker_source or f"ghcr.io/aydinguven/devcloud:worker-{release_version}"
     for image in (controller_image, worker_image):
@@ -134,7 +134,7 @@ def build(
 
     output_dir.mkdir(parents=True, exist_ok=True)
     output = output_dir / f"devcloud-platform-update-v{release_version}-{commit[:12]}.tar.gz"
-    with tempfile.TemporaryDirectory(prefix="devcloud-platform-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="aifactory-platform-") as temporary:
         stage = Path(temporary) / f"devcloud-{release_version}"
         stage.mkdir()
         _copy_tracked(root, stage)
@@ -231,7 +231,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--channel-output",
         default="",
-        help="also write devcloud-update-channel.json at this path",
+        help="also write aifactory-update-channel.json at this path",
     )
     parser.add_argument(
         "--channel-url",

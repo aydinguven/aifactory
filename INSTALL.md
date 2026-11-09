@@ -10,7 +10,7 @@ DNF repositories, including Satellite or Foreman-managed repositories.
 
 From a verified checkout or extracted release:
 
-    sudo bash deploy/devcloud-setup.sh
+    sudo bash deploy/aifactory-setup.sh
 
 The menu provides controller, all-in-one, and worker installation plus update,
 repair, status, backup, restore, and uninstall.
@@ -92,7 +92,7 @@ select **Yeni Worker Kurulum Komutu Üret**. Run the generated command as root o
 the worker within 10 minutes. The command is single-use. It asks only for the
 worker name, creates the node and enrollment token through the controller, then
 downloads and verifies the controller's current platform release before invoking
-the unified installer. Set `DEVCLOUD_WORKER_NAME` to suppress the only prompt.
+the unified installer. Set `AIFACTORY_WORKER_NAME` to suppress the only prompt.
 
 The reusable `/download/install-worker.sh` endpoint is intentionally disabled;
 never place a permanent node token in a URL or shell command. If enrollment is
@@ -100,7 +100,7 @@ interrupted after the ticket is consumed, generate a fresh command in Admin.
 
 A JSON answer file can be applied with:
 
-    sudo bash deploy/devcloud-setup.sh --yes install worker \
+    sudo bash deploy/aifactory-setup.sh --yes install worker \
       --answers /root/worker-answers.json
 
 The token file and generated environment files must remain mode 0600.
@@ -138,7 +138,7 @@ decrypted shared settings and per-operation secrets over the agent tunnel. The
 all-in-one worker may keep its loopback HTTP connection because it never leaves
 the host network namespace.
 
-The following `/etc/devcloud/worker.env` values remain available only as a
+The following `/etc/aifactory/worker.env` values remain available only as a
 rolling-upgrade fallback when the controller has no central Jupyter AI record:
 
 ~~~ini
@@ -170,7 +170,7 @@ workspace terminal.
 When using that fallback, restart the worker after changing the file:
 
 ~~~bash
-sudo systemctl restart devcloud-worker.service
+sudo systemctl restart aifactory-worker.service
 ~~~
 
 Only newly created workspace containers receive changed environment values.
@@ -355,18 +355,20 @@ On the release builder:
     bash deploy/container/build-worker-image.sh
     python3 deploy/build_platform_update.py \
       --signing-key GPG_KEY_ID \
-      --channel-output /tmp/release-channel/devcloud-update-channel.json \
+      --channel-output /tmp/release-channel/aifactory-update-channel.json \
       --channel-url https://artifacts.example/devcloud/devcloud-platform-update-VERSION-COMMIT.tar.gz
 
-Commit only `devcloud-update-channel.json` to the selected `stable` branch (or
-another configured branch/tag). Store the multi-gigabyte bundle in a Git
+Commit `aifactory-update-channel.json` to the selected `stable` branch (or
+another configured branch/tag). Hosts before 3.49.1 read
+`devcloud-update-channel.json`, so the release workflow also commits a copy
+under that name. Store the multi-gigabyte bundle in a Git
 release, an internal artifact server, or beside the channel file for a local
 repository. The descriptor pins its filename, size, and SHA-256.
 
 The controller installer asks for the Git repository and branch/tag and stores
-them in `/etc/devcloud/controller.env`. They can also be supplied directly:
+them in `/etc/aifactory/controller.env`. They can also be supplied directly:
 
-    sudo bash /opt/devcloud/current/deploy/devcloud-setup.sh --yes update \
+    sudo bash /opt/aifactory/current/deploy/aifactory-setup.sh --yes update \
       --source-type git \
       --repository https://git.example/devcloud.git \
       --ref stable
@@ -376,38 +378,93 @@ System > Platform Güncelleme**. The controller Git form defaults to
 `https://github.com/aydinguven/devcloud.git`, branch `stable`, with
 **İmzasız güncellemeye izin ver** selected for the current internal release
 workflow. Clear the checkbox to require a signature. The controller process
-only writes a request; `devcloud-update.path` invokes the root-owned updater.
+only writes a request; `aifactory-update.path` invokes the root-owned updater.
 A pre-update database/configuration backup is created automatically. Worker
 inventory reports the running agent version and OTA state through heartbeat
 telemetry.
 
 For an air-gapped or local update:
 
-    sudo bash /opt/devcloud/current/deploy/devcloud-setup.sh --yes update \
+    sudo bash /opt/aifactory/current/deploy/aifactory-setup.sh --yes update \
       --bundle /root/devcloud-platform-update-VERSION-COMMIT.tar.gz
 
 Official releases contain `release.json` and `release.json.asc` and are
-verified by `/etc/devcloud/release-keyring.gpg`. Unsigned updates require an
+verified by `/etc/aifactory/release-keyring.gpg`. Unsigned updates require an
 explicit UI checkbox and warning confirmation, or the CLI `--allow-unsigned`
 break-glass option. Only use either bypass for a reviewed source you trust.
 
 For an operator-reviewed development source ZIP:
 
-    sudo bash /opt/devcloud/current/deploy/devcloud-setup.sh --yes update \
+    sudo bash /opt/aifactory/current/deploy/aifactory-setup.sh --yes update \
       --bundle /root/devcloud-source.zip --allow-unsigned
+
+## Moving from the devcloud names (3.49.1)
+
+Releases before 3.49.1 installed everything under `devcloud` names. The first
+update to 3.49.1 moves the host to the `aifactory` names before it installs
+the new release. Nothing has to be prepared by hand; update the controller
+first, then the workers, the usual way (Admin > System or `update` on the
+CLI, and worker OTA from Admin > Worker'lar).
+
+The update:
+
+1. checks the host (see below) and, on the controller, writes a backup to
+   `/var/lib/aifactory/backups/pre-migrate-v<old version>-<time>.tar.gz`;
+2. stops the devcloud services; on a worker it also removes the workspace
+   containers (project files stay; the next **Başlat** recreates each
+   container, so packages installed outside the workspace folder are lost);
+3. renames the bundled PostgreSQL role and database to `aifactory`;
+4. renames `/etc/devcloud`, `/var/lib/devcloud`, `/opt/devcloud` and
+   `/srv/devcloud-downloads`, and the `devcloud` service account and group
+   (uid and gid stay the same);
+5. rewrites `controller.env`, `worker.env` and `postgresql.env`
+   (`DEVCLOUD_*` keys become `AIFACTORY_*`), the install state, `/etc/hosts`
+   entries and the Nginx configuration (`/etc/nginx/conf.d/aifactory.conf`);
+6. replaces the `devcloud-*` systemd units, Quadlets, container network and
+   ingress helper with `aifactory-*` ones and starts them.
+
+The old paths stay as symbolic links to the new ones until 3.50.1, because
+the older updater that started the update still writes its result there.
+
+The update stops before changing anything when:
+
+- `/etc/aifactory`, `/var/lib/aifactory`, `/opt/aifactory` or
+  `/srv/aifactory-downloads` already exists;
+- one of the old directories, or a directory below it, is a mount point
+  (mount it at the new path first);
+- a user named `aifactory` already exists;
+- the host is a native (rootless) GPU worker: its Podman storage is tied to
+  the `devcloud` account, so uninstall it and register it again.
+
+Each change is recorded in `/var/lib/aifactory-migration/journal.json`. If
+any later step fails before the new release is recorded, the update reverses
+the recorded changes, starts the devcloud services again and reports the
+error; fix the cause and update again. After the release is recorded the move
+is kept.
+
+If the update is interrupted (for example a power loss), the 3.49.1 installer
+undoes the unfinished move the next time it runs and then starts it again.
+Until the old units are removed, a reboot resumes the update by itself.
+Otherwise run it again from the CLI with the same source, for example:
+
+    sudo bash /opt/devcloud/current/deploy/devcloud-setup.sh --yes update \
+      --bundle /root/devcloud-platform-update-VERSION-COMMIT.tar.gz
+
+If that script is missing, the new release was already staged; use
+`/opt/aifactory/current/deploy/aifactory-setup.sh` with the same arguments.
 
 ## Back up, restore, and uninstall
 
-    sudo bash /opt/devcloud/current/deploy/devcloud-setup.sh backup \
-      --output /backup/devcloud-config-db.tar.gz
+    sudo bash /opt/aifactory/current/deploy/aifactory-setup.sh backup \
+      --output /backup/aifactory-config-db.tar.gz
 
-    sudo bash /opt/devcloud/current/deploy/devcloud-setup.sh backup \
-      --include-workspaces --output /backup/devcloud-full.tar.gz
+    sudo bash /opt/aifactory/current/deploy/aifactory-setup.sh backup \
+      --include-workspaces --output /backup/aifactory-full.tar.gz
 
-    sudo bash /opt/devcloud/current/deploy/devcloud-setup.sh restore \
-      --bundle /backup/devcloud-config-db.tar.gz
+    sudo bash /opt/aifactory/current/deploy/aifactory-setup.sh restore \
+      --bundle /backup/aifactory-config-db.tar.gz
 
-    sudo bash /opt/devcloud/current/deploy/devcloud-setup.sh uninstall
+    sudo bash /opt/aifactory/current/deploy/aifactory-setup.sh uninstall
 
 Backups contain checksummed members and are written mode 0600 because they
 include secrets. PostgreSQL backups use custom-format pg_dump; SQLite uses its
@@ -420,11 +477,11 @@ confirmation.
 
 ## Managed paths
 
-- /opt/devcloud/current: active release link
-- /var/lib/devcloud/releases: immutable releases
-- /etc/devcloud/controller.env: controller secrets
-- /etc/devcloud/worker.env: worker enrollment secrets
-- /var/lib/devcloud/installer/install-state.json: non-secret installer state
-- /var/lib/devcloud/update-queue: service-writable, root-consumed update handoff
-- /var/lib/devcloud/workspaces: default worker storage
-- /srv/devcloud-downloads: controller artifacts
+- /opt/aifactory/current: active release link
+- /var/lib/aifactory/releases: immutable releases
+- /etc/aifactory/controller.env: controller secrets
+- /etc/aifactory/worker.env: worker enrollment secrets
+- /var/lib/aifactory/installer/install-state.json: non-secret installer state
+- /var/lib/aifactory/update-queue: service-writable, root-consumed update handoff
+- /var/lib/aifactory/workspaces: default worker storage
+- /srv/aifactory-downloads: controller artifacts

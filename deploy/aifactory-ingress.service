@@ -4,11 +4,11 @@ After=network.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/libexec/devcloud-apply-ingress
+ExecStart=/usr/local/libexec/aifactory-apply-ingress
 User=root
 Group=root
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
-ReadWritePaths=/etc/nginx/conf.d /etc/devcloud/tls /var/lib/devcloud/ingress /var/log/nginx /run
+ReadWritePaths=/etc/nginx/conf.d /etc/aifactory/tls /var/lib/aifactory/ingress /var/log/nginx /run

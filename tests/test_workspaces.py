@@ -365,7 +365,7 @@ async def test_delete_rejects_workspace_during_deployment(client: AsyncClient, d
         node_id=TEST_WORKER_ID,
         template_id="vscode-kilo",
         flavor_id="t1.micro",
-        container_name="devcloud-creating-test",
+        container_name="aifactory-creating-test",
         host_port=11999,
         container_port=8080,
         storage_path="",
@@ -657,7 +657,7 @@ async def test_container_name_carries_owner_and_workspace_slug(
     ).scalar_one()
 
     assert workspace.name_key == "data analysis"
-    assert workspace.container_name.startswith(f"devcloud-{user.id}-data-analysis-")
+    assert workspace.container_name.startswith(f"aifactory-{user.id}-data-analysis-")
     assert len(workspace.container_name) <= 128
 
 

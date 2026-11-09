@@ -13,6 +13,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote, unquote, urlsplit, urlunsplit
+from app.installer.layout import CURRENT, LEGACY, Layout
 from app.installer.models import ControllerRuntime, DatabaseMode, InstallConfig
 from app.installer.platform import CommandRunner, InstallerError
 from app.installer.release import _extract_tar
@@ -79,29 +80,31 @@ def create_backup(
     host_path,
     runner: CommandRunner,
     include_workspaces: bool,
+    layout: Layout = CURRENT,
 ) -> Path:
+    """Write a verified archive; ``layout`` names the host's directories."""
     output = output.resolve()
     if runner.dry_run:
         runner.run(
             [
-                "devcloud-internal-backup",
+                "aifactory-internal-backup",
                 str(output),
                 "--include-workspaces" if include_workspaces else "--configuration-only",
             ]
         )
         return output
     output.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="devcloud-backup-") as temporary:
-        root = Path(temporary) / "devcloud-backup"
+    with tempfile.TemporaryDirectory(prefix="aifactory-backup-") as temporary:
+        root = Path(temporary) / layout.backup_root
         payload = root / "payload"
         payload.mkdir(parents=True)
-        _copy_tree(host_path("/etc/devcloud"), payload / "etc-devcloud")
+        _copy_tree(host_path(layout.etc_dir), payload / layout.etc_backup_dir)
         state = host_path(config.state_root) / "install-state.json"
         if state.is_file():
             (payload / "installer").mkdir()
             shutil.copy2(state, payload / "installer" / state.name)
 
-        controller_env = host_path("/etc/devcloud/controller.env")
+        controller_env = host_path(f"{layout.etc_dir}/controller.env")
         env_values: dict[str, str] = {}
         if controller_env.is_file():
             for raw in controller_env.read_text(encoding="utf-8").splitlines():
@@ -115,7 +118,7 @@ def create_backup(
         ):
             source_db = host_path(_sqlite_path(database_url))
             if source_db.is_file():
-                target_db = payload / "database" / "devcloud.db"
+                target_db = payload / "database" / layout.sqlite_filename
                 target_db.parent.mkdir()
                 source = sqlite3.connect(source_db)
                 target = sqlite3.connect(target_db)
@@ -126,23 +129,23 @@ def create_backup(
                     source.close()
                 database_kind = "sqlite"
         elif config.installs_controller:
-            target_db = payload / "database" / "devcloud.pgdump"
+            target_db = payload / "database" / f"{layout.database}.pgdump"
             target_db.parent.mkdir()
             if (
                 config.controller_runtime == ControllerRuntime.CONTAINER
                 and config.database_mode == DatabaseMode.BUNDLED_POSTGRESQL
             ):
-                container_dump = "/tmp/devcloud-backup.pgdump"
+                container_dump = "/tmp/aifactory-backup.pgdump"
                 runner.run(
                     [
                         "podman",
                         "exec",
-                        "devcloud-postgresql",
+                        layout.postgresql_container,
                         "pg_dump",
                         "--format=custom",
                         "--file",
                         container_dump,
-                        "devcloud",
+                        layout.database,
                     ]
                 )
                 try:
@@ -150,7 +153,7 @@ def create_backup(
                         [
                             "podman",
                             "cp",
-                            f"devcloud-postgresql:{container_dump}",
+                            f"{layout.postgresql_container}:{container_dump}",
                             str(target_db),
                         ]
                     )
@@ -159,7 +162,7 @@ def create_backup(
                         [
                             "podman",
                             "exec",
-                            "devcloud-postgresql",
+                            layout.postgresql_container,
                             "rm",
                             "-f",
                             container_dump,
@@ -211,14 +214,17 @@ def create_backup(
         temporary_output = output.with_name(f".{output.name}.tmp")
         temporary_output.unlink(missing_ok=True)
         with tarfile.open(temporary_output, "w:gz") as archive:
-            archive.add(root, arcname="devcloud-backup")
+            archive.add(root, arcname=layout.backup_root)
         os.chmod(temporary_output, 0o600)
         os.replace(temporary_output, output)
     return output
 
 
-def _validated_backup(extracted: Path) -> tuple[Path, dict]:
-    root = extracted / "devcloud-backup"
+def _validated_backup(extracted: Path) -> tuple[Path, dict, Layout]:
+    for layout in (CURRENT, LEGACY):
+        root = extracted / layout.backup_root
+        if root.is_dir():
+            break
     manifest_path = root / "backup.json"
     if not manifest_path.is_file():
         raise InstallerError("Backup manifest is missing")
@@ -263,7 +269,31 @@ def _validated_backup(extracted: Path) -> tuple[Path, dict]:
         raise InstallerError(
             "Backup contains unlisted member(s): " + ", ".join(unlisted[:3])
         )
-    return root, manifest
+    return root, manifest, layout
+
+
+def _migrate_restored_legacy_files(host_path, config: InstallConfig) -> None:
+    """Give files restored from a devcloud backup the aifactory names."""
+    from app.installer.legacy_layout import (
+        migrated_configuration,
+        migrated_env_text,
+        migrated_postgresql_env_text,
+    )
+
+    etc = host_path(CURRENT.etc_dir)
+    for name, rewrite in (
+        ("controller.env", migrated_env_text),
+        ("worker.env", migrated_env_text),
+        ("postgresql.env", migrated_postgresql_env_text),
+    ):
+        path = etc / name
+        if path.is_file():
+            path.write_text(rewrite(path.read_text(encoding="utf-8")), encoding="utf-8")
+    state = host_path(config.state_root) / "install-state.json"
+    if state.is_file():
+        data = json.loads(state.read_text(encoding="utf-8"))
+        data["configuration"] = migrated_configuration(data.get("configuration") or {})
+        state.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
 
 def restore_backup(
@@ -274,23 +304,23 @@ def restore_backup(
     runner: CommandRunner,
 ) -> None:
     if runner.dry_run:
-        runner.run(["devcloud-internal-restore", str(archive.resolve())])
+        runner.run(["aifactory-internal-restore", str(archive.resolve())])
         return
     if not archive.is_file():
         raise InstallerError(f"Backup archive does not exist: {archive}")
-    with tempfile.TemporaryDirectory(prefix="devcloud-restore-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="aifactory-restore-") as temporary:
         extracted = Path(temporary)
         _extract_tar(archive, extracted)
-        root, manifest = _validated_backup(extracted)
+        root, manifest, archive_layout = _validated_backup(extracted)
         if manifest.get("role") != config.role.value:
             raise InstallerError(
                 f"Backup role {manifest.get('role')} does not match installed "
                 f"role {config.role.value}"
             )
         payload = root / "payload"
-        restored_etc = payload / "etc-devcloud"
+        restored_etc = payload / archive_layout.etc_backup_dir
         if restored_etc.is_dir():
-            target = host_path("/etc/devcloud")
+            target = host_path(CURRENT.etc_dir)
             target.mkdir(parents=True, exist_ok=True)
             _copy_tree(restored_etc, target)
         restored_state = payload / "installer" / "install-state.json"
@@ -298,10 +328,12 @@ def restore_backup(
             state_target = host_path(config.state_root) / "install-state.json"
             state_target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(restored_state, state_target)
+        if archive_layout == LEGACY:
+            _migrate_restored_legacy_files(host_path, config)
 
         database_kind = manifest.get("database")
         if database_kind == "sqlite":
-            source_db = payload / "database" / "devcloud.db"
+            source_db = payload / "database" / archive_layout.sqlite_filename
             target_db = host_path(
                 _sqlite_path(config.effective_database_url())
             )
@@ -310,25 +342,25 @@ def restore_backup(
             shutil.copy2(source_db, temporary_db)
             os.replace(temporary_db, target_db)
         elif database_kind == "postgresql":
-            controller_env = host_path("/etc/devcloud/controller.env")
+            controller_env = host_path(f"{CURRENT.etc_dir}/controller.env")
             database_url = ""
             for raw in controller_env.read_text(encoding="utf-8").splitlines():
                 if raw.startswith("DATABASE_URL="):
                     database_url = raw.split("=", 1)[1].strip().strip('"')
             if not database_url:
                 raise InstallerError("Restored PostgreSQL URL is missing")
-            dump = payload / "database" / "devcloud.pgdump"
+            dump = payload / "database" / f"{archive_layout.database}.pgdump"
             if (
                 config.controller_runtime == ControllerRuntime.CONTAINER
                 and config.database_mode == DatabaseMode.BUNDLED_POSTGRESQL
             ):
-                container_dump = "/tmp/devcloud-restore.pgdump"
+                container_dump = "/tmp/aifactory-restore.pgdump"
                 runner.run(
                     [
                         "podman",
                         "cp",
                         str(dump),
-                        f"devcloud-postgresql:{container_dump}",
+                        f"aifactory-postgresql:{container_dump}",
                     ]
                 )
                 try:
@@ -338,7 +370,7 @@ def restore_backup(
                             "exec",
                             "--user",
                             "0",
-                            "devcloud-postgresql",
+                            "aifactory-postgresql",
                             "chmod",
                             "0644",
                             container_dump,
@@ -348,13 +380,13 @@ def restore_backup(
                         [
                             "podman",
                             "exec",
-                            "devcloud-postgresql",
+                            "aifactory-postgresql",
                             "pg_restore",
                             "--clean",
                             "--if-exists",
                             "--no-owner",
                             "--dbname",
-                            "devcloud",
+                            "aifactory",
                             container_dump,
                         ]
                     )
@@ -363,7 +395,7 @@ def restore_backup(
                         [
                             "podman",
                             "exec",
-                            "devcloud-postgresql",
+                            "aifactory-postgresql",
                             "rm",
                             "-f",
                             container_dump,

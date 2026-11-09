@@ -3,15 +3,15 @@
 set -Eeuo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="${DEVCLOUD_ENV_FILE:-${PROJECT_DIR}/.env}"
-SERVICE_NAME="${DEVCLOUD_SERVICE_NAME:-devcloud.service}"
+ENV_FILE="${AIFACTORY_ENV_FILE:-${PROJECT_DIR}/.env}"
+SERVICE_NAME="${AIFACTORY_SERVICE_NAME:-aifactory.service}"
 
 log() {
-    printf '[devcloud-downloads] %s\n' "$*"
+    printf '[aifactory-downloads] %s\n' "$*"
 }
 
 fail() {
-    printf '[devcloud-downloads] ERROR: %s\n' "$*" >&2
+    printf '[aifactory-downloads] ERROR: %s\n' "$*" >&2
     exit 1
 }
 
@@ -52,8 +52,8 @@ set_env_value DOWNLOAD_UPDATES_ENABLED True
 
 DOWNLOADS_ROOT="$(env_value DOWNLOADS_ROOT)"
 DOWNLOAD_BUILD_ROOT="$(env_value DOWNLOAD_BUILD_ROOT)"
-DOWNLOADS_ROOT="${DOWNLOADS_ROOT:-/srv/devcloud-downloads}"
-DOWNLOAD_BUILD_ROOT="${DOWNLOAD_BUILD_ROOT:-/var/lib/devcloud/download-builds}"
+DOWNLOADS_ROOT="${DOWNLOADS_ROOT:-/srv/aifactory-downloads}"
+DOWNLOAD_BUILD_ROOT="${DOWNLOAD_BUILD_ROOT:-/var/lib/aifactory/download-builds}"
 
 for target in "${DOWNLOADS_ROOT}" "${DOWNLOAD_BUILD_ROOT}"; do
     [[ "${target}" == /* && "${target}" != "/" ]] || fail "Unsafe download directory: ${target}"

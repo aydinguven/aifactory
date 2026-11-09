@@ -192,9 +192,9 @@ async def test_worker_applies_central_settings_and_preserves_unmanaged_fallback(
     monkeypatch.setattr(settings, "JUPYTER_AI_GATEWAY_MODEL_DISCOVERY", False)
     monkeypatch.setattr(settings, "JUPYTER_AI_MODEL_CATALOG_JSON", "[]")
     monkeypatch.setattr(settings, "JUPYTER_AI_CLINE_ENABLED", True)
-    monkeypatch.setenv("DEVCLOUD_CONTROLLER_URL", "https://controller.example")
-    monkeypatch.setenv("DEVCLOUD_NODE_ID", "worker-1")
-    monkeypatch.setenv("DEVCLOUD_NODE_TOKEN", "worker-token")
+    monkeypatch.setenv("AIFACTORY_CONTROLLER_URL", "https://controller.example")
+    monkeypatch.setenv("AIFACTORY_NODE_ID", "worker-1")
+    monkeypatch.setenv("AIFACTORY_NODE_TOKEN", "worker-token")
     payload = {"managed": False, "enabled": False}
 
     class FakeClient:

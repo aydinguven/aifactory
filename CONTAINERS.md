@@ -41,7 +41,7 @@ Build the controller image on a connected Rocky/RHEL-compatible builder:
 
 The default PostgreSQL source is the upstream SCL PostgreSQL 16 image based on
 CentOS Stream 10. Build sites that require the RHEL image or a Satellite mirror
-can override DEVCLOUD_POSTGRES_SOURCE_IMAGE. Then export both images with
+can override AIFACTORY_POSTGRES_SOURCE_IMAGE. Then export both images with
 checksums:
 
     bash deploy/container/export-offline-images.sh
@@ -49,7 +49,7 @@ checksums:
 For example, to use the entitled RHEL image:
 
     podman login registry.redhat.io
-    DEVCLOUD_POSTGRES_SOURCE_IMAGE=registry.redhat.io/rhel10/postgresql-16:latest \
+    AIFACTORY_POSTGRES_SOURCE_IMAGE=registry.redhat.io/rhel10/postgresql-16:latest \
       bash deploy/container/export-offline-images.sh
 
 The resulting dist/container-images directory can be copied into the air gap

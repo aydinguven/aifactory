@@ -3,11 +3,11 @@
 set -Eeuo pipefail
 
 log() {
-    printf '[devcloud-system-rpms] %s\n' "$*"
+    printf '[aifactory-system-rpms] %s\n' "$*"
 }
 
 fail() {
-    printf '[devcloud-system-rpms] ERROR: %s\n' "$*" >&2
+    printf '[aifactory-system-rpms] ERROR: %s\n' "$*" >&2
     exit 1
 }
 
@@ -16,10 +16,10 @@ configure_dnf_repository_options() {
     help_text="$(dnf --help 2>&1)" || fail "Could not inspect the installed DNF command."
     if [[ "${help_text}" == *"--disable-repo"* ]]; then
         DNF_DISABLE_REPOSITORIES="--disable-repo=*"
-        DNF_ENABLE_REPOSITORY="--enable-repo=devcloud-offline"
+        DNF_ENABLE_REPOSITORY="--enable-repo=aifactory-offline"
     elif [[ "${help_text}" == *"--disablerepo"* ]]; then
         DNF_DISABLE_REPOSITORIES="--disablerepo=*"
-        DNF_ENABLE_REPOSITORY="--enablerepo=devcloud-offline"
+        DNF_ENABLE_REPOSITORY="--enablerepo=aifactory-offline"
     else
         fail "The installed DNF command has no supported repository-disable option."
     fi
@@ -86,7 +86,7 @@ log "Installing only subscription-manager from the verified ${PROFILE} bootstrap
 configure_dnf_repository_options
 dnf \
     "${DNF_DISABLE_REPOSITORIES}" \
-    "--repofrompath=devcloud-offline,file://${RPM_DIR}" \
+    "--repofrompath=aifactory-offline,file://${RPM_DIR}" \
     "${DNF_ENABLE_REPOSITORY}" \
     "${DNF_NO_GPG_CHECKS}" \
     install -y subscription-manager

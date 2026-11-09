@@ -14,12 +14,12 @@ import tempfile
 from pathlib import Path
 
 
-STAGING_ROOT = Path("/var/lib/devcloud/ingress")
+STAGING_ROOT = Path("/var/lib/aifactory/ingress")
 DESIRED_PATH = STAGING_ROOT / "desired.json"
 STAGED_CERTIFICATE = STAGING_ROOT / "certificate.pem"
 STAGED_PRIVATE_KEY = STAGING_ROOT / "private-key.pem"
-NGINX_CONFIG = Path("/etc/nginx/conf.d/devcloud.conf")
-TLS_ROOT = Path("/etc/devcloud/tls")
+NGINX_CONFIG = Path("/etc/nginx/conf.d/aifactory.conf")
+TLS_ROOT = Path("/etc/aifactory/tls")
 ACTIVE_CERTIFICATE = TLS_ROOT / "certificate.pem"
 ACTIVE_PRIVATE_KEY = TLS_ROOT / "private-key.pem"
 RESULT_PATH = STAGING_ROOT / "apply-result.json"
@@ -79,7 +79,7 @@ def proxy_location() -> str:
         proxy_pass http://127.0.0.1:8000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection $devcloud_connection_upgrade;
+        proxy_set_header Connection $aifactory_connection_upgrade;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -106,7 +106,7 @@ def render_nginx_config(
         else f"    return 308 https://{hostname}$request_uri;\n"
     )
     blocks = [
-        "map $http_upgrade $devcloud_connection_upgrade {\n"
+        "map $http_upgrade $aifactory_connection_upgrade {\n"
         "    default upgrade;\n"
         "    '' close;\n"
         "}\n\n"

@@ -3,8 +3,8 @@ set -Eeuo pipefail
 
 readonly WORKSPACE=/workspace
 readonly ASSET_DIR=/release-assets
-readonly RELEASE_VENV=/tmp/devcloud-release-venv
-readonly CONTAINER_STORAGE_CONF=/tmp/devcloud-containers-storage.conf
+readonly RELEASE_VENV=/tmp/aifactory-release-venv
+readonly CONTAINER_STORAGE_CONF=/tmp/aifactory-containers-storage.conf
 
 export LANG=C.UTF-8
 export PYTHONDONTWRITEBYTECODE=1
@@ -12,7 +12,7 @@ export CONTAINERS_STORAGE_CONF="${CONTAINER_STORAGE_CONF}"
 
 required_variables=(
   GITHUB_SHA
-  DEVCLOUD_VERSION
+  AIFACTORY_VERSION
   SHORT_SHA
   PLATFORM_FILENAME
   ASSET_BASE_URL
@@ -139,15 +139,15 @@ wait_all() {
 }
 
 pull_postgresql() {
-  if ! podman image exists localhost/devcloud-postgresql:16; then
+  if ! podman image exists localhost/aifactory-postgresql:16; then
     podman pull quay.io/sclorg/postgresql-16-c10s:latest
-    podman tag quay.io/sclorg/postgresql-16-c10s:latest localhost/devcloud-postgresql:16
+    podman tag quay.io/sclorg/postgresql-16-c10s:latest localhost/aifactory-postgresql:16
   fi
 }
 
 # Both runtime images share one base; pull it once before building them in
 # parallel.
-podman pull "${DEVCLOUD_PYTHON_IMAGE:-registry.access.redhat.com/ubi10/python-312-minimal:latest}"
+podman pull "${AIFACTORY_PYTHON_IMAGE:-registry.access.redhat.com/ubi10/python-312-minimal:latest}"
 labeled controller bash deploy/container/build-controller-image.sh &
 controller_build=$!
 labeled worker bash deploy/container/build-worker-image.sh &
@@ -184,8 +184,8 @@ push_runtime_images() {
   local repository role local_image remote_tag remote_image
   for repository in "${registries[@]}"; do
     for role in controller worker; do
-      local_image="localhost/devcloud-${role}:${DEVCLOUD_VERSION}"
-      for remote_tag in "${role}-${DEVCLOUD_VERSION}" "${role}-${DEVCLOUD_VERSION}-${SHORT_SHA}"; do
+      local_image="localhost/aifactory-${role}:${AIFACTORY_VERSION}"
+      for remote_tag in "${role}-${AIFACTORY_VERSION}" "${role}-${AIFACTORY_VERSION}-${SHORT_SHA}"; do
         remote_image="${repository}:${remote_tag}"
         podman tag "${local_image}" "${remote_image}"
         podman push "${remote_image}"
@@ -201,9 +201,9 @@ fi
 
 build_arguments=(
   --output-dir "${ASSET_DIR}"
-  --controller-source "${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}:controller-${DEVCLOUD_VERSION}-${SHORT_SHA}"
-  --worker-source "${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}:worker-${DEVCLOUD_VERSION}-${SHORT_SHA}"
-  --channel-output "${ASSET_DIR}/devcloud-update-channel.json"
+  --controller-source "${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}:controller-${AIFACTORY_VERSION}-${SHORT_SHA}"
+  --worker-source "${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}:worker-${AIFACTORY_VERSION}-${SHORT_SHA}"
+  --channel-output "${ASSET_DIR}/aifactory-update-channel.json"
   --channel-url "${ASSET_BASE_URL}/${PLATFORM_FILENAME}"
 )
 if [[ -n "${signing_key}" ]]; then
@@ -260,7 +260,7 @@ with prepare_release(
     release = load_platform_release(prepared.root)
     wheels_dir = prepared.root / "offline" / "wheels"
     wheels = list(wheels_dir.glob("*.whl"))
-    assert release.version == os.environ["DEVCLOUD_VERSION"]
+    assert release.version == os.environ["AIFACTORY_VERSION"]
     assert release.source_commit == os.environ["GITHUB_SHA"]
     assert wheels, "Platform update is missing native-worker Python wheels"
     subprocess.run(
