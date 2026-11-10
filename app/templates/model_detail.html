@@ -12,11 +12,12 @@
 </div>
 {% include "partials/mlflow_nav.html" %}
 <section id="model-detail" class="card" data-model-name="{{ model_name }}">
-  <div id="model-detail-status" role="status">Model ayrıntıları yükleniyor...</div>
+  <p id="model-detail-status" class="view-status" data-state="loading" role="status">Model ayrıntıları yükleniyor…</p>
   <div id="model-detail-content" hidden>
     <div class="card-header"><p id="model-description"></p><a id="model-mlflow-link" class="btn btn-secondary btn-sm" target="_blank" rel="noopener noreferrer">MLflow'da aç ↗</a></div>
     <div id="model-tags" style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:1rem;"></div>
-    <div class="data-table-shell">
+    <p id="model-version-status" class="view-status" role="status"></p>
+    <div class="data-table-shell" id="model-version-table" hidden>
       <table class="table">
         <thead><tr><th>Versiyon</th><th>Alias</th><th>Durum</th><th>Run / Soy Ağacı</th><th>Kaynak</th><th>Oluşturulma</th><th>Dağıtım</th></tr></thead>
         <tbody id="model-versions"></tbody>
@@ -41,16 +42,19 @@
       document.getElementById("model-description").textContent = data.description || "Açıklama girilmemiş.";
       document.getElementById("model-mlflow-link").href = data.mlflow_url;
       document.getElementById("model-tags").innerHTML = Object.entries(data.tags_map || {}).map(([key, value]) => `<span class="badge badge-neutral">${escapeHtml(key)}: ${escapeHtml(value)}</span>`).join("");
-      document.getElementById("model-versions").innerHTML = (data.versions || []).map(version => {
+      const versions = data.versions || [];
+      document.getElementById("model-versions").innerHTML = versions.map(version => {
         const aliases = (version.aliases || []).map(escapeHtml).join(", ") || "—";
         const created = version.creation_timestamp ? new Date(Number(version.creation_timestamp)).toLocaleString("tr-TR") : "—";
         const run = version.run_id ? `<a href="${escapeHtml(version.aifactory_run_url)}"><code>${escapeHtml(version.run_id)}</code></a>${version.mlflow_run_url ? ` · <a href="${escapeHtml(version.mlflow_run_url)}" target="_blank" rel="noopener noreferrer">MLflow ↗</a>` : ""}` : "—";
         return `<tr><td><strong>v${escapeHtml(version.version)}</strong></td><td>${aliases}</td><td>${escapeHtml(version.status || "—")}</td><td class="data-value">${run}</td><td class="data-value"><code>${escapeHtml(version.source || "—")}</code></td><td>${created}</td><td class="deploy-button-group"><button type="button" class="btn btn-primary btn-sm" data-deploy-model data-model-name="${escapeHtml(version.name || root.dataset.modelName)}" data-model-version="${escapeHtml(version.version)}" data-run-id="${escapeHtml(version.run_id || "")}">Dağıt</button></td></tr>`;
       }).join("");
-      status.textContent = "";
+      setViewStatus(status, "");
+      setViewStatus(document.getElementById("model-version-status"), versions.length ? "" : "Bu modelin henüz kayıtlı sürümü yok.");
+      document.getElementById("model-version-table").hidden = !versions.length;
       content.hidden = false;
     })
-    .catch(error => { status.textContent = error.message; status.className = "text-destructive"; });
+    .catch(error => setViewStatus(status, error.message, "error"));
 })();
 </script>
 <script src="/static/js/mlflow_deployments.js?v={{ static_version }}"></script>

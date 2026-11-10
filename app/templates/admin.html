@@ -3,7 +3,7 @@
 {% block title %}Yönetim Paneli - {{ app_name }}{% endblock %}
 
 {% block content %}
-{% set status_labels = {'running': 'Çalışıyor', 'stopped': 'Durduruldu', 'creating': 'Oluşturuluyor', 'starting': 'Başlatılıyor', 'error': 'Hata', 'deleted': 'Silindi'} %}
+{% set status_labels = {'running': 'Çalışıyor', 'stopped': 'Durduruldu', 'creating': 'Oluşturuluyor', 'starting': 'Başlatılıyor', 'stopping': 'Durduruluyor', 'error': 'Hata', 'deleted': 'Silindi'} %}
 <div class="page-heading admin-page-heading">
   <div>
     <span class="page-kicker">Sistem Yönetimi</span>
@@ -17,22 +17,22 @@
   <section class="admin-section-content" id="admin-section-content" aria-labelledby="admin-section-title">
 
 {% if admin_section == 'overview' %}
-<dl class="admin-stat-grid" data-tour="admin-summary" aria-label="Sistem özeti">
-  <div class="card admin-stat-card admin-stat-card--users">
-    <dt>Toplam Kullanıcı</dt>
-    <dd>{{ admin_stats.users }}</dd>
+<dl class="summary-grid" data-tour="admin-summary" aria-label="Sistem özeti">
+  <div class="card summary-card">
+    <dt class="summary-label">Toplam Kullanıcı</dt>
+    <dd class="summary-value">{{ admin_stats.users }}</dd>
   </div>
-  <div class="card admin-stat-card admin-stat-card--workspaces">
-    <dt>Toplam Çalışma Alanı</dt>
-    <dd>{{ admin_stats.workspaces }}</dd>
+  <div class="card summary-card">
+    <dt class="summary-label">Toplam Çalışma Alanı</dt>
+    <dd class="summary-value">{{ admin_stats.workspaces }}</dd>
   </div>
-  <div class="card admin-stat-card admin-stat-card--active">
-    <dt>Aktif Container</dt>
-    <dd>{{ admin_stats.running_workspaces }}</dd>
+  <div class="card summary-card">
+    <dt class="summary-label">Aktif Container</dt>
+    <dd class="summary-value">{{ admin_stats.running_workspaces }}</dd>
   </div>
-  <div class="card admin-stat-card admin-stat-card--workers">
-    <dt>Worker Node</dt>
-    <dd>{{ admin_stats.workers }}</dd>
+  <div class="card summary-card">
+    <dt class="summary-label">Worker Node</dt>
+    <dd class="summary-value">{{ admin_stats.workers }}</dd>
   </div>
 </dl>
 
@@ -287,7 +287,7 @@
     <div id="download-settings-status" class="quota-form-status" style="grid-column:1/-1;" role="status" aria-live="polite"></div>
   </form>
 
-  <form id="https-settings-form" enctype="multipart/form-data" autocomplete="off" style="margin-bottom:1rem;padding:1rem;border:1px solid var(--border-color);border-radius:var(--radius-md);background:rgba(255,255,255,.02);">
+  <form id="https-settings-form" enctype="multipart/form-data" autocomplete="off" style="margin-bottom:1rem;padding:1rem;border:1px solid var(--border-color);border-radius:var(--radius-md);background: var(--bg-card-hover);">
     <div style="display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;flex-wrap:wrap;margin-bottom:.75rem;">
       <div>
         <strong>HTTPS &amp; Sertifika Yönetimi</strong>
@@ -642,7 +642,7 @@ cd aifactory
   <div class="modal admin-modal admin-modal--compact" role="dialog" aria-modal="true" aria-labelledby="node-placement-modal-title">
     <div class="card-header admin-modal-header">
       <h2 class="card-title" id="node-placement-modal-title">Worker Yerleşimi</h2>
-      <button id="btn-close-placement-modal" class="admin-modal-close" type="button" aria-label="Kapat">&times;</button>
+      <button id="btn-close-placement-modal" class="modal-close" type="button" aria-label="Kapat">&times;</button>
     </div>
     <form id="node-placement-form">
       <input type="hidden" id="placement-modal-node-id">
@@ -671,7 +671,7 @@ cd aifactory
   <div class="modal admin-modal admin-modal--compact" role="dialog" aria-modal="true" aria-labelledby="node-label-modal-title">
     <div class="card-header admin-modal-header">
       <h2 class="card-title" id="node-label-modal-title">Ek Etiketler (bilgi amaçlı, yerleşimi etkilemez)</h2>
-      <button id="btn-close-label-modal" class="admin-modal-close" type="button" aria-label="Kapat">&times;</button>
+      <button id="btn-close-label-modal" class="modal-close" type="button" aria-label="Kapat">&times;</button>
     </div>
     <form id="node-label-form">
       <input type="hidden" id="label-modal-node-id">
@@ -1514,7 +1514,7 @@ cd aifactory
       {% for ws in all_workspaces %}
         {% set ws_st = ws.status.value if ws.status.value is defined else ws.status %}
         <tr>
-          <td data-label="Ad" style="font-weight: 600; color: #fff;">{{ ws.name }}</td>
+          <td data-label="Ad" style="font-weight: 600; color: var(--heading);">{{ ws.name }}</td>
           <td data-label="Sahip">Kullanıcı #{{ ws.user_id }}</td>
           <td data-label="Şablon">{{ ws.template_id }}</td>
           <td data-label="Kaynak Profili"><span class="badge badge-flavor">{{ ws.flavor_id }}</span></td>
@@ -1541,7 +1541,7 @@ cd aifactory
   <div class="modal admin-modal admin-modal--wide" role="dialog" aria-modal="true" aria-labelledby="template-builder-modal-title">
     <div class="card-header admin-modal-header">
       <h2 class="card-title" id="template-builder-modal-title">Yeni Ortam Şablonu Derle</h2>
-      <button id="btn-close-template-builder-modal" class="admin-modal-close" type="button" aria-label="Kapat">&times;</button>
+      <button id="btn-close-template-builder-modal" class="modal-close" type="button" aria-label="Kapat">&times;</button>
     </div>
     <form id="template-builder-form">
       <div class="grid grid-cols-2" style="gap: 0.75rem; margin-bottom: 0.75rem;">
@@ -1566,7 +1566,7 @@ cd aifactory
         </div>
         <div class="form-group" style="margin-bottom: 0;">
           <label class="form-label" for="tb-input-ide">IDE Türü</label>
-          <select id="tb-input-ide" class="form-input" style="background: var(--bg-input); color: #fff;">
+          <select id="tb-input-ide" class="form-input" style="background: var(--bg-input); color: var(--heading);">
             <option value="vscode">VS Code (code-server)</option>
             <option value="jupyter">JupyterLab</option>
           </select>

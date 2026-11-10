@@ -1,6 +1,11 @@
-<nav class="workspace-tabs-nav" data-tour="mlflow-nav" aria-label="MLflow bölümleri" style="margin-bottom:1rem;">
-  <a class="tab-btn {% if request.url.path == '/mlflow' %}active{% endif %}" href="/mlflow">Genel Bakış</a>
-  <a class="tab-btn {% if request.url.path.startswith('/experiments') or request.url.path.startswith('/runs') %}active{% endif %}" href="/experiments">Deneyler ve Run'lar</a>
-  <a class="tab-btn {% if request.url.path.startswith('/models') %}active{% endif %}" href="/models">Model Registry</a>
-  <a class="tab-btn {% if request.url.path.startswith('/deployments') %}active{% endif %}" href="/deployments">Deployment'lar</a>
+<nav class="workspace-tabs-nav section-nav" data-tour="mlflow-nav" aria-label="MLflow bölümleri">
+  {% set path = request.url.path %}
+  {% set overview_active = path == '/mlflow' %}
+  {% set experiments_active = path.startswith(('/experiments', '/runs')) %}
+  {% set models_active = path.startswith('/models') %}
+  {% set deployments_active = path.startswith('/deployments') %}
+  <a class="tab-btn{% if overview_active %} active{% endif %}" href="/mlflow"{% if overview_active %} aria-current="page"{% endif %}>Genel Bakış</a>
+  <a class="tab-btn{% if experiments_active %} active{% endif %}" href="/experiments"{% if experiments_active %} aria-current="{{ 'page' if path == '/experiments' else 'location' }}"{% endif %}>Deneyler ve Run'lar</a>
+  <a class="tab-btn{% if models_active %} active{% endif %}" href="/models"{% if models_active %} aria-current="{{ 'page' if path == '/models' else 'location' }}"{% endif %}>Model Registry</a>
+  <a class="tab-btn{% if deployments_active %} active{% endif %}" href="/deployments"{% if deployments_active %} aria-current="page"{% endif %}>Deployment'lar</a>
 </nav>

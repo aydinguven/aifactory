@@ -1,0 +1,7 @@
+{% macro setup_panel(title, description, href=none, action_label=none) %}
+  <section class="card setup-panel">
+    <h2 class="card-title">{{ title }}</h2>
+    <p class="card-description">{{ description }}</p>
+    {% if href %}<a class="btn btn-primary" href="{{ href }}">{{ action_label }}</a>{% endif %}
+  </section>
+{% endmacro %}

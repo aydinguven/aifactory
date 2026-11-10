@@ -1,6 +1,7 @@
 /* Standalone TCMB AI Factory shell for public workspace shares. */
 .public-share-page {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto 1fr auto;
   min-height: 100vh;
   margin: 0;
@@ -8,12 +9,11 @@
 
 .public-share-header {
   align-items: center;
-  background: #fff;
+  background: var(--bg-card);
   border-bottom: 1px solid var(--border-color);
-  box-shadow: 0 3px 14px rgba(38, 50, 68, 0.08);
   display: flex;
-  min-height: 78px;
-  padding: 0.8rem clamp(1rem, 4vw, 3rem);
+  min-height: var(--header-height);
+  padding: 0.5rem var(--shell-gutter);
 }
 
 .public-share-brand {
@@ -24,7 +24,7 @@
 .public-share-brand img {
   display: block;
   height: auto;
-  max-height: 52px;
+  max-height: 42px;
   max-width: 100%;
   width: auto;
 }
@@ -37,32 +37,19 @@
 }
 
 .public-share-card {
-  background: #fff;
+  background: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-top: 4px solid var(--primary);
-  border-radius: 3px;
-  box-shadow: 0 16px 42px rgba(38, 50, 68, 0.12);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
   max-width: 610px;
   padding: clamp(1.5rem, 5vw, 2.5rem);
   width: 100%;
 }
 
-.public-share-card.share-state-expired,
-.public-share-card.share-state-deleted,
-.public-share-card.share-state-revoked,
-.public-share-card.share-state-invalid {
-  border-top-color: var(--danger);
-}
-
-.public-share-card.share-state-unavailable {
-  border-top-color: var(--gold);
-}
-
 .public-share-state-icon {
   align-items: center;
   background: var(--primary-soft);
-  border: 1px solid #efb2c0;
-  border-radius: 50%;
+  border-radius: var(--radius-md);
   color: var(--primary);
   display: flex;
   font-size: 1.45rem;
@@ -75,7 +62,6 @@
 
 .share-state-unavailable .public-share-state-icon {
   background: var(--warning-bg);
-  border-color: #ddd39a;
   color: var(--warning);
 }
 
@@ -97,7 +83,7 @@
 .public-share-meta {
   background: var(--bg-card-hover);
   border: 1px solid var(--border-color);
-  border-radius: 3px;
+  border-radius: var(--radius-md);
   display: grid;
   gap: 0;
   margin: 1.5rem 0;
@@ -138,6 +124,7 @@
 .public-share-form .form-group {
   display: grid;
   gap: 0.45rem;
+  margin-bottom: 0;
 }
 
 .public-share-form .btn,
@@ -149,7 +136,7 @@
 .public-share-error {
   background: var(--danger-bg);
   border: 1px solid #e9aeba;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   color: var(--danger);
   font-size: 0.82rem;
   font-weight: 650;
@@ -173,13 +160,14 @@
 
 .public-share-footer {
   align-items: center;
+  background: var(--bg-card);
   border-top: 1px solid var(--border-color);
   color: var(--text-muted);
   display: flex;
-  font-size: 0.72rem;
+  font-size: 0.8125rem;
   gap: 1rem;
   justify-content: space-between;
-  padding: 1rem clamp(1rem, 4vw, 3rem);
+  padding: 1rem var(--shell-gutter);
 }
 
 .public-share-footer strong {

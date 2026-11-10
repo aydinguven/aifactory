@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#d50032">
+  <meta name="theme-color" content="#f5f6f8">
   <title>{% block title %}{{ app_name }}{% endblock %}</title>
   <link rel="stylesheet" href="/static/css/style.css?v={{ static_version }}">
   <link rel="stylesheet" href="/static/css/kurumsal.css?v={{ static_version }}">
@@ -11,9 +11,11 @@
   <link rel="icon" href="/static/favicon.svg?v={{ static_version }}" type="image/svg+xml">
 </head>
 <body class="{% block body_class %}{% endblock %}"{% if user %} data-onboarding-user="true" data-user-role="{{ user.role.value if user.role.value is defined else user.role }}"{% endif %}>
-  <nav class="navbar" aria-label="Ana menü">
+  <a class="btn btn-primary skip-link" href="#main-content">İçeriğe geç</a>
+  <nav class="navbar{% if not user %} navbar--guest{% endif %}" aria-label="Ana menü">
     <div class="navbar-brand-group">
       <a href="/" class="navbar-brand" aria-label="TCMB AI Factory ana sayfa">
+        <img class="brand-mark" src="/static/favicon.svg?v={{ static_version }}" alt="" width="32" height="32">
         <span class="brand-copy">
           <span class="brand-name"><span class="brand-tcmb">TCMB</span> <span class="brand-ai">AI FACTORY</span></span>
           <span class="brand-subtitle">Yapay Zeka Geliştirme Platformu</span>
@@ -26,15 +28,22 @@
     {% set path = request.url.path %}
     <div class="nav-links">
       {% if user %}
-        <a href="/" data-tour="nav-workspaces" class="nav-link {% if path == '/' or path.startswith('/workspaces') %}active{% endif %}">Çalışma Alanları</a>
-        <a href="/mlflow" data-tour="nav-mlflow" class="nav-link {% if path.startswith(('/mlflow', '/models', '/experiments', '/runs', '/deployments')) %}active{% endif %}">MLflow</a>
-        <a href="/genai" data-tour="nav-genai" class="nav-link {% if path.startswith('/genai') %}active{% endif %}">GenAI</a>
+        {% set sections = [
+          ('/', 'Çalışma Alanları', 'nav-workspaces', path == '/' or path.startswith('/workspaces')),
+          ('/mlflow', 'MLflow', 'nav-mlflow', path.startswith(('/mlflow', '/models', '/experiments', '/runs', '/deployments'))),
+          ('/genai', 'GenAI', 'nav-genai', path.startswith('/genai'))
+        ] %}
         {% if user.role == "admin" %}
-          <a href="/admin" data-tour="nav-admin" class="nav-link {% if path.startswith('/admin') %}active{% endif %}">Yönetim</a>
+          {% set sections = sections + [('/admin', 'Yönetim', 'nav-admin', path.startswith('/admin'))] %}
         {% endif %}
+        {% for href, label, tour, active in sections %}
+          <a href="{{ href }}" data-tour="{{ tour }}" class="nav-link{% if active %} active{% endif %}"{% if active %} aria-current="{{ 'page' if path == href else 'location' }}"{% endif %}>{{ label }}</a>
+        {% endfor %}
       {% else %}
-        <a href="/login" class="nav-link {% if path == '/login' %}active{% endif %}">Giriş</a>
-        <a href="/register" class="btn btn-primary btn-sm">Hesap Oluştur</a>
+        <a href="/login" class="nav-link{% if path == '/login' %} active{% endif %}"{% if path == '/login' %} aria-current="page"{% endif %}>Giriş</a>
+        {% if registration_enabled | default(true) %}
+          <a href="/register" class="nav-link{% if path == '/register' %} active{% endif %}"{% if path == '/register' %} aria-current="page"{% endif %}>Hesap Oluştur</a>
+        {% endif %}
       {% endif %}
     </div>
     {% if user %}
@@ -58,7 +67,7 @@
     {% endif %}
   </nav>
 
-  <main class="container">
+  <main class="container" id="main-content" tabindex="-1">
     {% block content %}{% endblock %}
   </main>
 

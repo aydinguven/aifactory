@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/setup_panel.html" import setup_panel %}
 
 {% block title %}GenAI İstatistikleri - {{ app_name }}{% endblock %}
 
@@ -14,10 +15,7 @@
 {% include "partials/genai_nav.html" %}
 
 {% if not genai_configured %}
-<section class="card">
-  <h2 class="card-title">Henüz yapılandırılmadı</h2>
-  <p class="text-muted">İstatistikler, bir yönetici LiteLLM bağlantısını tanımladığında görünür.</p>
-</section>
+{{ setup_panel("Henüz yapılandırılmadı", "Yönetici LiteLLM bağlantısını tanımladığında kullanım istatistikleri burada görünür.") }}
 {% else %}
 <div id="genai-stats" class="genai-stats">
   <div class="genai-stats-toolbar">
@@ -34,7 +32,7 @@
     <span id="genai-stats-range" class="text-muted"></span>
   </div>
 
-  <p id="genai-stats-status" class="text-muted" role="status">İstatistikler yükleniyor...</p>
+  <p id="genai-stats-status" class="view-status" data-state="loading" role="status">İstatistikler yükleniyor…</p>
 
   <div id="genai-stats-body" hidden>
     {# Müdürlük view for unit heads: müdürlük-wide totals and each of its teams. #}
@@ -47,11 +45,11 @@
         </div>
         <span class="genai-scope-rank" id="unit-rank"></span>
       </header>
-      <div class="genai-kpis genai-kpis-compact">
-        <article class="genai-kpi"><span>İstek</span><strong id="unit-requests">—</strong><small id="unit-requests-share"></small></article>
-        <article class="genai-kpi"><span>Token</span><strong id="unit-tokens">—</strong><small id="unit-tokens-share"></small></article>
-        <article class="genai-kpi"><span>Aktif kullanıcı</span><strong id="unit-users">—</strong><small id="unit-users-total"></small></article>
-        <article class="genai-kpi" data-admin-only hidden><span>Harcama</span><strong id="unit-spend">—</strong><small id="unit-spend-share"></small></article>
+      <div class="summary-grid">
+        <article class="card summary-card"><span class="summary-label">İstek</span><strong class="summary-value" id="unit-requests">—</strong><small class="summary-detail" id="unit-requests-share"></small></article>
+        <article class="card summary-card"><span class="summary-label">Token</span><strong class="summary-value" id="unit-tokens">—</strong><small class="summary-detail" id="unit-tokens-share"></small></article>
+        <article class="card summary-card"><span class="summary-label">Aktif kullanıcı</span><strong class="summary-value" id="unit-users">—</strong><small class="summary-detail" id="unit-users-total"></small></article>
+        <article class="card summary-card" data-admin-only hidden><span class="summary-label">Harcama</span><strong class="summary-value" id="unit-spend">—</strong><small class="summary-detail" id="unit-spend-share"></small></article>
       </div>
       <section class="card genai-chart-card">
         <div class="card-header"><h2 class="card-title">Takımlara göre günlük kullanım</h2><span class="text-muted" id="unit-teams-legend"></span></div>
@@ -79,11 +77,11 @@
         </div>
         <span class="genai-scope-rank" id="team-rank"></span>
       </header>
-      <div class="genai-kpis genai-kpis-compact">
-        <article class="genai-kpi"><span>İstek</span><strong id="team-requests">—</strong><small id="team-requests-share"></small></article>
-        <article class="genai-kpi"><span>Token</span><strong id="team-tokens">—</strong><small id="team-tokens-share"></small></article>
-        <article class="genai-kpi"><span>Aktif kullanıcı</span><strong id="team-users">—</strong><small id="team-users-total"></small></article>
-        <article class="genai-kpi" data-admin-only hidden><span>Harcama</span><strong id="team-spend">—</strong><small id="team-spend-share"></small></article>
+      <div class="summary-grid">
+        <article class="card summary-card"><span class="summary-label">İstek</span><strong class="summary-value" id="team-requests">—</strong><small class="summary-detail" id="team-requests-share"></small></article>
+        <article class="card summary-card"><span class="summary-label">Token</span><strong class="summary-value" id="team-tokens">—</strong><small class="summary-detail" id="team-tokens-share"></small></article>
+        <article class="card summary-card"><span class="summary-label">Aktif kullanıcı</span><strong class="summary-value" id="team-users">—</strong><small class="summary-detail" id="team-users-total"></small></article>
+        <article class="card summary-card" data-admin-only hidden><span class="summary-label">Harcama</span><strong class="summary-value" id="team-spend">—</strong><small class="summary-detail" id="team-spend-share"></small></article>
       </div>
       <section class="genai-grid">
         <article class="card genai-chart-card">
@@ -99,11 +97,11 @@
 
     <h2 class="genai-section-title" id="scope-global-title" hidden>🌐 Kurum geneli</h2>
 
-    <section class="genai-kpis" aria-label="Özet">
-      <article class="genai-kpi"><span>İstek</span><strong id="kpi-requests">—</strong><small id="kpi-success"></small></article>
-      <article class="genai-kpi"><span>Token</span><strong id="kpi-tokens">—</strong><small id="kpi-tokens-split"></small></article>
-      <article class="genai-kpi"><span>Aktif kullanıcı</span><strong id="kpi-users">—</strong><small id="kpi-per-user"></small></article>
-      <article class="genai-kpi" data-admin-only hidden><span>Harcama</span><strong id="kpi-spend">—</strong><small id="kpi-spend-day"></small></article>
+    <section class="summary-grid" aria-label="Özet">
+      <article class="card summary-card"><span class="summary-label">İstek</span><strong class="summary-value" id="kpi-requests">—</strong><small class="summary-detail" id="kpi-success"></small></article>
+      <article class="card summary-card"><span class="summary-label">Token</span><strong class="summary-value" id="kpi-tokens">—</strong><small class="summary-detail" id="kpi-tokens-split"></small></article>
+      <article class="card summary-card"><span class="summary-label">Aktif kullanıcı</span><strong class="summary-value" id="kpi-users">—</strong><small class="summary-detail" id="kpi-per-user"></small></article>
+      <article class="card summary-card" data-admin-only hidden><span class="summary-label">Harcama</span><strong class="summary-value" id="kpi-spend">—</strong><small class="summary-detail" id="kpi-spend-day"></small></article>
     </section>
 
     <section class="card genai-chart-card">

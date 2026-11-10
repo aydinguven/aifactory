@@ -65,6 +65,8 @@ async def test_view_routes_render_html(client: AsyncClient):
     ):
         assert template_name in auth_dashboard.text
     assert 'class="template-card-title"' in auth_dashboard.text
+    assert 'type="radio" name="template_id" value="vscode-kilo"' in auth_dashboard.text
+    assert 'id="workspace-search"' not in auth_dashboard.text
 
     # 5. Create a workspace and render dashboard + detail page
     create_payload = {
@@ -81,6 +83,9 @@ async def test_view_routes_render_html(client: AsyncClient):
     auth_dashboard_with_ws = await client.get("/", headers=headers)
     assert auth_dashboard_with_ws.status_code == 200
     assert "Dashboard Template Test" in auth_dashboard_with_ws.text
+    assert 'aria-controls="workspace-results"' in auth_dashboard_with_ws.text
+    assert 'data-workspace-status="running"' in auth_dashboard_with_ws.text
+    assert 'data-workspace-search="Dashboard Template Test Checking template render vscode-kilo t1.nano ' in auth_dashboard_with_ws.text
 
     usage_resp = await client.get("/api/workspaces/usage", headers=headers)
     assert usage_resp.status_code == 200

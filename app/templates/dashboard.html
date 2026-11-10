@@ -3,76 +3,51 @@
 {% block title %}Çalışma Alanları - {{ app_name }}{% endblock %}
 
 {% block content %}
-{% set status_labels = {'running': 'Çalışıyor', 'stopped': 'Durduruldu', 'creating': 'Oluşturuluyor', 'starting': 'Başlatılıyor', 'error': 'Hata', 'deleted': 'Silindi'} %}
+{% set status_labels = {'running': 'Çalışıyor', 'stopped': 'Durduruldu', 'creating': 'Oluşturuluyor', 'starting': 'Başlatılıyor', 'stopping': 'Durduruluyor', 'error': 'Hata', 'deleted': 'Silindi'} %}
 <div class="page-heading">
   <div>
     <span class="page-kicker">Çalışma Ortamları</span>
     <h1>Çalışma Alanlarım</h1>
     <p>İzole container geliştirme ortamlarınızı yönetin ve IDE bağlantılarını başlatın.</p>
   </div>
-  <button id="btn-open-create-modal" data-tour="workspace-create-button" class="btn btn-primary" style="padding: 0.7rem 1.25rem; font-weight: 600;" {% if not templates or not flavors %}disabled title="Etkin şablon ve kaynak profili gerekli"{% endif %}>
-    <span>+</span>
+  <button type="button" id="btn-open-create-modal" data-tour="workspace-create-button" class="btn btn-primary" {% if not templates or not flavors %}disabled title="Etkin şablon ve kaynak profili gerekli"{% endif %}>
+    <span aria-hidden="true">+</span>
     <span>Yeni Çalışma Alanı</span>
   </button>
 </div>
 
-<section class="usage-grid" data-tour="quota-summary" aria-label="Kaynak kullanımı ve kota bilgileri">
-  <article class="usage-card">
-    <div class="usage-card-heading">
-      <div>
-        <span class="usage-eyebrow">Host kapasitesi</span>
-        <h2>Toplam Sistem Kullanımı</h2>
-      </div>
-      <span class="usage-icon">◫</span>
-    </div>
-    {% for key, label in [('cpu', 'CPU'), ('memory', 'RAM'), ('disk', 'Disk')] %}
-      {% set metric = system_usage[key] %}
-      <div class="usage-row">
-        <div class="usage-row-label"><span>{{ label }}</span><strong>{{ metric.used_display }} / {{ metric.limit_display }}</strong></div>
-        <div class="usage-track"><span style="width: {{ metric.percent }}%;"></span></div>
-        <small>%{{ metric.percent }} kullanılıyor</small>
-      </div>
-    {% endfor %}
-  </article>
-
-  <article class="usage-card usage-card-quota">
-    <div class="usage-card-heading">
-      <div>
-        <span class="usage-eyebrow">Kullanılan ve kalan kotanız</span>
-        <h2>Kota Kullanımı</h2>
-      </div>
-      <span class="usage-quota-summary">{{ user_usage.running_workspace_count }}/{{ user_usage.workspace_count }} çalışıyor</span>
-    </div>
-    {% for key, label in [('cpu', 'CPU'), ('memory', 'RAM'), ('disk', 'Disk'), ('gpu', 'GPU')] %}
-      {% set metric = user_usage[key] %}
-      {% set allocated = user_usage.allocated[key] if key in ['cpu', 'memory'] else None %}
-      <div class="usage-row usage-row-quota{% if metric.percent >= 95 %} is-critical{% elif metric.percent >= 80 %} is-warning{% endif %}">
-        <div class="usage-row-label">
-          <span>{{ label }}</span>
-          <strong>{{ metric.used_display }} / {{ metric.limit_display }} <em class="usage-remaining">&middot; {{ metric.remaining_display }} kaldı</em></strong>
-        </div>
-        <div class="usage-track usage-track-quota" role="progressbar" aria-label="{{ label }} kota kullanımı" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ metric.percent }}"><span style="width: {{ metric.percent }}%;"></span></div>
-        {% if allocated and allocated.used > metric.used %}
-          <small>Duraklatılanlar dahil {{ allocated.used_display }} ayrıldı</small>
-        {% endif %}
-      </div>
-    {% endfor %}
-    <p class="usage-card-note">Durdurulan çalışma alanları CPU/RAM'i serbest bırakır; disk kotadan düşmeye devam eder.</p>
-  </article>
-</section>
-
+<section class="workspace-section" aria-label="Çalışma alanları">
 {% if workspaces %}
-  <div class="grid grid-cols-2">
+  <div class="workspace-filters" data-workspace-filters hidden>
+    <label>
+      <span class="form-label">Çalışma alanı ara</span>
+      <input class="form-input" type="search" id="workspace-search" placeholder="Ad, açıklama, şablon veya etiket" aria-controls="workspace-results">
+    </label>
+    <label>
+      <span class="form-label">Durum</span>
+      <select class="form-select" id="workspace-status-filter" aria-controls="workspace-results">
+        <option value="">Tüm durumlar</option>
+        <option value="running">Çalışıyor</option>
+        <option value="stopped">Durduruldu</option>
+        <option value="pending">İşlem sürüyor</option>
+        <option value="error">Hata</option>
+      </select>
+    </label>
+    <button type="button" class="btn btn-secondary" id="workspace-filters-clear" disabled>Temizle</button>
+    <p class="text-muted workspace-result-count" id="workspace-result-count" role="status"></p>
+  </div>
+  <p class="card empty-state" id="workspace-no-results" hidden>Filtrelerinize uyan çalışma alanı bulunamadı.</p>
+  <div class="grid grid-cols-2" id="workspace-results">
     {% for ws in workspaces %}
       {% set ws_st = ws.status.value if ws.status.value is defined else ws.status %}
-      <div class="card workspace-card" data-tour="workspace-card" style="display: flex; flex-direction: column; justify-content: space-between; gap: 1rem;">
+      <article class="card workspace-card" data-tour="workspace-card" data-workspace-status="{{ ws_st }}" data-workspace-search="{{ [ws.name, ws.description, ws.template_id, ws.flavor_id, ws.tags|join(' ')]|join(' ') }}">
         <div>
           <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem; flex-wrap: wrap; gap: .75rem;">
             <div>
-              <h2 style="font-size: 1.15rem; font-weight: 600; color: #fff; margin-bottom: 0.25rem;">
-                <a href="/workspaces/{{ ws.id }}" style="color: var(--heading); text-decoration: none;">{{ ws.name }}</a>
+              <h2 class="card-title workspace-card-title">
+                <a href="/workspaces/{{ ws.id }}">{{ ws.name }}</a>
               </h2>
-              <p style="font-size: 0.825rem; color: var(--text-muted);">{{ ws.description or "Açıklama girilmemiş." }}</p>
+              {% if ws.description %}<p class="text-muted">{{ ws.description }}</p>{% endif %}
             </div>
             <span class="badge badge-{{ ws_st }}">{{ status_labels.get(ws_st, ws_st) }}</span>
           </div>
@@ -92,14 +67,14 @@
             {% endif %}
           </div>
 
-          <div class="ws-live-metrics-box" data-metrics-ws-id="{{ ws.id }}" style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 4px; padding: 0.6rem 0.75rem; margin-bottom: 0.75rem; font-size: 0.75rem;">
+          <div class="ws-live-metrics-box" data-metrics-ws-id="{{ ws.id }}" style="background: var(--bg-card-hover); border: 1px solid var(--border-color); border-radius: 4px; padding: 0.6rem 0.75rem; margin-bottom: 0.75rem; font-size: 0.75rem;">
             <div style="display: flex; justify-content: space-between; margin-bottom: 0.35rem; flex-wrap: wrap; gap: .35rem .75rem;">
-              <span style="color: var(--text-muted);">CPU: <strong class="val-cpu" style="color: #fff;">--</strong></span>
-              <span style="color: var(--text-muted);">RAM: <strong class="val-ram" style="color: #fff;">--</strong></span>
-              <span style="color: var(--text-muted);">Disk: <strong class="val-disk" style="color: #fff;">--</strong></span>
-              <span style="color: var(--text-muted);">Süre: <strong class="val-uptime" style="color: #10b981;">--</strong></span>
+              <span style="color: var(--text-muted);">CPU: <strong class="val-cpu" style="color: var(--heading);">--</strong></span>
+              <span style="color: var(--text-muted);">RAM: <strong class="val-ram" style="color: var(--heading);">--</strong></span>
+              <span style="color: var(--text-muted);">Disk: <strong class="val-disk" style="color: var(--heading);">--</strong></span>
+              <span style="color: var(--text-muted);">Süre: <strong class="val-uptime" style="color: var(--heading);">--</strong></span>
             </div>
-            <div style="height: 4px; width: 100%; background: rgba(255, 255, 255, 0.08); border-radius: 2px; overflow: hidden; display: flex;">
+            <div style="height: 4px; width: 100%; background: var(--pale-blue); border-radius: 999px; overflow: hidden; display: flex;">
               <div class="bar-cpu" style="width: 0%; background: #3b82f6; transition: width 0.4s ease;"></div>
               <div class="bar-ram" style="width: 0%; background: #10b981; transition: width 0.4s ease;"></div>
             </div>
@@ -114,7 +89,7 @@
           <div class="table-actions">
             {% if ws_st == 'running' %}
               <a href="{{ ws.web_url }}" target="_blank" class="btn btn-success btn-sm">
-                <span>↗</span> IDE'yi Aç
+              <span aria-hidden="true">↗</span> IDE'yi Aç
               </a>
               <button class="btn btn-secondary btn-sm" data-action="stop" data-workspace-id="{{ ws.id }}">Durdur</button>
             {% elif ws_st == 'stopped' or ws_st == 'error' or ws_st == 'creating' %}
@@ -131,17 +106,20 @@
             </div>
           </details>
         </div>
-      </div>
+      </article>
     {% endfor %}
   </div>
 {% else %}
-  <div class="card empty-state" style="text-align: center; padding: 3.5rem 1.5rem;">
-    <div style="font-size: 2rem; margin-bottom: 1rem; color: var(--gold);">◫</div>
-    <h2 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; color: #fff;">Henüz Çalışma Alanı Oluşturulmadı</h2>
-    <p style="color: var(--text-muted); max-width: 480px; margin: 0 auto 1.5rem auto; font-size: 0.9rem;">
-      Tercih ettiğiniz IDE, dil runtime ve kaynak profiliyle ilk bulut çalışma alanınızı oluşturun.
+  <div class="card empty-state">
+    <div class="empty-state-icon" aria-hidden="true">◫</div>
+    <h2 class="card-title">Henüz Çalışma Alanı Oluşturulmadı</h2>
+    <p>
+      {% if templates and flavors %}
+        İlk çalışma alanınız için bir geliştirme ortamı ve kaynak profili seçin.
+      {% else %}
+        Çalışma alanı oluşturmak için etkin bir şablon ve kaynak profili gerekir.
+      {% endif %}
     </p>
-    <button onclick="document.getElementById('btn-open-create-modal').click();" class="btn btn-primary">Çalışma Alanı Oluştur</button>
   </div>
 
   <article class="card onboarding-demo-workspace" data-onboarding-demo-workspace hidden role="note" aria-label="Demo çalışma alanı önizlemesi">
@@ -170,91 +148,146 @@
     </div>
   </article>
 {% endif %}
+</section>
+
+<section aria-labelledby="usage-title">
+  <h2 class="section-title" id="usage-title">Kaynak Kullanımı</h2>
+<div class="usage-grid" data-tour="quota-summary">
+  <article class="usage-card">
+    <div class="usage-card-heading">
+      <div>
+        <span class="usage-eyebrow">Host kapasitesi</span>
+        <h3>Toplam Sistem Kullanımı</h3>
+      </div>
+      <span class="usage-icon" aria-hidden="true">◫</span>
+    </div>
+    {% for key, label in [('cpu', 'CPU'), ('memory', 'RAM'), ('disk', 'Disk')] %}
+      {% set metric = system_usage[key] %}
+      <div class="usage-row">
+        <div class="usage-row-label"><span>{{ label }}</span><strong>{{ metric.used_display }} / {{ metric.limit_display }}</strong></div>
+        <div class="usage-track"><span style="width: {{ metric.percent }}%;"></span></div>
+        <small>%{{ metric.percent }} kullanılıyor</small>
+      </div>
+    {% endfor %}
+  </article>
+
+  <article class="usage-card usage-card-quota">
+    <div class="usage-card-heading">
+      <div>
+        <span class="usage-eyebrow">Kullanılan ve kalan kotanız</span>
+        <h3>Kota Kullanımı</h3>
+      </div>
+      <span class="usage-quota-summary">{{ user_usage.running_workspace_count }}/{{ user_usage.workspace_count }} çalışıyor</span>
+    </div>
+    {% for key, label in [('cpu', 'CPU'), ('memory', 'RAM'), ('disk', 'Disk'), ('gpu', 'GPU')] %}
+      {% set metric = user_usage[key] %}
+      {% set allocated = user_usage.allocated[key] if key in ['cpu', 'memory'] else None %}
+      <div class="usage-row usage-row-quota{% if metric.percent >= 95 %} is-critical{% elif metric.percent >= 80 %} is-warning{% endif %}">
+        <div class="usage-row-label">
+          <span>{{ label }}</span>
+          <strong>{{ metric.used_display }} / {{ metric.limit_display }} <em class="usage-remaining">&middot; {{ metric.remaining_display }} kaldı</em></strong>
+        </div>
+        <div class="usage-track usage-track-quota" role="progressbar" aria-label="{{ label }} kota kullanımı" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ metric.percent }}"><span style="width: {{ metric.percent }}%;"></span></div>
+        {% if allocated and allocated.used > metric.used %}
+          <small>Duraklatılanlar dahil {{ allocated.used_display }} ayrıldı</small>
+        {% endif %}
+      </div>
+    {% endfor %}
+    <p class="usage-card-note">Durdurulan çalışma alanları CPU/RAM'i serbest bırakır; disk kotadan düşmeye devam eder.</p>
+  </article>
+</div>
+</section>
 
 <div id="create-modal" class="modal-backdrop">
   <div class="modal workspace-create-modal" data-tour="workspace-create-dialog" role="dialog" aria-modal="true" aria-labelledby="create-modal-title">
     <div class="card-header" style="margin-bottom: 1.5rem;">
       <h2 id="create-modal-title" class="card-title">Bulut Çalışma Alanı Oluştur</h2>
-      <button id="btn-close-create-modal" aria-label="Kapat" style="background: none; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer;">&times;</button>
+      <button id="btn-close-create-modal" class="modal-close" type="button" aria-label="Kapat">&times;</button>
     </div>
 
     {% if templates and flavors %}
     <form id="create-workspace-form">
-      <input type="hidden" id="input-template-id" value="{{ templates[0].id }}">
-
       <div class="form-group">
         <label class="form-label" for="input-workspace-name">Çalışma Alanı Adı</label>
-        <input type="text" id="input-workspace-name" data-tour="workspace-name" class="form-input" placeholder="örn. veri-analizi veya fastapi-uygulamam" required minlength="2" maxlength="60" pattern="[a-zA-Z0-9_\- ]+" title="Harf, rakam, boşluk, alt çizgi ve tire kullanabilirsiniz.">
-        <small style="display: block; margin-top: 0.35rem; color: var(--text-muted); font-size: 0.72rem;">
-          Ad yalnızca sizin çalışma alanlarınız arasında benzersiz olmalıdır.
-        </small>
+        <input type="text" id="input-workspace-name" data-tour="workspace-name" class="form-input" placeholder="örn. veri-analizi" aria-describedby="workspace-name-help" required minlength="2" maxlength="60" pattern="[a-zA-Z0-9_\- ]+">
+        <p class="form-help" id="workspace-name-help">
+          Benzersiz bir ad seçin. A–Z, rakam, boşluk, alt çizgi ve tire kullanabilirsiniz.
+        </p>
       </div>
 
-      <div class="form-group">
-        <label class="form-label" for="input-workspace-desc">Açıklama (İsteğe Bağlı)</label>
-        <input type="text" id="input-workspace-desc" class="form-input" placeholder="örn. Makine öğrenmesi deneyleri">
-      </div>
+      <details class="workspace-optional-settings">
+        <summary>İsteğe bağlı ayarlar <span>Açıklama, çalışma süresi{% if placement_options.tags %}, yerleşim{% endif %}</span></summary>
+        <div class="workspace-optional-fields">
+          <div class="form-group">
+            <label class="form-label" for="input-workspace-desc">Açıklama</label>
+            <input type="text" id="input-workspace-desc" class="form-input" placeholder="örn. Makine öğrenmesi deneyleri">
+          </div>
 
-      <div class="form-group">
-        <label class="form-label" for="input-auto-stop">Maksimum Çalışma Süresi</label>
-        <p class="form-help">Süre her başlatmada sıfırlanır. Aktif IDE oturumları ve çalışan işler olsa da süre dolunca durdurulur.</p>
-        <select id="input-auto-stop" class="form-input" style="background: var(--bg-input); color: #fff;">
-          <option value="0" selected>Devre Dışı (Sürekli Çalışsın)</option>
-          <option value="30">30 Dakika Sonra Durdur</option>
-          <option value="60">1 Saat Sonra Durdur</option>
-          <option value="120">2 Saat Sonra Durdur</option>
-          <option value="240">4 Saat Sonra Durdur</option>
-        </select>
-        <small style="color: var(--text-muted); font-size: 0.72rem; display: block; margin-top: 0.25rem;">
-          RAM ve CPU tasarrufu sağlamak için container durdurulur; dosyalarınız eksiksiz saklanır ve tek tıkla devam ettirilebilir.
-        </small>
-      </div>
+          <div class="form-group">
+            <label class="form-label" for="input-auto-stop">Maksimum Çalışma Süresi</label>
+            <p class="form-help">Süre her başlatmada sıfırlanır. Aktif IDE oturumları ve çalışan işler olsa da süre dolunca durdurulur.</p>
+            <select id="input-auto-stop" class="form-input" style="background: var(--bg-input); color: var(--heading);">
+              <option value="0" selected>Devre Dışı (Sürekli Çalışsın)</option>
+              <option value="30">30 Dakika Sonra Durdur</option>
+              <option value="60">1 Saat Sonra Durdur</option>
+              <option value="120">2 Saat Sonra Durdur</option>
+              <option value="240">4 Saat Sonra Durdur</option>
+            </select>
+            <small style="color: var(--text-muted); font-size: 0.72rem; display: block; margin-top: 0.25rem;">
+              RAM ve CPU tasarrufu sağlamak için container durdurulur; dosyalarınız eksiksiz saklanır ve tek tıkla devam ettirilebilir.
+            </small>
+          </div>
 
-      {% if placement_options.tags %}
-      <div class="form-group" id="placement-picker">
-        <span class="form-label">Gerekli Etiketler (İsteğe Bağlı)</span>
-        <p class="form-help">Çalışma alanı yalnızca seçilen etiketlerin tümünü taşıyan bir worker'a yerleşir. GPU profilleri GPU worker'larda, CPU profilleri CPU worker'larda çalışır.</p>
-        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem 1rem;">
-          {% for tag in placement_options.tags %}
-            <label style="display: flex; gap: 0.35rem; align-items: center; font-size: 0.8rem;" title="{{ tag.description }}">
-              <input type="checkbox" class="input-placement-tag" value="{{ tag.name }}">
-              <span>{{ tag.name }}</span>
+          {% if placement_options.tags %}
+          <div class="form-group" id="placement-picker">
+            <span class="form-label">Gerekli Etiketler (İsteğe Bağlı)</span>
+            <p class="form-help">Çalışma alanı yalnızca seçilen etiketlerin tümünü taşıyan bir worker'a yerleşir. GPU profilleri GPU worker'larda, CPU profilleri CPU worker'larda çalışır.</p>
+            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem 1rem;">
+              {% for tag in placement_options.tags %}
+                <label style="display: flex; gap: 0.35rem; align-items: center; font-size: 0.8rem;" title="{{ tag.description }}">
+                  <input type="checkbox" class="input-placement-tag" value="{{ tag.name }}">
+                  <span>{{ tag.name }}</span>
+                </label>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </details>
+
+      <fieldset class="form-group workspace-template-picker">
+        <legend class="form-label">Geliştirme Ortamı Şablonu</legend>
+        <div class="grid grid-cols-2" data-tour="template-picker" style="gap: 0.75rem;">
+          {% for tpl in templates %}
+            <label class="selectable-card template-card {% if loop.first %}selected{% endif %}"{% if tpl.requires_accelerator %} data-requires-gpu="true"{% endif %}>
+              <input class="card-choice-input" type="radio" name="template_id" value="{{ tpl.id }}" aria-labelledby="template-title-{{ loop.index }}" aria-describedby="template-description-{{ loop.index }}"{% if loop.first %} checked{% endif %}>
+              <span class="card-selected-mark" aria-hidden="true">✓</span>
+              <span class="template-card-heading">
+                <span class="template-card-icon" aria-hidden="true">
+                  {% if 'terminal' in tpl.id %}&gt;_{% elif 'cuda' in tpl.id %}GPU{% elif 'react' in tpl.id %}⚛{% elif 'python' in tpl.id %}Py{% elif 'java' in tpl.id %}J{% elif 'jupyter' in tpl.id %}Jp{% else %}📦{% endif %}
+                </span>
+                <span class="template-card-title" id="template-title-{{ loop.index }}">{{ tpl.name }}</span>
+              </span>
+              <span class="template-card-description" id="template-description-{{ loop.index }}">{{ tpl.description }}{% if tpl.requires_accelerator %}<span class="sr-only"> GPU profili gerekir.</span>{% endif %}</span>
+              <span class="template-card-features">
+                {% if tpl.requires_accelerator %}
+                  <span class="badge badge-running">GPU profili gerekir</span>
+                {% endif %}
+                {% for feat in tpl.features[:2] %}
+                  <span class="badge badge-neutral">{{ feat }}</span>
+                {% endfor %}
+              </span>
             </label>
           {% endfor %}
         </div>
-      </div>
-      {% endif %}
+      </fieldset>
 
-      <div class="form-group">
-        <label class="form-label">Geliştirme Ortamı Şablonu</label>
-        <div class="grid grid-cols-2" data-tour="template-picker" style="gap: 0.75rem;">
-          {% for tpl in templates %}
-            <div class="selectable-card template-card {% if loop.first %}selected{% endif %}" data-template-id="{{ tpl.id }}"{% if tpl.requires_accelerator %} data-requires-gpu="true"{% endif %}>
-              <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.35rem;">
-                <span style="font-size: 1.25rem;">
-                  {% if 'terminal' in tpl.id %}&gt;_{% elif 'cuda' in tpl.id %}GPU{% elif 'react' in tpl.id %}⚛{% elif 'python' in tpl.id %}Py{% elif 'java' in tpl.id %}J{% elif 'jupyter' in tpl.id %}Jp{% else %}📦{% endif %}
-                </span>
-                <span class="template-card-title">{{ tpl.name }}</span>
-              </div>
-              <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem;">{{ tpl.description }}</p>
-              <div style="display: flex; flex-wrap: wrap; gap: 0.3rem;">
-                {% if tpl.requires_accelerator %}
-                  <span class="badge badge-running" style="font-size: 0.64rem;">GPU profili gerekir</span>
-                {% endif %}
-                {% for feat in tpl.features[:2] %}
-                  <span class="badge badge-neutral" style="font-size: 0.64rem;">{{ feat }}</span>
-                {% endfor %}
-              </div>
-            </div>
-          {% endfor %}
-        </div>
-      </div>
-
-      <div class="form-group flavor-picker" id="flavor-picker" data-tour="flavor-picker">
+      <div class="form-group flavor-picker" id="flavor-picker" data-tour="flavor-picker" role="group" aria-labelledby="flavor-picker-title" tabindex="-1">
         <div class="flavor-picker-heading">
           <div>
-            <span class="form-label">Kaynak Profili</span>
+            <span class="form-label" id="flavor-picker-title">Kaynak Profili</span>
             <p>CPU/RAM profili veya GPU hızlandırmalı çalışma alanı seçin.</p>
+            <p id="workspace-flavor-error" class="text-destructive" role="alert" hidden></p>
           </div>
         </div>
 
@@ -266,8 +299,8 @@
           <div class="flavor-grid flavor-grid-cpu">
             {% for flav in flavors if not flav.accelerator_count %}
             <label class="selectable-card flavor-card {% if flav.id == default_flavor_id %}selected{% endif %}" data-flavor-id="{{ flav.id }}" data-flavor-summary="{{ flav.display_name }} · {{ flav.cpus }} CPU · {{ flav.memory_display }}">
-              <input class="flavor-choice-input" type="radio" name="flavor_id" value="{{ flav.id }}" {% if flav.id == default_flavor_id %}checked{% endif %}>
-              <span class="flavor-selected-mark" aria-hidden="true">✓</span>
+              <input class="card-choice-input" type="radio" name="flavor_id" value="{{ flav.id }}" {% if flav.id == default_flavor_id %}checked{% endif %}>
+              <span class="card-selected-mark" aria-hidden="true">✓</span>
               <span class="flavor-card-title">{{ flav.display_name or flav.name }}</span>
               <span class="flavor-card-code">{{ flav.id }}</span>
               <span class="flavor-card-resources">{{ flav.cpus }} CPU <b>·</b> {{ flav.memory_display }}</span>
@@ -285,8 +318,8 @@
           <div class="flavor-grid-gpu">
             {% for flav in flavors if flav.accelerator_count %}
             <label class="selectable-card flavor-card flavor-card-gpu {% if flav.available is sameas false %}is-unavailable{% endif %}" data-flavor-id="{{ flav.id }}" data-flavor-summary="{{ flav.display_name }} · {{ flav.cpus }} CPU · {{ flav.memory_display }} · GPU slot" data-gpu-quota-ok="{{ 'false' if (flav.gpu_quota_remaining or 0) < flav.accelerator_count else 'true' }}">
-              <input class="flavor-choice-input" type="radio" name="flavor_id" value="{{ flav.id }}" {% if flav.available is sameas false %}disabled{% endif %}>
-              <span class="flavor-selected-mark" aria-hidden="true">✓</span>
+              <input class="card-choice-input" type="radio" name="flavor_id" value="{{ flav.id }}" {% if flav.available is sameas false %}disabled{% endif %}>
+              <span class="card-selected-mark" aria-hidden="true">✓</span>
               <div class="gpu-flavor-main">
                 <div class="gpu-flavor-title-row">
                   <div>
@@ -334,12 +367,12 @@
             <span class="pulse-dot"></span>
             <span>Kurulum Logları</span>
           </label>
-          <span id="deploy-status-badge" class="badge badge-creating">Kuruluyor...</span>
+          <span id="deploy-status-badge" class="badge badge-creating" role="status">Kuruluyor...</span>
         </div>
         <div id="deploy-terminal" class="terminal-window" style="max-height: 220px; font-size: 0.8rem; line-height: 1.4; padding: 0.75rem;"></div>
       </div>
 
-      <div id="modal-footer-actions" style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
+      <div id="modal-footer-actions" class="workspace-create-actions">
         <div id="selected-flavor-summary" class="selected-flavor-summary" role="status" aria-live="polite"></div>
         <button type="button" id="btn-cancel-deploy" class="btn btn-secondary">İptal</button>
         <button type="submit" id="btn-submit-deploy" data-tour="workspace-create-submit" class="btn btn-primary" style="padding: 0.65rem 1.5rem; font-weight: 600;">Çalışma Alanını Kur</button>

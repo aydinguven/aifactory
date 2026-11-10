@@ -3,6 +3,19 @@
 {% block content %}
 <div class="page-heading"><div><span class="page-kicker">MLflow Tracking</span><h1>Run Karşılaştırma</h1><p>Parametreleri, son metrikleri ve metrik geçmişlerini yan yana karşılaştırın.</p></div></div>
 {% include "partials/mlflow_nav.html" %}
-<div id="compare-root"><section class="card" style="margin-bottom:1rem"><div id="compare-status">Run'lar yükleniyor...</div><div id="compare-content" class="data-table-shell" hidden></div></section><section class="card"><div class="page-heading" style="margin-bottom:0.75rem"><div><h2 class="card-title">Metrik eğrileri</h2><p class="text-muted">Seçili run'ların aynı metriğini tek grafikte karşılaştırın.</p></div><label class="form-group" style="min-width:220px"><span class="form-label">Metrik</span><select id="compare-metric-select" class="form-input"></select></label></div><div id="compare-metric-chart" class="mlflow-chart-shell"><p class="text-muted">Run'lar yükleniyor...</p></div></section></div>
+<div id="compare-root" class="card-stack">
+  <section class="card">
+    <div class="card-header"><h2 class="card-title">Parametreler ve metrikler</h2></div>
+    <p id="compare-status" class="view-status" data-state="loading" role="status">Run'lar yükleniyor…</p>
+    <div id="compare-content" class="data-table-shell" hidden></div>
+  </section>
+  <section class="card" id="compare-chart-card" hidden>
+    <div class="card-header">
+      <div><h2 class="card-title">Metrik eğrileri</h2><p class="card-description">Seçili run'ların aynı metriğini tek grafikte karşılaştırın.</p></div>
+      <label><span class="form-label">Metrik</span><select id="compare-metric-select" class="form-select"></select></label>
+    </div>
+    <div id="compare-metric-chart" class="mlflow-chart-shell"></div>
+  </section>
+</div>
 {% endblock %}
-{% block scripts %}<script src="/static/js/mlflow.js"></script>{% endblock %}
+{% block scripts %}<script src="/static/js/mlflow.js?v={{ static_version }}"></script>{% endblock %}
