@@ -5,38 +5,38 @@
 {% block content %}
 <div class="auth-shell">
   <div class="card auth-card">
-    <div class="card-header" style="justify-content: center; flex-direction: column; text-align: center; gap: 0.5rem;">
-      <h1 class="card-title" style="font-size: 1.5rem;">Hesabınızı Oluşturun</h1>
-      <p style="color: var(--text-muted); font-size: 0.875rem;">{{ registration_cpu_quota|int }} CPU, {{ registration_memory_gb_quota|int }} GB RAM ve {{ registration_disk_gb_quota|int }} GB Disk kotası içerir</p>
+    <div class="auth-heading">
+      <h1>Hesabınızı Oluşturun</h1>
+      <p>Hesabınız {{ registration_cpu_quota|int }} CPU, {{ registration_memory_gb_quota|int }} GB RAM ve {{ registration_disk_gb_quota|int }} GB Disk kotasıyla başlar.</p>
     </div>
 
-    <div id="register-error" style="display: none; background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger); padding: 0.75rem; border-radius: 8px; font-size: 0.875rem; margin-bottom: 1.25rem;"></div>
+    <div id="register-error" class="form-error" role="alert" hidden></div>
 
     <form id="register-form">
       <div class="form-group">
         <label class="form-label" for="full_name">Ad Soyad</label>
-        <input type="text" id="full_name" class="form-input" placeholder="örn. Aydın Yılmaz">
+        <input type="text" id="full_name" class="form-input" autocomplete="name">
       </div>
 
       <div class="form-group">
         <label class="form-label" for="username">Kullanıcı Adı</label>
-        <input type="text" id="username" class="form-input" placeholder="örn. ayilmaz" required minlength="3">
+        <input type="text" id="username" class="form-input" autocomplete="username" required minlength="3">
       </div>
 
       <div class="form-group">
         <label class="form-label" for="email">E-posta Adresi</label>
-        <input type="email" id="email" class="form-input" placeholder="örn. ad.soyad@example.com" required>
+        <input type="email" id="email" class="form-input" autocomplete="email" required>
       </div>
 
       <div class="form-group">
         <label class="form-label" for="password">Parola (en az 6 karakter)</label>
-        <input type="password" id="password" class="form-input" placeholder="••••••••" required minlength="6">
+        <input type="password" id="password" class="form-input" autocomplete="new-password" required minlength="6">
       </div>
 
-      <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem; padding: 0.75rem;">Hesap Oluştur</button>
+      <button type="submit" class="btn btn-primary auth-submit">Hesap Oluştur</button>
     </form>
 
-    <div style="text-align: center; margin-top: 1.5rem; font-size: 0.875rem; color: var(--text-muted);">
+    <div class="auth-footer">
       Zaten hesabınız var mı? <a href="/login">Giriş yapın</a>
     </div>
   </div>
@@ -53,7 +53,7 @@ document.getElementById("register-form").addEventListener("submit", async (e) =>
   const password = document.getElementById("password").value;
   const errorBox = document.getElementById("register-error");
 
-  errorBox.style.display = "none";
+  errorBox.hidden = true;
 
   try {
     const res = await fetch("/api/auth/register", {
@@ -71,14 +71,14 @@ document.getElementById("register-form").addEventListener("submit", async (e) =>
         || (res.status >= 500
           ? `Sunucu hatası (HTTP ${res.status}). Lütfen yöneticinize başvurun.`
           : "Kayıt işlemi başarısız.");
-      errorBox.style.display = "block";
+      errorBox.hidden = false;
       return;
     }
 
     window.location.href = "/";
   } catch (err) {
     errorBox.textContent = "Ağ hatası: " + err.message;
-    errorBox.style.display = "block";
+    errorBox.hidden = false;
   }
 });
 </script>

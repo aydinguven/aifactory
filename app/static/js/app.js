@@ -5,6 +5,8 @@
 document.addEventListener("DOMContentLoaded", () => {
   initInlineEditControls();
   initFilePickers();
+  initDialogNavigation();
+  initWorkspaceFilters();
   initWorkspaceCreationModal();
   initActionButtons();
   initLogPolling();
@@ -31,10 +33,156 @@ document.addEventListener("DOMContentLoaded", () => {
   initSnapshotModal();
   initAdminPlatformUpdater();
   initUserGroupFilter();
+  initAdminNavigation();
   initAdminFilters();
   initWorkspaceImageManager();
   initAdminFlavorSettings();
 });
+
+function setViewStatus(element, message, state = "") {
+  if (element.dataset.state === state && element.textContent === message) return;
+  element.dataset.state = state;
+  element.textContent = message;
+}
+
+function initDialogNavigation() {
+  const backdrops = [...document.querySelectorAll(".modal-backdrop")];
+  if (!backdrops.length) return;
+  let active = null;
+
+  const canFocus = element => {
+    if (!(element instanceof HTMLElement) || element === document.body || !element.getClientRects().length) return false;
+    const closedDetails = element.closest("details:not([open])");
+    return !closedDetails || closedDetails.querySelector(":scope > summary")?.contains(element);
+  };
+
+  const sync = () => {
+    const backdrop = backdrops.findLast(element => element.classList.contains("open"));
+    if (backdrop === active?.backdrop) return;
+    const opener = active?.opener || document.activeElement;
+    active?.background.forEach(([element, inert]) => { element.inert = inert; });
+    active = null;
+    if (!backdrop) {
+      const target = canFocus(opener) ? opener : opener?.closest("details")?.querySelector("summary");
+      (target || document.getElementById("main-content"))?.focus();
+      return;
+    }
+
+    const dialog = backdrop.querySelector('[role="dialog"]');
+    const close = dialog.querySelector(".modal-close");
+    const background = [];
+    for (let branch = backdrop; branch !== document.body; branch = branch.parentElement) {
+      for (const sibling of branch.parentElement.children) {
+        if (sibling === branch) continue;
+        background.push([sibling, sibling.inert]);
+        sibling.inert = true;
+      }
+    }
+    active = {backdrop, dialog, close, opener, background};
+    dialog.tabIndex = -1;
+    window.requestAnimationFrame(() => {
+      if (active?.backdrop === backdrop && !dialog.contains(document.activeElement)) {
+        (close || dialog).focus({preventScroll: true});
+      }
+    });
+  };
+
+  // Existing close handlers own workflow state, including in-flight deployments.
+  const observer = new MutationObserver(sync);
+  backdrops.forEach(backdrop => observer.observe(backdrop, {attributes: true, attributeFilter: ["class"]}));
+  sync();
+  document.addEventListener("keydown", event => {
+    if (!active || event.defaultPrevented) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      active.close?.click();
+    }
+    if (event.key !== "Tab") return;
+    const {dialog} = active;
+    const focusable = [...dialog.querySelectorAll("button, a[href], input, select, textarea, summary, [tabindex]")]
+      .filter(element => element.tabIndex >= 0 && !element.matches(":disabled") && canFocus(element));
+    const edge = event.shiftKey ? focusable[0] : focusable.at(-1);
+    if (!edge || document.activeElement === edge || document.activeElement === dialog) {
+      event.preventDefault();
+      const next = event.shiftKey ? focusable.at(-1) : focusable[0];
+      (next || dialog).focus();
+    }
+  });
+}
+
+function normalizeSearch(value) {
+  return value.trim().toLocaleLowerCase("tr").normalize("NFD")
+    .replace(/\p{Mark}/gu, "").replaceAll("ı", "i");
+}
+
+function initWorkspaceFilters() {
+  const filters = document.querySelector("[data-workspace-filters]");
+  if (!filters) return;
+  const search = document.getElementById("workspace-search");
+  const status = document.getElementById("workspace-status-filter");
+  const clear = document.getElementById("workspace-filters-clear");
+  const count = document.getElementById("workspace-result-count");
+  const noResults = document.getElementById("workspace-no-results");
+  const pendingStatuses = ["creating", "starting", "stopping"];
+  const workspaces = [...document.querySelectorAll("#workspace-results [data-workspace-search]")].map(card => ({
+    card,
+    searchText: normalizeSearch(card.dataset.workspaceSearch),
+    status: pendingStatuses.includes(card.dataset.workspaceStatus) ? "pending" : card.dataset.workspaceStatus,
+  }));
+
+  const applyFilters = () => {
+    const query = normalizeSearch(search.value);
+    const terms = query ? query.split(/\s+/) : [];
+    let visible = 0;
+    for (const workspace of workspaces) {
+      workspace.card.hidden = !terms.every(term => workspace.searchText.includes(term))
+        || Boolean(status.value && status.value !== workspace.status);
+      if (!workspace.card.hidden) visible++;
+    }
+    clear.disabled = !search.value && !status.value;
+    count.textContent = `${workspaces.length} çalışma alanından ${visible} tanesi gösteriliyor.`;
+    noResults.hidden = visible !== 0;
+  };
+  search.addEventListener("input", applyFilters);
+  status.addEventListener("change", applyFilters);
+  clear.addEventListener("click", () => {
+    search.value = "";
+    status.value = "";
+    search.focus();
+    applyFilters();
+  });
+  // Browsers may restore filter inputs when navigating back from a workspace.
+  window.addEventListener("pageshow", applyFilters);
+  filters.hidden = false;
+  applyFilters();
+}
+
+function initAdminNavigation() {
+  const toggle = document.getElementById("admin-category-toggle");
+  if (!toggle) return;
+  const links = document.getElementById("admin-category-links");
+  const compact = window.matchMedia("(max-width: 760px)");
+  const setExpanded = expanded => {
+    toggle.setAttribute("aria-expanded", String(expanded));
+    links.hidden = !expanded;
+  };
+  const updateLayout = () => {
+    const focused = document.activeElement;
+    toggle.hidden = !compact.matches;
+    setExpanded(!compact.matches);
+    if (compact.matches && links.contains(focused)) toggle.focus();
+    if (!compact.matches && focused === toggle) links.querySelector("[aria-current]")?.focus();
+  };
+  toggle.addEventListener("click", () => setExpanded(links.hidden));
+  toggle.parentElement.addEventListener("keydown", event => {
+    if (event.key !== "Escape" || toggle.hidden || links.hidden) return;
+    event.preventDefault();
+    setExpanded(false);
+    toggle.focus();
+  });
+  compact.addEventListener("change", updateLayout);
+  updateLayout();
+}
 
 function initInlineEditControls(scope = document) {
   scope.querySelectorAll("[data-inline-edit-input]").forEach((input) => {
@@ -390,9 +538,9 @@ function initAdminFilters() {
     const selector = input.dataset.adminFilter;
     if (!selector) return;
     input.addEventListener("input", () => {
-      const query = input.value.trim().toLocaleLowerCase("tr-TR");
+      const query = normalizeSearch(input.value);
       document.querySelectorAll(selector).forEach((item) => {
-        const haystack = item.textContent.toLocaleLowerCase("tr-TR");
+        const haystack = normalizeSearch(item.textContent);
         item.hidden = Boolean(query) && !haystack.includes(query);
       });
       input.dispatchEvent(new CustomEvent("admin-filter-applied"));
@@ -983,37 +1131,6 @@ function initWorkspaceCreationModal() {
 
   if (!modalBackdrop) return;
 
-  const dialog = modalBackdrop.querySelector('[role="dialog"]');
-  let previousFocus = null;
-  let inertEntries = [];
-
-  function setBackgroundInert() {
-    if (inertEntries.length) return;
-    const main = modalBackdrop.parentElement;
-    const candidates = [
-      ...[...document.body.children].filter(
-        (element) => element !== main && element.tagName !== "SCRIPT"
-      ),
-      ...[...(main?.children || [])].filter(
-        (element) => element !== modalBackdrop && element.tagName !== "SCRIPT"
-      ),
-    ];
-    inertEntries = candidates.map((element) => [element, element.inert]);
-    inertEntries.forEach(([element]) => { element.inert = true; });
-  }
-
-  function restoreBackground() {
-    inertEntries.forEach(([element, inert]) => { element.inert = inert; });
-    inertEntries = [];
-  }
-
-  function focusableElements() {
-    if (!dialog) return [];
-    return [...dialog.querySelectorAll(
-      'button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
-    )].filter((element) => !element.hidden && element.getClientRects().length);
-  }
-
   function resetDeploymentUi() {
     if (terminalBox) terminalBox.style.display = "none";
     if (terminal) terminal.innerHTML = "";
@@ -1029,12 +1146,7 @@ function initWorkspaceCreationModal() {
     const wasOpen = modalBackdrop.classList.contains("open");
     if (resetDeploymentUI) resetDeploymentUi();
     if (!wasOpen) {
-      previousFocus = document.activeElement;
-      setBackgroundInert();
       modalBackdrop.classList.add("open");
-      modalBackdrop.setAttribute("aria-hidden", "false");
-      if (dialog && !dialog.hasAttribute("tabindex")) dialog.setAttribute("tabindex", "-1");
-      window.requestAnimationFrame(() => (closeBtn || dialog)?.focus());
       modalBackdrop.dispatchEvent(new CustomEvent("aifactory:workspace-modal-opened"));
     }
     return true;
@@ -1044,43 +1156,9 @@ function initWorkspaceCreationModal() {
     if (!force && submitBtn?.disabled) return false;
     if (!modalBackdrop.classList.contains("open")) return true;
     modalBackdrop.classList.remove("open");
-    modalBackdrop.setAttribute("aria-hidden", "true");
-    restoreBackground();
     modalBackdrop.dispatchEvent(new CustomEvent("aifactory:workspace-modal-closed"));
-    if (previousFocus instanceof HTMLElement && previousFocus.isConnected) {
-      previousFocus.focus();
-    }
-    previousFocus = null;
     return true;
   }
-
-  function handleModalKeydown(event) {
-    if (!modalBackdrop.classList.contains("open")) return;
-    if (event.key === "Escape") {
-      event.preventDefault();
-      closeModal();
-      return;
-    }
-    if (event.key !== "Tab") return;
-    const focusable = focusableElements();
-    if (!focusable.length) {
-      event.preventDefault();
-      dialog?.focus();
-      return;
-    }
-    const first = focusable[0];
-    const last = focusable.at(-1);
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  }
-
-  modalBackdrop.setAttribute("aria-hidden", "true");
-  document.addEventListener("keydown", handleModalKeydown);
 
   window.AIFactoryWorkspaceCreateModal = {
     open: openModal,
@@ -1094,61 +1172,57 @@ function initWorkspaceCreationModal() {
   modalBackdrop.addEventListener("click", (event) => {
     if (event.target === modalBackdrop) closeModal();
   });
+  if (!form) return;
 
-  // Template Selection
-  const templateCards = document.querySelectorAll(".template-card");
-  const templateInput = document.getElementById("input-template-id");
-  templateCards.forEach((card) => {
-    card.addEventListener("click", () => {
-      templateCards.forEach((c) => c.classList.remove("selected"));
-      card.classList.add("selected");
-      if (templateInput) {
-        templateInput.value = card.dataset.templateId;
-      }
-      applyTemplateFlavorRules(card);
-    });
-  });
+  const templateInputs = form.querySelectorAll('input[name="template_id"]');
+  const selectedTemplate = () => form.querySelector('input[name="template_id"]:checked');
+  const flavorPicker = document.getElementById("flavor-picker");
+  const flavorError = document.getElementById("workspace-flavor-error");
+  const nameInput = document.getElementById("input-workspace-name");
+  nameInput.addEventListener("input", () => nameInput.setCustomValidity(""));
 
   // Flavor Selection
-  const flavorCards = document.querySelectorAll(".flavor-card");
-  const flavorInputs = document.querySelectorAll('input[name="flavor_id"]');
+  const flavorCards = form.querySelectorAll(".flavor-card");
+  const flavorInputs = [...form.querySelectorAll('input[name="flavor_id"]')];
   const flavorSummary = document.getElementById("selected-flavor-summary");
-  const cpuFlavorInputs = document.querySelectorAll('.flavor-grid-cpu input[name="flavor_id"]');
-  const gpuFlavorInputs = document.querySelectorAll('.flavor-grid-gpu input[name="flavor_id"]');
-  const defaultFlavorInput = document.querySelector('input[name="flavor_id"]:checked');
+  const cpuFlavorInputs = form.querySelectorAll('.flavor-grid-cpu input[name="flavor_id"]');
+  const defaultFlavorInput = form.querySelector('input[name="flavor_id"]:checked');
   let gpuTemplateSelected = false;
 
   function syncFlavorSelection() {
-    const selectedInput = document.querySelector('input[name="flavor_id"]:checked');
+    const selectedInput = form.querySelector('input[name="flavor_id"]:checked:not(:disabled)');
     flavorCards.forEach((card) => {
       const input = card.querySelector('input[name="flavor_id"]');
-      card.classList.toggle("selected", Boolean(input?.checked));
+      card.classList.toggle("selected", input === selectedInput);
     });
+    if (selectedInput) flavorError.hidden = true;
     if (flavorSummary) {
       const selectedCard = selectedInput?.closest(".flavor-card");
       flavorSummary.textContent = selectedCard
         ? "Seçili: " + selectedCard.dataset.flavorSummary
         : gpuTemplateSelected
           ? "Bu şablon GPU profili gerektirir; şu an uygun GPU profili yok"
-          : "Bir kaynak profili seçin";
+          : "Şu an kullanılabilir kaynak profili yok";
     }
   }
 
   // GPU-only templates (e.g. CUDA) cannot run on a CPU flavor: lock the CPU
   // cards and move the selection to the first available GPU profile.
-  function applyTemplateFlavorRules(card) {
-    gpuTemplateSelected = card?.dataset.requiresGpu === "true";
+  function applyTemplateFlavorRules() {
+    const template = selectedTemplate();
+    templateInputs.forEach(input => input.closest(".template-card").classList.toggle("selected", input === template));
+    gpuTemplateSelected = template?.closest(".template-card").dataset.requiresGpu === "true";
     cpuFlavorInputs.forEach((input) => {
       input.disabled = gpuTemplateSelected;
       input.closest(".flavor-card")?.classList.toggle("is-unavailable", gpuTemplateSelected);
     });
-    const selected = document.querySelector('input[name="flavor_id"]:checked');
-    if (gpuTemplateSelected && (!selected || selected.disabled)) {
+    const selected = form.querySelector('input[name="flavor_id"]:checked');
+    if (!selected || selected.disabled) {
       if (selected) selected.checked = false;
-      const firstGpu = Array.from(gpuFlavorInputs).find((input) => !input.disabled);
-      if (firstGpu) firstGpu.checked = true;
-    } else if (!gpuTemplateSelected && !selected && defaultFlavorInput) {
-      defaultFlavorInput.checked = true;
+      const next = defaultFlavorInput && !defaultFlavorInput.disabled
+        ? defaultFlavorInput
+        : flavorInputs.find(input => !input.disabled);
+      if (next) next.checked = true;
     }
     syncFlavorSelection();
   }
@@ -1156,7 +1230,9 @@ function initWorkspaceCreationModal() {
   flavorInputs.forEach((input) => {
     input.addEventListener("change", syncFlavorSelection);
   });
-  applyTemplateFlavorRules(document.querySelector(".template-card.selected"));
+  templateInputs.forEach(input => input.addEventListener("change", applyTemplateFlavorRules));
+  applyTemplateFlavorRules();
+  window.addEventListener("pageshow", applyTemplateFlavorRules);
 
   // Tag placement: GPU slot availability depends on where the workspace may
   // land, so re-check the GPU cards whenever the selected tags change.
@@ -1209,7 +1285,7 @@ function initWorkspaceCreationModal() {
               : "GPU kotanız yok. Yöneticinizden GPU slot kotası isteyin.";
         }
       });
-      applyTemplateFlavorRules(document.querySelector(".template-card.selected"));
+      applyTemplateFlavorRules();
     } catch (_) {
       // Availability is advisory; the create request reports the real result.
     }
@@ -1226,153 +1302,164 @@ function initWorkspaceCreationModal() {
     terminal.scrollTop = terminal.scrollHeight;
   }
 
-  if (form) {
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
 
-      const name = document.getElementById("input-workspace-name").value.trim();
-      const description = document.getElementById("input-workspace-desc")?.value.trim() || "";
-      const templateId = templateInput.value;
-      const flavorId = document.querySelector('input[name="flavor_id"]:checked')?.value;
-      const autoStopInput = document.getElementById("input-auto-stop");
-      const autoStopMinutes = autoStopInput ? parseInt(autoStopInput.value, 10) || 0 : 0;
+    if (submitBtn?.disabled) return;
+    const name = nameInput.value.trim();
+    const description = document.getElementById("input-workspace-desc")?.value.trim() || "";
+    const templateId = selectedTemplate()?.value;
+    const flavorId = form.querySelector('input[name="flavor_id"]:checked:not(:disabled)')?.value;
+    const autoStopInput = document.getElementById("input-auto-stop");
+    const autoStopMinutes = autoStopInput ? parseInt(autoStopInput.value, 10) || 0 : 0;
 
-      if (!name || !flavorId) return;
+    if (name.length < 2) {
+      nameInput.setCustomValidity("Çalışma alanı adı en az iki karakter olmalıdır.");
+      nameInput.reportValidity();
+      return;
+    }
+    if (!flavorId) {
+      flavorError.textContent = gpuTemplateSelected
+        ? "Uygun GPU profili yok. Başka bir şablon seçin veya yerleşim etiketlerini kontrol edin."
+        : "Kullanılabilir kaynak profili yok. Yöneticinizle iletişime geçin.";
+      flavorError.hidden = false;
+      flavorPicker.focus();
+      return;
+    }
 
-      if (terminalBox) terminalBox.style.display = "block";
-      if (terminal) terminal.innerHTML = "";
-      if (statusBadge) {
-        statusBadge.className = "badge badge-creating";
-        statusBadge.textContent = "Kuruluyor...";
+    if (terminalBox) terminalBox.style.display = "block";
+    if (terminal) terminal.innerHTML = "";
+    if (statusBadge) {
+      statusBadge.className = "badge badge-creating";
+      statusBadge.textContent = "Kuruluyor...";
+    }
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="pulse-dot" style="margin-right: 0.35rem;"></span> Kuruluyor...';
+    }
+    if (cancelBtn) cancelBtn.style.display = "none";
+
+    appendLog(`'${name}' için kurulum süreci başlatılıyor (${templateId}, ${flavorId})...`, "dim");
+
+    try {
+      const response = await fetch("/api/workspaces/deploy-stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name,
+          description: description,
+          template_id: templateId,
+          flavor_id: flavorId,
+          auto_stop_minutes: autoStopMinutes,
+          ...selectedPlacement(),
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(apiErrorMessage(err, `Çalışma alanı kurulamadı (HTTP ${response.status})`));
       }
 
-      if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="pulse-dot" style="margin-right: 0.35rem;"></span> Kuruluyor...';
-      }
-      if (cancelBtn) cancelBtn.style.display = "none";
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let deploymentCompleted = false;
 
-      appendLog(`'${name}' için kurulum süreci başlatılıyor (${templateId}, ${flavorId})...`, "dim");
-
-      try {
-        const response = await fetch("/api/workspaces/deploy-stream", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: name,
-            description: description,
-            template_id: templateId,
-            flavor_id: flavorId,
-            auto_stop_minutes: autoStopMinutes,
-            ...selectedPlacement(),
-          }),
-        });
-
-        if (!response.ok) {
-          const err = await response.json().catch(() => ({}));
-          throw new Error(err.detail || `HTTP Hatası: ${response.status}`);
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-        let deploymentCompleted = false;
-
-        function processLine(rawLine) {
-          const line = rawLine.trim();
-          if (!line || !line.startsWith("data: ")) return;
-          try {
-            const data = JSON.parse(line.slice(6));
-            if (data.type === "log") {
-              appendLog(data.text, data.level || "info");
-            } else if (data.type === "error") {
-              appendLog(data.text || data.error, "error");
-              if (statusBadge) {
-                statusBadge.className = "badge badge-error";
-                statusBadge.textContent = "Hata";
-              }
-              if (submitBtn) {
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = "Kurulumu Yeniden Dene";
-              }
-              if (cancelBtn) cancelBtn.style.display = "inline-flex";
-            } else if (data.type === "done") {
-              deploymentCompleted = true;
-              const ideUrl = new URL(data.web_url || "", window.location.origin);
-              if (ideUrl.origin !== window.location.origin ||
-                  !/^\/proxy\/[0-9a-fA-F-]{36}\/$/.test(ideUrl.pathname)) {
-                appendLog("IDE adresi doğrulanamadı. Panele dönülüyor.", "error");
-                setTimeout(() => window.location.reload(), 2000);
-                return;
-              }
-              if (statusBadge) {
-                statusBadge.className = "badge badge-running";
-                statusBadge.textContent = "Hazır";
-              }
-              appendLog("Container çevrimiçi ve doğrulandı. Çalışma alanı hazır.", "success");
-
-              // The IDE opens in a new tab so this AI Factory tab stays open.
-              // Browsers may block the automatic tab after a long deployment;
-              // the button then opens it with the user's click.
-              const ideTab = window.open(ideUrl.pathname, "_blank");
-              if (ideTab) {
-                ideTab.opener = null;
-                appendLog("IDE yeni sekmede açıldı.", "success");
-                setTimeout(() => window.location.reload(), 1500);
-              } else if (modalFooter) {
-                modalFooter.innerHTML = `
-                  <button type="button" class="btn btn-secondary" id="btn-workspace-back">Panele Dön</button>
-                  <a href="${ideUrl.pathname}" target="_blank" rel="noopener" class="btn btn-success" id="btn-workspace-open-ide" style="padding: 0.65rem 1.5rem; font-weight: 600;">
-                    <span>↗</span> IDE'yi Yeni Sekmede Aç
-                  </a>
-                `;
-                document.getElementById("btn-workspace-back")?.addEventListener("click", () => window.location.reload());
-                document.getElementById("btn-workspace-open-ide")?.addEventListener("click", () => {
-                  setTimeout(() => window.location.reload(), 500);
-                });
-              }
+      function processLine(rawLine) {
+        const line = rawLine.trim();
+        if (!line || !line.startsWith("data: ")) return;
+        try {
+          const data = JSON.parse(line.slice(6));
+          if (data.type === "log") {
+            appendLog(data.text, data.level || "info");
+          } else if (data.type === "error") {
+            appendLog(data.text || data.error, "error");
+            if (statusBadge) {
+              statusBadge.className = "badge badge-error";
+              statusBadge.textContent = "Hata";
             }
-          } catch (parseErr) {
-            console.warn("SSE parse error:", line);
+            if (submitBtn) {
+              submitBtn.disabled = false;
+              submitBtn.innerHTML = "Kurulumu Yeniden Dene";
+            }
+            if (cancelBtn) cancelBtn.style.display = "inline-flex";
+          } else if (data.type === "done") {
+            deploymentCompleted = true;
+            const ideUrl = new URL(data.web_url || "", window.location.origin);
+            if (ideUrl.origin !== window.location.origin ||
+                !/^\/proxy\/[0-9a-fA-F-]{36}\/$/.test(ideUrl.pathname)) {
+              appendLog("IDE adresi doğrulanamadı. Panele dönülüyor.", "error");
+              setTimeout(() => window.location.reload(), 2000);
+              return;
+            }
+            if (statusBadge) {
+              statusBadge.className = "badge badge-running";
+              statusBadge.textContent = "Hazır";
+            }
+            appendLog("Container çevrimiçi ve doğrulandı. Çalışma alanı hazır.", "success");
+
+            // The IDE opens in a new tab so this AI Factory tab stays open.
+            // Browsers may block the automatic tab after a long deployment;
+            // the button then opens it with the user's click.
+            const ideTab = window.open(ideUrl.pathname, "_blank");
+            if (ideTab) {
+              ideTab.opener = null;
+              appendLog("IDE yeni sekmede açıldı.", "success");
+              setTimeout(() => window.location.reload(), 1500);
+            } else if (modalFooter) {
+              modalFooter.innerHTML = `
+                <button type="button" class="btn btn-secondary" id="btn-workspace-back">Panele Dön</button>
+                <a href="${ideUrl.pathname}" target="_blank" rel="noopener" class="btn btn-success" id="btn-workspace-open-ide" style="padding: 0.65rem 1.5rem; font-weight: 600;">
+                  <span>↗</span> IDE'yi Yeni Sekmede Aç
+                </a>
+              `;
+              document.getElementById("btn-workspace-back")?.addEventListener("click", () => window.location.reload());
+              document.getElementById("btn-workspace-open-ide")?.addEventListener("click", () => {
+                setTimeout(() => window.location.reload(), 500);
+              });
+            }
           }
+        } catch (parseErr) {
+          console.warn("SSE parse error:", line);
         }
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop();
-
-          for (const line of lines) {
-            processLine(line);
-          }
-        }
-
-        if (buffer) {
-          processLine(buffer);
-        }
-
-        if (!deploymentCompleted && statusBadge && statusBadge.textContent !== "Hata") {
-          setTimeout(() => {
-            window.location.reload();
-          }, 1000);
-        }
-      } catch (err) {
-        appendLog(`Ağ bağlantısı hatası: ${err.message}`, "error");
-        if (statusBadge) {
-          statusBadge.className = "badge badge-error";
-          statusBadge.textContent = "Ağ Hatası";
-        }
-        if (submitBtn) {
-          submitBtn.disabled = false;
-          submitBtn.innerHTML = "Kurulumu Yeniden Dene";
-        }
-        if (cancelBtn) cancelBtn.style.display = "inline-flex";
       }
-    });
-  }
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop();
+
+        for (const line of lines) {
+          processLine(line);
+        }
+      }
+
+      if (buffer) {
+        processLine(buffer);
+      }
+
+      if (!deploymentCompleted && statusBadge && statusBadge.textContent !== "Hata") {
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+      }
+    } catch (err) {
+      appendLog(err.message, "error");
+      if (statusBadge) {
+        statusBadge.className = "badge badge-error";
+        statusBadge.textContent = "Hata";
+      }
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = "Kurulumu Yeniden Dene";
+      }
+      if (cancelBtn) cancelBtn.style.display = "inline-flex";
+    }
+  });
 }
 
 // 2. Action Buttons (Start, Stop, Delete)
@@ -2886,6 +2973,7 @@ function initLiveMetricsPolling() {
   const detailRamPct = document.getElementById("detail-val-ram-pct");
   const detailDisk = document.getElementById("detail-val-disk");
   const detailUptime = document.getElementById("detail-val-uptime");
+  const detailStatus = document.getElementById("workspace-metrics-status");
   const detailMetricsRoot = document.querySelector("[data-detail-metrics-ws-id]");
   const detailWorkspaceId = detailMetricsRoot?.dataset.detailMetricsWsId;
 
@@ -2938,20 +3026,21 @@ function initLiveMetricsPolling() {
       const currentWsId = detailWorkspaceId;
       if (currentWsId && statsMap[currentWsId]) {
         const st = statsMap[currentWsId];
-        if (detailCpu) detailCpu.textContent = st.status === "running" ? `${st.cpu_percent}%` : "Durduruldu";
-        if (detailRam) detailRam.textContent = st.status === "running" ? st.mem_usage_display : "--";
-        if (detailRamPct) detailRamPct.textContent = st.status === "running" ? `%${st.mem_percent} ayrılan RAM` : "--";
-        if (detailDisk) detailDisk.textContent = st.disk_usage_display || "--";
-        if (detailUptime) detailUptime.textContent = st.uptime_display || "0s";
+        const running = st.status === "running";
+        if (detailCpu) detailCpu.textContent = running ? `${st.cpu_percent}%` : "—";
+        if (detailRam) detailRam.textContent = running ? st.mem_usage_display : "—";
+        if (detailRamPct) detailRamPct.textContent = running ? `%${st.mem_percent} ayrılan RAM` : "";
+        if (detailDisk) detailDisk.textContent = st.disk_usage_display || "—";
+        if (detailUptime) detailUptime.textContent = running ? st.uptime_display || "—" : "—";
+        setViewStatus(detailStatus, running ? "" : "CPU ve RAM değerleri çalışma alanı çalışırken güncellenir.");
       }
     } catch (err) {
       console.warn("Metrics polling error:", err);
-      if (detailCpu) {
-        detailCpu.textContent = "Metrik hatası";
-        detailCpu.title = err.message;
+      if (detailMetricsRoot?.dataset.workspaceStatus === "running") {
+        setViewStatus(detailStatus, "Canlı metrikler alınamadı. Yeniden deneniyor…", "warning");
+        [detailCpu, detailRam, detailDisk, detailUptime].forEach(value => { value.textContent = "—"; });
+        detailRamPct.textContent = "";
       }
-      if (detailRam) detailRam.textContent = "Yeniden deneniyor…";
-      if (detailRamPct) detailRamPct.textContent = err.message;
     }
   }
 
@@ -2961,28 +3050,19 @@ function initLiveMetricsPolling() {
 
 // 7. Workspace Detail Tabs
 function initWorkspaceTabs() {
-  const tabBtns = document.querySelectorAll(".tab-btn");
+  const tabBtns = document.querySelectorAll(".workspace-tabs-nav button[data-tab]");
   if (!tabBtns.length) return;
 
   tabBtns.forEach((btn) => {
     btn.addEventListener("click", () => {
       tabBtns.forEach((b) => {
-        b.classList.remove("active");
-        b.style.color = "var(--text-muted)";
-        b.style.borderBottom = "2px solid transparent";
+        const active = b === btn;
+        b.classList.toggle("active", active);
+        b.setAttribute("aria-pressed", String(active));
+        document.getElementById(b.dataset.tab).hidden = !active;
       });
-      document.querySelectorAll(".tab-content").forEach((c) => (c.style.display = "none"));
-
-      btn.classList.add("active");
-      btn.style.color = "var(--heading)";
-      btn.style.borderBottom = "2px solid var(--primary)";
-
-      const targetTab = document.getElementById(btn.dataset.tab);
-      if (targetTab) {
-        targetTab.style.display = "block";
-        if (btn.dataset.tab === "tab-files") {
-          AIFactoryFileManager.init();
-        }
+      if (btn.dataset.tab === "tab-files") {
+        AIFactoryFileManager.init();
       }
     });
   });
@@ -2992,159 +3072,194 @@ function initWorkspaceTabs() {
 const AIFactoryFileManager = {
   workspaceId: null,
   currentPath: "",
+  loadVersion: 0,
 
   init() {
     const container = document.getElementById("tab-files");
     if (!container) return;
     this.workspaceId = container.dataset.workspaceId;
-    this.loadDir("");
 
-    const fileInput = document.getElementById("fm-file-input");
-    if (fileInput && !fileInput.dataset.bound) {
-      fileInput.dataset.bound = "true";
-      fileInput.addEventListener("change", () => this.handleUpload());
-    }
-  },
-
-  async loadDir(path = "") {
-    this.currentPath = path;
-    const listBody = document.getElementById("fm-file-list");
-    if (!listBody) return;
-
-    listBody.innerHTML = '<tr><td colspan="4" style="padding: 1rem; text-align: center; color: var(--text-muted);">Yükleniyor...</td></tr>';
-
-    try {
-      const res = await fetch(`/api/workspaces/${this.workspaceId}/files?path=${encodeURIComponent(path)}`);
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        listBody.innerHTML = `<tr><td colspan="4" style="padding: 1rem; color: var(--danger); text-align: center;">${err.detail || "Dosyalar listelenemedi"}</td></tr>`;
-        return;
-      }
-
-      const data = await res.json();
-      this.renderBreadcrumbs(data.current_path);
-
-      if (!data.items || !data.items.length) {
-        listBody.innerHTML = '<tr><td colspan="4" style="padding: 1.5rem; text-align: center; color: var(--text-muted);">Bu klasör boş.</td></tr>';
-        return;
-      }
-
-      let html = "";
-      data.items.forEach((item) => {
-        const icon = item.is_dir ? "📁" : "📄";
-        const nameLink = item.is_dir
-          ? `<a href="javascript:void(0)" onclick="AIFactoryFileManager.loadDir('${item.path}')" style="color: #fff; font-weight: 600; text-decoration: none;">${icon} ${item.name}</a>`
-          : `<span style="color: #cbd5e1;">${icon} ${item.name}</span>`;
-
-        const downloadBtn = !item.is_dir
-          ? `<a href="/api/workspaces/${this.workspaceId}/files/download?path=${encodeURIComponent(item.path)}" class="btn btn-secondary btn-sm" style="padding: 0.2rem 0.5rem; font-size: 0.72rem;">⬇</a>`
-          : "";
-
-        const deleteBtn = `<button class="btn btn-danger btn-sm" onclick="AIFactoryFileManager.deleteItem('${item.path}')" style="padding: 0.2rem 0.5rem; font-size: 0.72rem;">🗑</button>`;
-
-        html += `
-          <tr style="border-bottom: 1px solid var(--border-color);">
-            <td style="padding: 0.5rem 0.8rem;">${nameLink}</td>
-            <td style="padding: 0.5rem 0.8rem; color: var(--text-muted);">${item.size_display}</td>
-            <td style="padding: 0.5rem 0.8rem; color: var(--text-muted);">${item.modified_at}</td>
-            <td style="padding: 0.5rem 0.8rem; text-align: right; display: flex; gap: 0.3rem; justify-content: flex-end;">${downloadBtn} ${deleteBtn}</td>
-          </tr>
-        `;
-      });
-      listBody.innerHTML = html;
-    } catch (err) {
-      listBody.innerHTML = `<tr><td colspan="4" style="padding: 1rem; color: var(--danger); text-align: center;">Hata: ${err.message}</td></tr>`;
-    }
-  },
-
-  renderBreadcrumbs(curPath) {
-    const el = document.getElementById("fm-breadcrumbs");
-    if (!el) return;
-    let html = `<span style="cursor: pointer; color: var(--primary);" onclick="AIFactoryFileManager.loadDir('')">root</span>`;
-    if (curPath) {
-      const parts = curPath.split("/");
-      let accum = "";
-      parts.forEach((p) => {
-        if (!p) return;
-        accum += (accum ? "/" : "") + p;
-        const thisPath = accum;
-        html += ` <span style="color: var(--text-muted);">/</span> <span style="cursor: pointer; color: var(--primary);" onclick="AIFactoryFileManager.loadDir('${thisPath}')">${p}</span>`;
-      });
-    }
-    el.innerHTML = html;
-  },
-
-  async handleUpload() {
     const input = document.getElementById("fm-file-input");
-    if (!input || !input.files.length) return;
-
-    const formData = new FormData();
-    formData.append("path", this.currentPath);
-    for (let i = 0; i < input.files.length; i++) {
-      formData.append("files", input.files[i]);
-    }
-
-    try {
-      const res = await fetch(`/api/workspaces/${this.workspaceId}/files/upload`, {
-        method: "POST",
-        body: formData,
+    const upload = document.getElementById("fm-upload-button");
+    const form = document.getElementById("fm-folder-form");
+    const toggle = document.getElementById("fm-folder-toggle");
+    const name = document.getElementById("fm-folder-name");
+    if (!input.dataset.bound) {
+      input.dataset.bound = "true";
+      upload.addEventListener("click", () => input.click());
+      input.addEventListener("change", async () => {
+        if (!input.files.length) return;
+        const body = new FormData();
+        body.append("path", this.currentPath);
+        for (const file of input.files) body.append("files", file);
+        upload.disabled = true;
+        await this.changeFiles("/upload", {method: "POST", body}, "Dosyalar yüklendi.");
+        input.value = "";
+        upload.disabled = false;
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        alert(err.detail || "Dosya yüklenemedi.");
-      }
-      input.value = "";
-      this.loadDir(this.currentPath);
-    } catch (err) {
-      alert("Yükleme hatası: " + err.message);
+      const showForm = open => {
+        form.hidden = !open;
+        toggle.setAttribute("aria-expanded", String(open));
+        (open ? name : toggle).focus();
+      };
+      toggle.addEventListener("click", () => showForm(form.hidden));
+      form.addEventListener("keydown", event => {
+        if (event.key !== "Escape") return;
+        event.preventDefault();
+        showForm(false);
+      });
+      name.addEventListener("input", () => name.setCustomValidity(""));
+      form.addEventListener("submit", async event => {
+        event.preventDefault();
+        const folder = name.value.trim();
+        if (!folder) {
+          name.setCustomValidity("Bir klasör adı girin.");
+          name.reportValidity();
+          return;
+        }
+        const folderPath = [this.currentPath, folder].filter(Boolean).join("/");
+        event.submitter.disabled = true;
+        const saved = await this.changeFiles(`/mkdir?path=${encodeURIComponent(folderPath)}`, {method: "POST"}, "Klasör oluşturuldu.");
+        event.submitter.disabled = false;
+        if (saved) {
+          form.reset();
+          showForm(false);
+        }
+      });
+    }
+    this.loadDir(this.currentPath);
+  },
+
+  async loadDir(path, focusPath = false) {
+    this.currentPath = path;
+    this.renderBreadcrumbs(path, focusPath);
+    const version = ++this.loadVersion;
+    const status = document.getElementById("fm-list-status");
+    const table = document.getElementById("fm-file-table");
+    table.hidden = true;
+    setViewStatus(status, "Dosyalar yükleniyor…", "loading");
+
+    try {
+      const response = await fetch(`/api/workspaces/${this.workspaceId}/files?path=${encodeURIComponent(path)}`);
+      const data = await response.json().catch(() => ({}));
+      if (version !== this.loadVersion) return;
+      if (!response.ok) throw new Error(apiErrorMessage(data, "Dosyalar listelenemedi."));
+      this.currentPath = data.current_path ?? path;
+      if (this.currentPath !== path) this.renderBreadcrumbs(this.currentPath, focusPath);
+      const rows = (data.items || []).map(item => this.fileRow(item));
+      document.getElementById("fm-file-list").replaceChildren(...rows);
+      table.hidden = !rows.length;
+      setViewStatus(status, rows.length ? "" : "Bu klasör boş.");
+    } catch (error) {
+      if (version === this.loadVersion) setViewStatus(status, error.message, "error");
     }
   },
 
-  async promptNewFolder() {
-    const name = prompt("Yeni klasör adını girin:");
-    if (!name || !name.trim()) return;
-    const target = (this.currentPath ? this.currentPath + "/" : "") + name.trim();
-    try {
-      const res = await fetch(`/api/workspaces/${this.workspaceId}/files/mkdir?path=${encodeURIComponent(target)}`, { method: "POST" });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        alert(err.detail || "Klasör oluşturulamadı.");
-      }
-      this.loadDir(this.currentPath);
-    } catch (err) {
-      alert("Hata: " + err.message);
+  fileRow(item) {
+    const row = document.createElement("tr");
+    const name = row.insertCell();
+    if (item.is_dir) {
+      const folder = document.createElement("button");
+      folder.type = "button";
+      folder.className = "file-link";
+      folder.textContent = item.name;
+      folder.addEventListener("click", () => this.openFolder(item.path));
+      name.append(folder);
+    } else {
+      name.textContent = item.name;
     }
+    const size = item.size_display || "—";
+    const modified = item.modified_at || "—";
+    const metadata = document.createElement("small");
+    metadata.className = "file-mobile-meta";
+    metadata.textContent = `${size} · ${modified}`;
+    name.append(metadata);
+    row.insertCell().textContent = size;
+    row.insertCell().textContent = modified;
+
+    const actions = document.createElement("div");
+    actions.className = "table-actions file-actions";
+    if (!item.is_dir) {
+      const download = document.createElement("a");
+      download.className = "btn btn-secondary btn-sm";
+      download.href = `/api/workspaces/${this.workspaceId}/files/download?path=${encodeURIComponent(item.path)}`;
+      download.textContent = "İndir";
+      download.setAttribute("aria-label", `${item.name} dosyasını indir`);
+      actions.append(download);
+    }
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "btn btn-danger btn-sm";
+    remove.textContent = "Sil";
+    remove.setAttribute("aria-label", `${item.name} öğesini sil`);
+    remove.addEventListener("click", async () => {
+      if (!confirm(`'${item.path}' kalıcı olarak silinsin mi?`)) return;
+      remove.disabled = true;
+      const deleted = await this.changeFiles(`?path=${encodeURIComponent(item.path)}`, {method: "DELETE"}, "Öğe silindi.");
+      if (!deleted) remove.disabled = false;
+      else if (document.activeElement === document.body) {
+        document.querySelector("#fm-breadcrumbs [aria-current]")?.focus();
+      }
+    });
+    actions.append(remove);
+    row.insertCell().append(actions);
+    return row;
   },
 
-  async deleteItem(path) {
-    if (!confirm(`'${path}' kalıcı olarak silinsin mi?`)) return;
-    try {
-      const res = await fetch(`/api/workspaces/${this.workspaceId}/files?path=${encodeURIComponent(path)}`, { method: "DELETE" });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        alert(err.detail || "Silinemedi.");
+  openFolder(path) {
+    setViewStatus(document.getElementById("fm-action-status"), "");
+    this.loadDir(path, true);
+  },
+
+  renderBreadcrumbs(path, focusPath) {
+    const nav = document.getElementById("fm-breadcrumbs");
+    const parts = path.split("/").filter(Boolean);
+    const labels = ["Kök klasör", ...parts];
+    nav.replaceChildren(...labels.map((label, index) => {
+      const current = index === labels.length - 1;
+      const crumb = document.createElement(current ? "span" : "button");
+      crumb.textContent = label;
+      if (current) {
+        crumb.setAttribute("aria-current", "location");
+        crumb.tabIndex = -1;
+      } else {
+        crumb.type = "button";
+        crumb.className = "file-link";
+        crumb.addEventListener("click", () => this.openFolder(parts.slice(0, index).join("/")));
       }
-      this.loadDir(this.currentPath);
-    } catch (err) {
-      alert("Silme hatası: " + err.message);
+      return crumb;
+    }));
+    if (focusPath) nav.lastElementChild.focus();
+  },
+
+  async changeFiles(suffix, options, successMessage) {
+    const status = document.getElementById("fm-action-status");
+    const path = this.currentPath;
+    setViewStatus(status, "İşlem sürüyor…", "loading");
+    try {
+      const response = await fetch(`/api/workspaces/${this.workspaceId}/files${suffix}`, options);
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(apiErrorMessage(data, "Dosya işlemi tamamlanamadı."));
+      }
+      setViewStatus(status, successMessage, "success");
+      if (path === this.currentPath) await this.loadDir(path);
+      return true;
+    } catch (error) {
+      setViewStatus(status, error.message, "error");
+      return false;
     }
   },
 };
 
 // 9. Custom Port Exposer Controller
 function initPortExposer() {
-  const btn = document.getElementById("btn-open-custom-port");
+  const form = document.getElementById("workspace-port-form");
   const input = document.getElementById("input-custom-port");
-  if (!btn || !input) return;
-
-  const currentWsId = document.querySelector("[data-workspace-id]")?.dataset.workspaceId;
-  btn.addEventListener("click", () => {
-    const port = parseInt(input.value, 10);
-    if (!port || port < 1 || port > 65535) {
-      alert("Lütfen geçerli bir port numarası (1-65535) girin.");
-      return;
-    }
-    window.open(`/proxy/${currentWsId}/port/${port}/`, "_blank");
+  if (!form || !input) return;
+  form.addEventListener("submit", event => {
+    event.preventDefault();
+    window.open(`/proxy/${form.dataset.workspaceId}/port/${input.valueAsNumber}/`, "_blank", "noopener");
   });
 }
 
@@ -3666,15 +3781,18 @@ function initWorkspaceShares() {
     list.replaceChildren();
     for (const share of shares) {
       const row = document.createElement("div");
-      row.style.marginBottom = "1rem";
-      const label = document.createElement("p");
+      row.className = "record-row";
+      const field = document.createElement("div");
+      const label = document.createElement("label");
+      label.className = "form-label";
       const expires = share.expires_at ? new Date(share.expires_at * 1000).toLocaleString() : "Süresiz";
       label.textContent = `Port ${share.port} · ${share.password_protected ? "Parolalı" : "Parolasız"} · ${expires}${share.expires_at && share.expires_at * 1000 <= Date.now() ? " (Süresi doldu)" : ""}`;
       const input = document.createElement("input");
+      input.id = `share-url-${share.id}`;
+      label.htmlFor = input.id;
       input.className = "form-input";
       input.readOnly = true;
       input.value = new URL(share.url, window.location.origin).href;
-      input.setAttribute("aria-label", `Port ${share.port} paylaşım bağlantısı`);
       input.addEventListener("click", () => input.select());
       const copy = document.createElement("button");
       copy.type = "button";
@@ -3683,10 +3801,10 @@ function initWorkspaceShares() {
       copy.addEventListener("click", async () => {
         try {
           await navigator.clipboard.writeText(input.value);
-          status.textContent = "Bağlantı kopyalandı.";
+          setViewStatus(status, "Bağlantı kopyalandı.", "success");
         } catch (_) {
           input.focus(); input.select();
-          status.textContent = "Bağlantı seçildi; kopyalayabilirsiniz.";
+          setViewStatus(status, "Bağlantı seçildi; kopyalayabilirsiniz.");
         }
       });
       const revoke = document.createElement("button");
@@ -3698,10 +3816,14 @@ function initWorkspaceShares() {
         try {
           await api(`${endpoint}/${share.id}`, {method: "DELETE"});
           await load();
-          status.textContent = "Bağlantı iptal edildi.";
-        } catch (error) { status.textContent = error.message; revoke.disabled = false; }
+          setViewStatus(status, "Bağlantı iptal edildi.", "success");
+        } catch (error) { setViewStatus(status, error.message, "error"); revoke.disabled = false; }
       });
-      row.append(label, input, copy, revoke);
+      field.append(label, input);
+      const actions = document.createElement("div");
+      actions.className = "table-actions record-actions";
+      actions.append(copy, revoke);
+      row.append(field, actions);
       list.append(row);
     }
   }
@@ -3709,7 +3831,7 @@ function initWorkspaceShares() {
     event.preventDefault();
     const port = Number(document.getElementById("input-custom-port").value);
     if (!Number.isInteger(port) || port < 1 || port > 65535) {
-      status.textContent = "Geçerli bir port numarası girin (1–65535).";
+      setViewStatus(status, "Geçerli bir port numarası girin (1–65535).", "error");
       return;
     }
     submit.disabled = true;
@@ -3720,9 +3842,9 @@ function initWorkspaceShares() {
       })});
       form.elements.password.value = "";
       await load();
-      status.textContent = "Paylaşım bağlantısı oluşturuldu.";
-    } catch (error) { status.textContent = error.message; }
+      setViewStatus(status, "Paylaşım bağlantısı oluşturuldu.", "success");
+    } catch (error) { setViewStatus(status, error.message, "error"); }
     finally { submit.disabled = false; }
   });
-  load().catch(error => { status.textContent = error.message; });
+  load().catch(error => setViewStatus(status, error.message, "error"));
 }

@@ -1,15 +1,66 @@
 {% extends "base.html" %}
+{% from "partials/setup_panel.html" import setup_panel %}
 {% block title %}MLflow Deneyleri - {{ app_name }}{% endblock %}
 {% block content %}
 <div class="page-heading"><div><span class="page-kicker">MLflow Tracking</span><h1>Deneyler ve Run'lar</h1><p>Deneyleri, run sonuçlarını, parametreleri, metrikleri ve artifact'ları inceleyin.</p></div></div>
 {% include "partials/mlflow_nav.html" %}
 {% if not mlflow_enabled %}
-<section class="card"><h2 class="card-title">Bağlantı bekleniyor</h2><p class="text-muted">Önce <a href="/models">Model Registry</a> sayfasından kişisel MLflow bağlantınızı yapılandırın.</p></section>
+{{ setup_panel("MLflow bağlantısı gerekli", "Deneyleri ve run sonuçlarını görmek için kişisel MLflow bağlantınızı yapılandırın.", "/models", "MLflow bağlantısını ayarla") }}
 {% else %}
-<section class="card"><div class="card-header"><h2 class="card-title">Deneyler</h2><span id="experiment-count" class="badge badge-neutral">Yükleniyor</span></div><div id="experiment-status">Deneyler yükleniyor...</div><div id="experiment-list" class="admin-user-list" hidden></div><button id="experiment-more" class="btn btn-secondary" type="button" hidden>Daha fazla yükle</button></section>
+<section class="card">
+  <div class="card-header">
+    <h2 class="card-title">Deneyler</h2>
+    <span id="experiment-count" class="badge badge-neutral">—</span>
+  </div>
+  <p id="experiment-status" class="view-status" data-state="loading" role="status">Deneyler yükleniyor…</p>
+  <div id="experiment-list" class="record-list" hidden></div>
+  <button id="experiment-more" class="btn btn-secondary" type="button" hidden>Daha fazla yükle</button>
+</section>
 {% endif %}
 {% endblock %}
 {% block scripts %}{% if mlflow_enabled %}<script>
-(() => { const list=document.getElementById("experiment-list"), status=document.getElementById("experiment-status"), count=document.getElementById("experiment-count"), more=document.getElementById("experiment-more"); let token="", total=0; const esc=v=>String(v??"").replace(/[&<>'"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"})[c]);
-async function load(append=false){const qs=new URLSearchParams();if(append&&token)qs.set("page_token",token);const r=await fetch(`/api/mlflow/experiments?${qs}`,{cache:"no-store"}),d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.detail||`Deneyler yüklenemedi (${r.status})`);if(!append){list.innerHTML="";total=0;}list.insertAdjacentHTML("beforeend",d.experiments.map(e=>`<article class="admin-user-card" style="grid-template-columns:minmax(0,1fr) auto"><div><a class="admin-user-name" href="/experiments/${encodeURIComponent(e.experiment_id)}">${esc(e.name||e.experiment_id)}</a><p class="admin-section-description">ID: <code>${esc(e.experiment_id)}</code></p></div><a href="${esc(e.mlflow_url)}" target="_blank" rel="noopener noreferrer">MLflow'da aç ↗</a></article>`).join(""));total+=d.experiments.length;token=d.next_page_token||"";count.textContent=`${total} deney`;list.hidden=!total;status.textContent=total?"":"Deney bulunamadı.";more.hidden=!token;}more.addEventListener("click",()=>load(true).catch(fail));function fail(e){status.textContent=e.message;status.className="text-destructive";}load().catch(fail);})();
+(() => {
+  const list = document.getElementById("experiment-list");
+  const status = document.getElementById("experiment-status");
+  const count = document.getElementById("experiment-count");
+  const more = document.getElementById("experiment-more");
+  let token = "";
+  let total = 0;
+  const escapeHtml = value => String(value ?? "").replace(/[&<>'"]/g, character => (
+    {"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[character]
+  ));
+
+  async function load() {
+    more.disabled = true;
+    setViewStatus(status, "Deneyler yükleniyor…", "loading");
+    const params = new URLSearchParams();
+    if (token) params.set("page_token", token);
+    try {
+      const response = await fetch(`/api/mlflow/experiments?${params}`, {cache: "no-store"});
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(apiErrorMessage(data, `Deneyler yüklenemedi (${response.status})`));
+      list.insertAdjacentHTML("beforeend", data.experiments.map(experiment => `
+        <article class="record-row">
+          <div>
+            <a class="record-title" href="/experiments/${encodeURIComponent(experiment.experiment_id)}">${escapeHtml(experiment.name || experiment.experiment_id)}</a>
+            <p class="card-description">ID: <code>${escapeHtml(experiment.experiment_id)}</code></p>
+          </div>
+          <a class="btn btn-secondary btn-sm" href="${escapeHtml(experiment.mlflow_url)}" target="_blank" rel="noopener noreferrer">MLflow'da aç ↗</a>
+        </article>`).join(""));
+      total += data.experiments.length;
+      token = data.next_page_token || "";
+      count.textContent = `${total} deney`;
+      list.hidden = !total;
+      setViewStatus(status, total ? "" : "Henüz deney yok.");
+      more.hidden = !token;
+    } catch (error) {
+      setViewStatus(status, error.message, "error");
+    } finally {
+      more.disabled = false;
+    }
+  }
+
+  more.addEventListener("click", load);
+  load();
+})();
 </script>{% endif %}{% endblock %}

@@ -8,8 +8,10 @@
    next to the header button. */
 .status-header .public-share-brand {
   flex: 0 1 auto;
+  min-width: 0;
   width: min(390px, 55vw);
 }
+.status-header .btn { flex: none; }
 
 .status-main {
   margin: 0 auto;
@@ -20,10 +22,10 @@
 
 .status-overall {
   align-items: center;
-  background: #fff;
+  background: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-left: 6px solid var(--text-muted);
-  border-radius: 3px;
+  border-left: 4px solid var(--text-muted);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
   display: flex;
   gap: 1rem;
@@ -67,9 +69,9 @@
 
 .status-item {
   min-width: 0;
-  background: #fff;
+  background: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: 3px;
+  border-radius: var(--radius-md);
   padding: 1rem 1.25rem;
 }
 

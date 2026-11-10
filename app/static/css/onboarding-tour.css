@@ -23,8 +23,8 @@
 .onboarding-tour-callout {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-top: 4px solid var(--primary);
-  box-shadow: 0 18px 48px rgba(20, 28, 40, 0.24);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-overlay);
   color: var(--text-main);
   max-width: 100%;
   padding: 1.15rem;

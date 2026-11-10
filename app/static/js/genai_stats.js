@@ -6,6 +6,7 @@
   let stats = null;
   let days = 30;
   let metric = "total_tokens";
+  let requestVersion = 0;
 
   const pct = (part, whole) => (whole ? `%${((part / whole) * 100).toFixed(1)}` : "—");
   const value = (row) => Number(row[metric]) || 0;
@@ -243,32 +244,48 @@
   }
 
   async function load() {
-    $("genai-stats-status").hidden = false;
-    $("genai-stats-status").textContent = "İstatistikler yükleniyor...";
+    const version = ++requestVersion;
+    const status = $("genai-stats-status");
+    const body = $("genai-stats-body");
+    setViewStatus(status, "İstatistikler yükleniyor…", "loading");
+    $("genai-stats-range").textContent = "";
+    stats = null;
+    body.hidden = true;
     try {
       const response = await fetch(`/api/genai/stats?days=${days}`, {credentials: "same-origin"});
       const result = await response.json().catch(() => ({}));
+      if (version !== requestVersion) return;
       if (!response.ok) throw new Error(result.detail || `İstek başarısız (${response.status})`);
       if (!result.available) throw new Error(`LiteLLM'den veri alınamadı: ${result.error || "bilinmeyen hata"}`);
       stats = result;
       document.querySelectorAll("[data-admin-only]").forEach((node) => { node.hidden = !stats.show_spend; });
       if (!stats.show_spend && metric === "spend") metric = "total_tokens";
+      syncControls();
+      body.hidden = false;
       render();
-      $("genai-stats-body").hidden = false;
-      $("genai-stats-status").hidden = true;
+      setViewStatus(status, "");
     } catch (error) {
-      $("genai-stats-status").textContent = error.message;
+      if (version === requestVersion) setViewStatus(status, error.message, "error");
     }
   }
 
-  document.querySelectorAll("[data-days]").forEach((button) => button.addEventListener("click", () => {
+  const dayButtons = [...document.querySelectorAll("[data-days]")];
+  const metricButtons = [...document.querySelectorAll("[data-metric]")];
+  function syncControls() {
+    [...dayButtons, ...metricButtons].forEach(button => {
+      const active = Number(button.dataset.days) === days || button.dataset.metric === metric;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
+  }
+  dayButtons.forEach((button) => button.addEventListener("click", () => {
     days = Number(button.dataset.days);
-    document.querySelectorAll("[data-days]").forEach((b) => b.classList.toggle("active", b === button));
+    syncControls();
     load();
   }));
-  document.querySelectorAll("[data-metric]").forEach((button) => button.addEventListener("click", () => {
+  metricButtons.forEach((button) => button.addEventListener("click", () => {
     metric = button.dataset.metric;
-    document.querySelectorAll("[data-metric]").forEach((b) => b.classList.toggle("active", b === button));
+    syncControls();
     if (stats) render();
   }));
   let resizeTimer;
@@ -276,5 +293,6 @@
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => { if (stats) render(); }, 150);
   });
+  syncControls();
   load();
 })();

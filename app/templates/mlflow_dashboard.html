@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/setup_panel.html" import setup_panel %}
 
 {% block title %}MLflow Genel Bakış - {{ app_name }}{% endblock %}
 
@@ -14,20 +15,16 @@
 {% include "partials/mlflow_nav.html" %}
 
 {% if not mlflow_enabled %}
-<section class="card">
-  <h2 class="card-title">Bağlantı bekleniyor</h2>
-  <p class="text-muted">Genel bakışı kullanmak için kişisel MLflow bağlantınızı yapılandırın.</p>
-  <a class="btn btn-primary" href="/models">MLflow bağlantısını ayarla</a>
-</section>
+{{ setup_panel("MLflow bağlantısı gerekli", "Deneyleri, run’ları ve modelleri görmek için kişisel MLflow bağlantınızı yapılandırın.", "/models", "MLflow bağlantısını ayarla") }}
 {% else %}
 <div id="mlflow-dashboard">
-  <div id="mlflow-overview-status" role="status">MLflow özeti yükleniyor...</div>
+  <p id="mlflow-overview-status" class="view-status" data-state="loading" role="status">MLflow özeti yükleniyor…</p>
   <div id="mlflow-overview-content" hidden>
-    <section class="mlflow-stat-grid" aria-label="MLflow özeti">
-      <article class="card mlflow-stat-card"><span>Deney</span><strong id="mlflow-stat-experiments">—</strong></article>
-      <article class="card mlflow-stat-card"><span>Kayıtlı model</span><strong id="mlflow-stat-models">—</strong></article>
-      <article class="card mlflow-stat-card"><span>Son run örneklemi</span><strong id="mlflow-stat-runs">—</strong></article>
-      <article class="card mlflow-stat-card"><span>Bağlantı süresi</span><strong id="mlflow-stat-latency">—</strong></article>
+    <section class="summary-grid" aria-label="MLflow özeti">
+      <article class="card summary-card"><span class="summary-label">Deney</span><strong class="summary-value" id="mlflow-stat-experiments">—</strong></article>
+      <article class="card summary-card"><span class="summary-label">Kayıtlı model</span><strong class="summary-value" id="mlflow-stat-models">—</strong></article>
+      <article class="card summary-card"><span class="summary-label">Son run örneklemi</span><strong class="summary-value" id="mlflow-stat-runs">—</strong></article>
+      <article class="card summary-card"><span class="summary-label">Bağlantı süresi</span><strong class="summary-value" id="mlflow-stat-latency">—</strong></article>
     </section>
 
     <section class="grid grid-cols-2 mlflow-overview-grid">
@@ -43,9 +40,10 @@
 
     <section class="card">
       <div class="card-header"><h2 class="card-title">Son Run'lar</h2><a href="/experiments">Deneylere git</a></div>
-      <div class="data-table-shell">
+      <p id="mlflow-recent-runs-status" class="view-status" role="status"></p>
+      <div class="data-table-shell" id="mlflow-recent-runs-table" hidden>
         <table class="table">
-          <thead><tr><th>Run</th><th>Durum</th><th>Başlangıç</th><th>Metrik</th><th>Parametre</th><th></th></tr></thead>
+          <thead><tr><th>Run</th><th>Durum</th><th>Başlangıç</th><th>Metrik</th><th>Parametre</th><th>İşlem</th></tr></thead>
           <tbody id="mlflow-recent-runs"></tbody>
         </table>
       </div>

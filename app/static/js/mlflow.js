@@ -40,19 +40,21 @@
         return `<div class="mlflow-compact-item"><div><a href="/models/${encodeURIComponent(model.name)}"><strong>${esc(model.name)}</strong></a><br><span class="text-muted">${esc(model.description || "Açıklama yok")}</span></div><span class="badge badge-neutral">${latest.version ? `v${esc(latest.version)}` : "—"}</span></div>`;
       }).join("") || '<p class="text-muted">Kayıtlı model bulunamadı.</p>';
 
-      document.getElementById("mlflow-recent-runs").innerHTML = (data.recent_runs || []).map(run => `<tr>
+      const recentRuns = data.recent_runs || [];
+      document.getElementById("mlflow-recent-runs").innerHTML = recentRuns.map(run => `<tr>
         <td><a href="/runs/${encodeURIComponent(run.run_id)}"><strong>${esc(run.run_name || run.run_id)}</strong></a><br><code>${esc(run.run_id)}</code></td>
         <td><span class="badge ${statusClass(run.status)}">${esc(run.status || "UNKNOWN")}</span></td>
         <td>${formatDate(run.start_time)}</td>
         <td>${Object.keys(run.metrics_map || {}).length}</td>
         <td>${Object.keys(run.params_map || {}).length}</td>
         <td><a href="${esc(run.mlflow_url)}" target="_blank" rel="noopener noreferrer">MLflow ↗</a></td>
-      </tr>`).join("") || '<tr><td colspan="6" class="text-muted">Henüz run bulunamadı.</td></tr>';
-      status.textContent = "";
+      </tr>`).join("");
+      document.getElementById("mlflow-recent-runs-table").hidden = !recentRuns.length;
+      setViewStatus(document.getElementById("mlflow-recent-runs-status"), recentRuns.length ? "" : "Henüz run bulunamadı.");
+      setViewStatus(status, "");
       content.hidden = false;
     }).catch(error => {
-      status.textContent = error.message;
-      status.className = "text-destructive";
+      setViewStatus(status, error.message, "error");
     });
   }
 
@@ -127,6 +129,7 @@
     const id = root.dataset.experimentId;
     const status = document.getElementById("run-status");
     const table = document.getElementById("run-table");
+    const tableShell = document.getElementById("run-table-shell");
     const tbody = table.querySelector("tbody");
     const more = document.getElementById("run-more");
     const compare = document.getElementById("compare-runs");
@@ -208,6 +211,7 @@
     };
 
     async function load(append = false) {
+      setViewStatus(status, "Run'lar yükleniyor…", "loading");
       const query = new URLSearchParams({experiment_id:id});
       if (filter.value.trim()) query.set("filter_string", filter.value.trim());
       if (append && token) query.set("page_token", token);
@@ -223,12 +227,12 @@
       total += (data.runs || []).length;
       token = data.next_page_token || "";
       document.getElementById("run-count").textContent = `${total} run`;
-      table.hidden = !total;
-      status.textContent = total ? "" : "Run bulunamadı.";
+      tableShell.hidden = !total;
+      setViewStatus(status, total ? "" : "Run bulunamadı.");
       more.hidden = !token;
       syncCompare();
     }
-    const fail = error => { status.textContent = error.message; status.className = "text-destructive"; };
+    const fail = error => setViewStatus(status, error.message, "error");
     root.addEventListener("change", event => { if (event.target.matches("[data-run-select]")) syncCompare(); });
     chips.addEventListener("click", event => {
       const button = event.target.closest("[data-remove-filter]");
@@ -257,7 +261,14 @@
     compare.addEventListener("click", () => { const query = new URLSearchParams(); selected().forEach(runId => query.append("run_ids", runId)); location.href = `/runs/compare?${query}`; });
     syncBuilder(); renderSaved();
     Promise.all([
-      fetchJson(`/api/mlflow/experiments/${encodeURIComponent(id)}`).then(data => { document.getElementById("experiment-name").textContent = data.name || id; document.getElementById("experiment-open").href = data.mlflow_url; }),
+      fetchJson(`/api/mlflow/experiments/${encodeURIComponent(id)}`).then(data => {
+        document.getElementById("experiment-name").textContent = data.name || id;
+        const link = document.getElementById("experiment-open");
+        if (data.mlflow_url) {
+          link.href = data.mlflow_url;
+          link.hidden = false;
+        }
+      }),
       load(),
     ]).catch(fail);
   }
@@ -346,7 +357,11 @@
 
     fetchJson(`/api/mlflow/runs/${encodeURIComponent(runId)}`).then(data => {
       document.getElementById("run-name").textContent = data.run_name || data.run_id;
-      document.getElementById("run-open").href = data.mlflow_url;
+      const runLink = document.getElementById("run-open");
+      if (data.mlflow_url) {
+        runLink.href = data.mlflow_url;
+        runLink.hidden = false;
+      }
       document.getElementById("run-state").textContent = data.status || "UNKNOWN";
       document.getElementById("run-start").textContent = formatDate(data.start_time);
       document.getElementById("run-end").textContent = formatDate(data.end_time);
@@ -365,18 +380,14 @@
         <div class="mlflow-lineage-node mlflow-lineage-node--model"><span>Kayıtlı model</span><div><a class="admin-user-name" href="/models/${encodeURIComponent(version.name)}">${esc(version.name)}</a> <span class="badge badge-neutral">v${esc(version.version)}</span></div></div>
         <div class="mlflow-lineage-actions"><button type="button" class="btn btn-primary btn-sm" data-deploy-model data-model-name="${esc(version.name)}" data-model-version="${esc(version.version)}" data-run-id="${esc(version.run_id || data.run_id)}">Dağıt</button><a class="btn btn-secondary btn-sm" href="${esc(version.mlflow_url)}" target="_blank" rel="noopener noreferrer">MLflow'da aç ↗</a></div>
       </article>`).join("") || '<div class="mlflow-lineage-empty"><strong>Henüz kayıtlı model yok</strong><p class="text-muted">Bu run ile ilişkili bir model sürümü kaydedildiğinde burada görünecek.</p></div>';
-      if ((data.warnings || []).length) {
-        status.textContent = data.warnings.join(" ");
-        status.className = "text-muted";
-      } else {
-        status.textContent = "";
-      }
+      const warnings = (data.warnings || []).join(" ");
+      setViewStatus(status, warnings, warnings ? "warning" : "");
       const metricKeys = Object.keys(data.metrics_map || {}).sort((a, b) => a.localeCompare(b));
       metricSelect.innerHTML = metricKeys.map(key => `<option value="${esc(key)}">${esc(key)}</option>`).join("");
       content.hidden = false;
       if (metricKeys.length) loadMetric().catch(error => { chart.textContent = error.message; });
       loadArtifacts().catch(error => { artifactStatus.textContent = error.message; artifactStatus.className = "text-destructive"; });
-    }).catch(error => { status.textContent = error.message; status.className = "text-destructive"; });
+    }).catch(error => setViewStatus(status, error.message, "error"));
   }
 
   function initRunCompare() {
@@ -387,7 +398,10 @@
     const chart = document.getElementById("compare-metric-chart");
     const metricSelect = document.getElementById("compare-metric-select");
     const ids = new URLSearchParams(location.search).getAll("run_ids");
-    if (ids.length < 2) { status.textContent = "Karşılaştırmak için en az iki run seçin."; status.className = "text-destructive"; return; }
+    if (ids.length < 2) {
+      setViewStatus(status, "Karşılaştırmak için en az iki run seçin.", "warning");
+      return;
+    }
     const query = new URLSearchParams(); ids.forEach(id => query.append("run_ids", id));
     let runs = [];
     async function loadComparisonChart() {
@@ -411,9 +425,11 @@
       }).join("")}</tbody></table>`;
       const metricKeys = [...new Set(runs.flatMap(run => Object.keys(run.metrics_map || {})))].sort();
       metricSelect.innerHTML = metricKeys.map(key => `<option value="${esc(key)}">${esc(key)}</option>`).join("");
-      status.textContent = ""; content.hidden = false;
+      setViewStatus(status, keys.length ? "" : "Bu run'larda karşılaştırılacak parametre veya metrik yok.");
+      content.hidden = !keys.length;
+      document.getElementById("compare-chart-card").hidden = !metricKeys.length;
       if (metricKeys.length) loadComparisonChart().catch(error => { chart.textContent = error.message; });
-    }).catch(error => { status.textContent = error.message; status.className = "text-destructive"; });
+    }).catch(error => setViewStatus(status, error.message, "error"));
   }
 
   initDashboard();

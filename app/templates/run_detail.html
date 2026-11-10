@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% block title %}MLflow Run - {{ app_name }}{% endblock %}
 {% block content %}
-<div class="page-heading"><div><span class="page-kicker">MLflow Run</span><h1 id="run-name">Run</h1><p><a href="/experiments">← Deneylere dön</a></p></div><a id="run-open" class="btn btn-secondary" target="_blank" rel="noopener noreferrer">MLflow'da aç ↗</a></div>
+<div class="page-heading"><div><span class="page-kicker">MLflow Run</span><h1 id="run-name">Run</h1><p><a href="/experiments">← Deneylere dön</a></p></div><a id="run-open" class="btn btn-secondary" target="_blank" rel="noopener noreferrer" hidden>MLflow'da aç ↗</a></div>
 {% include "partials/mlflow_nav.html" %}
-<div id="run-root" data-run-id="{{ run_id }}"><div id="run-status">Run yükleniyor...</div><div id="run-content" hidden>
-  <section class="mlflow-stat-grid">
-    <article class="card mlflow-stat-card"><span>Durum</span><strong id="run-state">—</strong></article>
-    <article class="card mlflow-stat-card"><span>Başlangıç</span><strong id="run-start" style="font-size:1rem">—</strong></article>
-    <article class="card mlflow-stat-card"><span>Bitiş</span><strong id="run-end" style="font-size:1rem">—</strong></article>
-    <article class="card mlflow-stat-card"><span>Run ID</span><strong style="font-size:0.8rem;overflow-wrap:anywhere">{{ run_id }}</strong></article>
+<div id="run-root" data-run-id="{{ run_id }}"><p id="run-status" class="view-status" data-state="loading" role="status">Run yükleniyor…</p><div id="run-content" hidden>
+  <section class="summary-grid">
+    <article class="card summary-card"><span class="summary-label">Durum</span><strong class="summary-value" id="run-state">—</strong></article>
+    <article class="card summary-card"><span class="summary-label">Başlangıç</span><strong class="summary-value summary-value--text" id="run-start">—</strong></article>
+    <article class="card summary-card"><span class="summary-label">Bitiş</span><strong class="summary-value summary-value--text" id="run-end">—</strong></article>
+    <article class="card summary-card"><span class="summary-label">Run ID</span><strong class="summary-value summary-value--text">{{ run_id }}</strong></article>
   </section>
   <section class="card mlflow-lineage-card">
     <div class="mlflow-section-heading">

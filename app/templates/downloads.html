@@ -20,7 +20,7 @@
       <div class="download-item" style="padding: 1rem; background: var(--bg-card-hover); border-radius: var(--radius-md); margin-bottom: 0.75rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
         <div>
           <span class="badge {% if bundle.bundle_role == 'worker' %}badge-flavor{% else %}badge-running{% endif %}" style="margin-bottom:.4rem;">{% if bundle.bundle_role == 'worker' %}Worker{% else %}Controller Sunucu{% endif %}</span>
-          <div class="download-filename" style="font-weight: 600; font-family: var(--font-mono); color: #fff; font-size: 1rem;">{{ bundle.filename }}</div>
+          <div class="download-filename" style="font-weight: 600; font-family: var(--font-mono); color: var(--heading); font-size: 1rem;">{{ bundle.filename }}</div>
           <div class="download-meta" style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem;">
             Boyut: <strong style="color: var(--text-main);">{{ bundle.size_display }}</strong> &bull; Son Güncelleme: {{ bundle.modified_at[:10] if bundle.modified_at else 'Bilinmiyor' }}
           </div>
@@ -51,23 +51,23 @@
 
   <div style="display: flex; flex-direction: column; gap: 1.5rem;">
     <!-- Step 1 -->
-    <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem;">
+    <div style="background: var(--bg-card-hover); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem;">
       <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
         <span class="badge badge-flavor" style="font-size: 0.875rem; padding: 0.25rem 0.6rem;">Adım 1</span>
-        <h3 style="font-size: 1.05rem; font-weight: 600; color: #fff; margin: 0;">Bütünlük Doğrulaması (SHA-256 Checksum)</h3>
+        <h3 style="font-size: 1.05rem; font-weight: 600; color: var(--heading); margin: 0;">Bütünlük Doğrulaması (SHA-256 Checksum)</h3>
       </div>
       <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 0.75rem;">
         Dosya aktarımı sırasında bozulma veya eksiklik olmadığını doğrulamak için paketin yanındaki <code>.sha256</code> dosyasıyla kontrol edin:
       </p>
       <pre class="terminal-window" style="font-size: 0.85rem; padding: 0.85rem 1rem;">sha256sum -c aifactory-offline-*.tar.gz.sha256</pre>
-      <small style="color: var(--color-success); font-size: 0.8rem; margin-top: 0.35rem; display: block;">&check; Çıktıda <code>...: OK</code> mesajını görmelisiniz.</small>
+      <small style="color: var(--success); font-size: 0.8rem; margin-top: 0.35rem; display: block;">&check; Çıktıda <code>...: OK</code> mesajını görmelisiniz.</small>
     </div>
 
     <!-- Step 2 -->
-    <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem;">
+    <div style="background: var(--bg-card-hover); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem;">
       <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
         <span class="badge badge-flavor" style="font-size: 0.875rem; padding: 0.25rem 0.6rem;">Adım 2</span>
-        <h3 style="font-size: 1.05rem; font-weight: 600; color: #fff; margin: 0;">Arşivi Açma ve Dizine Geçiş</h3>
+        <h3 style="font-size: 1.05rem; font-weight: 600; color: var(--heading); margin: 0;">Arşivi Açma ve Dizine Geçiş</h3>
       </div>
       <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 0.75rem;">
         Tarball arşivini açın ve oluşturulan <code>aifactory</code> klasörüne geçin:
@@ -77,10 +77,10 @@ cd aifactory</pre>
     </div>
 
     <!-- Step 3 -->
-    <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem;">
+    <div style="background: var(--bg-card-hover); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem;">
       <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
         <span class="badge badge-flavor" style="font-size: 0.875rem; padding: 0.25rem 0.6rem;">Adım 3</span>
-        <h3 style="font-size: 1.05rem; font-weight: 600; color: #fff; margin: 0;">Dağıtım Profilini Kontrol Etme</h3>
+        <h3 style="font-size: 1.05rem; font-weight: 600; color: var(--heading); margin: 0;">Dağıtım Profilini Kontrol Etme</h3>
       </div>
       <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 0.75rem;">
         Paket Rocky ve RHEL için ayrı RPM seti taşır. Hedef dağıtım ve mimariyi kontrol edin:
@@ -90,10 +90,10 @@ echo "$ID $VERSION_ID $(uname -m)"</pre>
     </div>
 
     <!-- Step 4 -->
-    <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem;">
+    <div style="background: var(--bg-card-hover); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem;">
       <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
         <span class="badge badge-flavor" style="font-size: 0.875rem; padding: 0.25rem 0.6rem;">Adım 4</span>
-        <h3 style="font-size: 1.05rem; font-weight: 600; color: #fff; margin: 0;">Otomatik Kurulumu Başlatma</h3>
+        <h3 style="font-size: 1.05rem; font-weight: 600; color: var(--heading); margin: 0;">Otomatik Kurulumu Başlatma</h3>
       </div>
       <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 0.75rem;">
         Script eksik Podman/Python RPM'lerini çevrim dışı kurar, 5 image'ı yükler, manifesti doğrular ve systemd servisini başlatır:
@@ -102,10 +102,10 @@ echo "$ID $VERSION_ID $(uname -m)"</pre>
     </div>
 
     <!-- Step 5 -->
-    <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem;">
+    <div style="background: var(--bg-card-hover); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem;">
       <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
         <span class="badge badge-running" style="font-size: 0.875rem; padding: 0.25rem 0.6rem;">Tamamlandı</span>
-        <h3 style="font-size: 1.05rem; font-weight: 600; color: #fff; margin: 0;">AI Factory Web Arayüzüne Giriş</h3>
+        <h3 style="font-size: 1.05rem; font-weight: 600; color: var(--heading); margin: 0;">AI Factory Web Arayüzüne Giriş</h3>
       </div>
       <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 0.75rem;">
         Tarayıcınızdan sunucu IP adresine bağlanarak ilk yönetici hesabınızı oluşturabilir ve geliştirme ortamlarınızı kullanmaya başlayabilirsiniz:
@@ -126,27 +126,27 @@ echo "$ID $VERSION_ID $(uname -m)"</pre>
   </div>
   <div style="display:flex;flex-direction:column;gap:1rem;">
     <div style="background:rgba(41,121,255,.08);border:1px solid rgba(41,121,255,.35);border-radius:var(--radius-md);padding:1.25rem;">
-      <h3 style="font-size:1.05rem;color:#fff;margin:0 0 .75rem;">Hızlı kurulum — tek kullanımlık komut</h3>
+      <h3 style="font-size:1.05rem;color:var(--heading);margin:0 0 .75rem;">Hızlı kurulum — tek kullanımlık komut</h3>
       <small style="color:var(--text-muted);">Worker üzerinde komutu root olarak çalıştırın ve yalnızca worker adını girin. NVIDIA donanımı varsa script mevcut driver, Container Toolkit ve CDI aygıtlarını kayıt öncesinde doğrular; bu bileşenleri kurmaz veya değiştirmez. Controller node ile kalıcı token'ı otomatik oluşturur, platform paketini indirip doğrular ve worker'ı bağlar.</small>
     </div>
-    <div style="background:rgba(255,255,255,.02);border:1px solid var(--border-color);border-radius:var(--radius-md);padding:1.25rem;">
-      <h3 style="font-size:1.05rem;color:#fff;margin:0 0 .75rem;">Manuel seçenek: paketi doğrulayın ve açın</h3>
+    <div style="background: var(--bg-card-hover);border:1px solid var(--border-color);border-radius:var(--radius-md);padding:1.25rem;">
+      <h3 style="font-size:1.05rem;color:var(--heading);margin:0 0 .75rem;">Manuel seçenek: paketi doğrulayın ve açın</h3>
       <pre class="terminal-window" style="font-size:.85rem;padding:.85rem 1rem;">sha256sum -c aifactory-worker-offline-*.tar.gz.sha256
 tar -xzf aifactory-worker-offline-*.tar.gz
 cd aifactory-worker</pre>
     </div>
-    <div style="background:rgba(255,255,255,.02);border:1px solid var(--border-color);border-radius:var(--radius-md);padding:1.25rem;">
-      <h3 style="font-size:1.05rem;color:#fff;margin:0 0 .75rem;">2. Worker kimlik bilgilerini hazırlayın</h3>
+    <div style="background: var(--bg-card-hover);border:1px solid var(--border-color);border-radius:var(--radius-md);padding:1.25rem;">
+      <h3 style="font-size:1.05rem;color:var(--heading);margin:0 0 .75rem;">2. Worker kimlik bilgilerini hazırlayın</h3>
       <pre class="terminal-window" style="font-size:.85rem;padding:.85rem 1rem;">sudo install -d -m 0755 /etc/aifactory
 sudo install -m 0600 deploy/worker.env.example /etc/aifactory/worker.env
 sudo vi /etc/aifactory/worker.env</pre>
       <small style="color:var(--text-muted);">Controller URL, node ID ve node token alanlarını yönetim panelindeki değerlerle doldurun.</small>
     </div>
-    <div style="background:rgba(255,255,255,.02);border:1px solid var(--border-color);border-radius:var(--radius-md);padding:1.25rem;">
-      <h3 style="font-size:1.05rem;color:#fff;margin:0 0 .75rem;">3. Worker'ı kurun</h3>
+    <div style="background: var(--bg-card-hover);border:1px solid var(--border-color);border-radius:var(--radius-md);padding:1.25rem;">
+      <h3 style="font-size:1.05rem;color:var(--heading);margin:0 0 .75rem;">3. Worker'ı kurun</h3>
       <pre class="terminal-window" style="font-size:.85rem;padding:.85rem 1rem;">sudo bash deploy/deploy_worker_offline.sh
 sudo journalctl -u aifactory-worker -f</pre>
-      <small style="color:var(--color-success);">Kurucu eksik Podman, Python ve subscription-manager RPM'lerini yerel paketten yükler. Worker yalnızca controller'a doğru HTTPS/WSS bağlantısı açar; inbound yönetim portu gerekmez.</small>
+      <small class="form-help">Kurucu eksik Podman, Python ve subscription-manager RPM'lerini yerel paketten yükler. Worker yalnızca controller'a doğru HTTPS/WSS bağlantısı açar; inbound yönetim portu gerekmez.</small>
     </div>
   </div>
 </div>

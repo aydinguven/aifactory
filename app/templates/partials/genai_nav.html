@@ -1,4 +1,6 @@
-<nav class="genai-subnav" aria-label="GenAI bölümleri">
-  <a href="/genai" class="{% if request.url.path == '/genai' %}active{% endif %}">Erişimim</a>
-  <a href="/genai/stats" class="{% if request.url.path.startswith('/genai/stats') %}active{% endif %}">İstatistikler</a>
+<nav class="workspace-tabs-nav section-nav" aria-label="GenAI bölümleri">
+  {% for href, label in [('/genai', 'Erişimim'), ('/genai/stats', 'İstatistikler')] %}
+    {% set active = request.url.path == href %}
+    <a class="tab-btn{% if active %} active{% endif %}" href="{{ href }}"{% if active %} aria-current="page"{% endif %}>{{ label }}</a>
+  {% endfor %}
 </nav>

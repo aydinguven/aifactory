@@ -3,25 +3,22 @@
 {% block title %}{{ workspace.name }} - {{ app_name }}{% endblock %}
 
 {% block content %}
-{% set status_labels = {'running': 'Çalışıyor', 'stopped': 'Durduruldu', 'creating': 'Oluşturuluyor', 'starting': 'Başlatılıyor', 'error': 'Hata', 'deleted': 'Silindi'} %}
+{% set status_labels = {'running': 'Çalışıyor', 'stopped': 'Durduruldu', 'creating': 'Oluşturuluyor', 'starting': 'Başlatılıyor', 'stopping': 'Durduruluyor', 'error': 'Hata', 'deleted': 'Silindi'} %}
 {% set current_st = workspace.status.value if workspace.status.value is defined else workspace.status %}
-<div style="margin-bottom: 1.5rem;">
-  <a href="/" style="color: var(--text-muted); font-size: 0.875rem; display: inline-flex; align-items: center; gap: 0.25rem; margin-bottom: 0.75rem;">
-    &larr; Çalışma Alanlarına Dön
-  </a>
-  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+<a href="/" class="workspace-back-link">&larr; Çalışma Alanlarına Dön</a>
+  <div class="page-heading">
     <div>
-      <h1 style="font-size: 1.75rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 0.75rem;">
-        <span>{{ workspace.name }}</span>
+      <div class="workspace-title-row">
+        <h1>{{ workspace.name }}</h1>
         <span class="badge badge-{{ current_st }}">{{ status_labels.get(current_st, current_st) }}</span>
-      </h1>
-      <p style="color: var(--text-muted); font-size: 0.875rem;">{{ workspace.description or "Açıklama girilmemiş" }}</p>
+      </div>
+      {% if workspace.description %}<p>{{ workspace.description }}</p>{% endif %}
     </div>
 
-    <div data-tour="workspace-actions" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+    <div class="workspace-detail-actions" data-tour="workspace-actions">
       {% if current_st == 'running' %}
         <a href="{{ workspace.web_url }}" data-tour="workspace-open-ide" target="_blank" class="btn btn-success">
-          <span>🚀</span> IDE'yi Aç
+          <span aria-hidden="true">↗</span> IDE'yi Aç
         </a>
         <button class="btn btn-secondary" data-action="stop" data-workspace-id="{{ workspace.id }}">
           Durdur
@@ -43,39 +40,38 @@
       </details>
     </div>
   </div>
-</div>
 
 <!-- Live Metrics & Specs Overview -->
-<div class="workspace-metrics-grid" data-tour="workspace-metrics" data-detail-metrics-ws-id="{{ workspace.id }}">
-  <div class="card">
-    <div style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">CPU Kullanımı</div>
-    <div id="detail-val-cpu" style="font-size: 1.25rem; font-weight: 700; color: #3b82f6; margin-top: 0.25rem;">--</div>
-    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Kota: {{ workspace.flavor_id }}</div>
+<p id="workspace-metrics-status" class="view-status" role="status">{% if current_st == 'stopped' %}CPU ve RAM değerleri çalışma alanı çalışırken güncellenir.{% endif %}</p>
+<div class="workspace-metrics-grid" data-tour="workspace-metrics" data-detail-metrics-ws-id="{{ workspace.id }}" data-workspace-status="{{ current_st }}">
+  <div class="card summary-card">
+    <div class="summary-label">CPU kullanımı</div>
+    <div id="detail-val-cpu" class="summary-value">—</div>
+    <div class="summary-detail">Kaynak profili: {{ workspace.flavor_id }}</div>
   </div>
 
-  <div class="card">
-    <div style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">RAM Bellek</div>
-    <div id="detail-val-ram" style="font-size: 1.25rem; font-weight: 700; color: #10b981; margin-top: 0.25rem;">--</div>
-    <div id="detail-val-ram-pct" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">--</div>
+  <div class="card summary-card">
+    <div class="summary-label">RAM kullanımı</div>
+    <div id="detail-val-ram" class="summary-value">—</div>
+    <div id="detail-val-ram-pct" class="summary-detail"></div>
   </div>
 
-  <div class="card">
-    <div style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Kalıcı Disk</div>
-    <div id="detail-val-disk" style="font-size: 1.25rem; font-weight: 700; color: #f59e0b; margin-top: 0.25rem;">--</div>
-    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Host Mount</div>
+  <div class="card summary-card">
+    <div class="summary-label">Kalıcı disk</div>
+    <div id="detail-val-disk" class="summary-value">—</div>
   </div>
 
-  <div class="card">
-    <div style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">Çalışma Süresi</div>
-    <div id="detail-val-uptime" style="font-size: 1.25rem; font-weight: 700; color: #a855f7; margin-top: 0.25rem;">--</div>
-    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">{{ workspace.node_id or 'local' }} · Port {{ workspace.host_port }}</div>
+  <div class="card summary-card">
+    <div class="summary-label">Çalışma süresi</div>
+    <div id="detail-val-uptime" class="summary-value">—</div>
+    <div class="summary-detail">Host portu: {{ workspace.host_port }}</div>
   </div>
 
   {% if workspace.accelerator_device_id %}
-  <div class="card">
-    <div style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">GPU Tahsisi</div>
-    <div style="font-size: 1rem; font-weight: 700; color: #10b981; margin-top: 0.25rem;">{{ workspace.accelerator_model }}</div>
-    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">
+  <div class="card summary-card">
+    <div class="summary-label">GPU tahsisi</div>
+    <div class="summary-value summary-value--text">{{ workspace.accelerator_model }}</div>
+    <div class="summary-detail">
       {% if workspace.accelerator_kind == 'mig' %}Özel MIG dilimi{% else %}Slot {{ workspace.accelerator_slot + 1 }}/{{ workspace.accelerator_shared_slots }} · paylaşımlı GPU{% endif %}
       · {{ '%.1f'|format(workspace.accelerator_memory_mb / 1024) }} GB hedef
     </div>
@@ -84,7 +80,7 @@
 </div>
 
 {% if workspace.error_message %}
-  <div style="background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger); padding: 1rem; border-radius: 8px; font-size: 0.875rem; margin-bottom: 1.5rem;">
+  <div class="view-status" data-state="error" role="status">
     <strong>Container Hatası:</strong> {{ workspace.error_message }}
   </div>
 {% endif %}
@@ -92,14 +88,14 @@
 <!-- Workspace Tabs: Logs, File Manager, Port Exposer -->
 <div class="card" style="padding: 0; overflow: hidden; margin-bottom: 2rem;">
   <div class="workspace-tabs-nav" data-tour="workspace-tabs">
-    <button class="tab-btn active" data-tour="workspace-tab-logs" data-tab="tab-logs">
-      ▣ Container Logları
+    <button type="button" class="tab-btn active" data-tour="workspace-tab-logs" data-tab="tab-logs" aria-controls="tab-logs" aria-pressed="true">
+      Container Logları
     </button>
-    <button class="tab-btn" data-tour="workspace-tab-files" data-tab="tab-files">
-      📁 Dosya Yöneticisi
+    <button type="button" class="tab-btn" data-tour="workspace-tab-files" data-tab="tab-files" aria-controls="tab-files" aria-pressed="false">
+      Dosya Yöneticisi
     </button>
-    <button class="tab-btn" data-tour="workspace-tab-ports" data-tab="tab-ports">
-      🌐 Web Uygulaması / Port Önizleme
+    <button type="button" class="tab-btn" data-tour="workspace-tab-ports" data-tab="tab-ports" aria-controls="tab-ports" aria-pressed="false">
+      Web Uygulaması / Port Önizleme
     </button>
   </div>
 
@@ -112,68 +108,71 @@
   </div>
 
   <!-- Tab 2: In-Browser File Manager -->
-  <div id="tab-files" class="tab-content" style="display: none; padding: 1.25rem;" data-workspace-id="{{ workspace.id }}">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
-      <div id="fm-breadcrumbs" style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; font-family: var(--font-mono); color: #fff;">
-        <span style="cursor: pointer; color: var(--primary);" onclick="AIFactoryFileManager.loadDir('')">root</span>
+  <div id="tab-files" class="tab-content" style="padding: 1.25rem;" data-workspace-id="{{ workspace.id }}" hidden>
+    <div class="card-header">
+      <div>
+        <h2 class="card-title">Dosyalar</h2>
+        <nav id="fm-breadcrumbs" class="file-breadcrumbs" aria-label="Klasör yolu"></nav>
       </div>
-      <div style="display: flex; gap: 0.5rem;">
-        <input type="file" id="fm-file-input" multiple style="display: none;">
-        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('fm-file-input').click()">
-          ⬆ Dosya Yükle
-        </button>
-        <button class="btn btn-secondary btn-sm" onclick="AIFactoryFileManager.promptNewFolder()">
-          + Yeni Klasör
-        </button>
+      <div class="table-actions">
+        <input type="file" id="fm-file-input" multiple hidden>
+        <button type="button" class="btn btn-secondary" id="fm-upload-button">Dosya yükle</button>
+        <button type="button" class="btn btn-secondary" id="fm-folder-toggle" aria-controls="fm-folder-form" aria-expanded="false">Yeni klasör</button>
       </div>
     </div>
-    <div class="data-table-shell" style="background: var(--bg-main);">
-      <table class="file-manager-table" style="width: 100%; border-collapse: collapse; font-size: 0.825rem;">
+    <form id="fm-folder-form" class="responsive-form-grid file-folder-form" hidden>
+      <label>
+        <span class="form-label">Klasör adı</span>
+        <input id="fm-folder-name" class="form-input" required>
+      </label>
+      <button class="btn btn-primary" type="submit">Klasörü oluştur</button>
+    </form>
+    <p id="fm-action-status" class="view-status" role="status"></p>
+    <p id="fm-list-status" class="view-status" data-state="loading" role="status">Dosyalar yükleniyor…</p>
+    <div class="data-table-shell" id="fm-file-table" hidden>
+      <table class="table table--compact file-manager-table">
         <thead>
-          <tr style="border-bottom: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.03); color: var(--text-muted); text-align: left;">
-            <th style="padding: 0.6rem 0.8rem;">Ad</th>
-            <th style="padding: 0.6rem 0.8rem; width: 120px;">Boyut</th>
-            <th style="padding: 0.6rem 0.8rem; width: 150px;">Son Değiştirilme</th>
-            <th style="padding: 0.6rem 0.8rem; width: 100px; text-align: right;">İşlemler</th>
-          </tr>
+          <tr><th scope="col">Ad</th><th scope="col">Boyut</th><th scope="col">Son değiştirilme</th><th scope="col">İşlemler</th></tr>
         </thead>
-        <tbody id="fm-file-list">
-          <tr><td colspan="4" style="padding: 1rem; text-align: center; color: var(--text-muted);">Yükleniyor...</td></tr>
-        </tbody>
+        <tbody id="fm-file-list"></tbody>
       </table>
     </div>
   </div>
 
   <!-- Tab 3: Port Forwarding / Web App Exposer -->
-  <div id="tab-ports" class="tab-content" style="display: none; padding: 1.25rem;">
+  <div id="tab-ports" class="tab-content" style="padding: 1.25rem;" hidden>
     <div style="max-width: 650px;">
-      <h3 style="font-size: 1.1rem; color: #fff; margin-bottom: 0.4rem;">İkincil Portları Önizleyin</h3>
-      <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.25rem;">
+      <h2 class="card-title">Web uygulamasını aç</h2>
+      <p class="card-description" style="margin-bottom: 1rem;">
         Container içinde başlattığınız yerel web sunucularını (örneğin React Vite <code>5173</code>, Flask <code>5000</code>, FastAPI <code>8000</code>, Streamlit <code>8501</code>) doğrudan tarayıcınızda açın.
       </p>
 
-      <div class="responsive-form-grid" style="margin-bottom: 1.5rem;">
-        <div style="flex: 1;">
-          <label class="form-label" for="input-custom-port">Port Numarası</label>
-          <input type="number" id="input-custom-port" class="form-input" placeholder="örn. 5173 veya 3000" min="1" max="65535" value="5173">
-        </div>
-        <button id="btn-open-custom-port" class="btn btn-primary" style="height: 42px;">
-          🚀 Portu Tarayıcıda Aç
-        </button>
-      </div>
+      <form id="workspace-port-form" class="responsive-form-grid" data-workspace-id="{{ workspace.id }}" style="margin-bottom: 1.5rem;">
+        <label>
+          <span class="form-label">Port numarası</span>
+          <input type="number" id="input-custom-port" class="form-input" placeholder="örn. 5173" min="1" max="65535" step="1" value="5173" required>
+        </label>
+        <button type="submit" id="btn-open-custom-port" class="btn btn-primary">Portu tarayıcıda aç ↗</button>
+      </form>
 
       <section style="margin-bottom: 1.5rem;" aria-labelledby="share-heading">
-        <h3 id="share-heading">Paylaşım Bağlantıları</h3>
-        <p>Seçtiğiniz porttaki uygulamayı AI Factory hesabı gerektirmeden paylaşın. Bağlantı, bu porttaki tüm uygulama işlevlerine erişim verir. Workspace çalışıyor olmalıdır.</p>
+        <h3 class="card-title" id="share-heading">Paylaşım bağlantıları</h3>
+        <p class="card-description" style="margin-bottom: 1rem;">Seçtiğiniz porttaki uygulamayı AI Factory hesabı gerektirmeden paylaşın. Bağlantı, bu porttaki tüm uygulama işlevlerine erişim verir. Workspace çalışıyor olmalıdır.</p>
         <form id="workspace-share-form" data-workspace-id="{{ workspace.id }}">
-          <label class="form-label" for="share-password">Parola (isteğe bağlı)</label>
-          <input class="form-input" id="share-password" name="password" type="password" maxlength="256" autocomplete="new-password" placeholder="Boş bırakılırsa bağlantı yeterlidir">
-          <label class="form-label" for="share-duration">Geçerlilik süresi (dakika, isteğe bağlı)</label>
-          <input class="form-input" id="share-duration" name="duration" type="number" min="1" max="525600" step="1" placeholder="Boş bırakılırsa süresiz">
-          <button type="submit" class="btn btn-primary" style="margin-top: .75rem;">Seçili port için bağlantı oluştur</button>
+          <div class="grid grid-cols-2">
+            <label>
+              <span class="form-label">Parola (isteğe bağlı)</span>
+              <input class="form-input" id="share-password" name="password" type="password" maxlength="256" autocomplete="new-password" placeholder="Boş bırakılırsa parolasız">
+            </label>
+            <label>
+              <span class="form-label">Geçerlilik süresi (dakika)</span>
+              <input class="form-input" id="share-duration" name="duration" type="number" min="1" max="525600" step="1" placeholder="Boş bırakılırsa süresiz">
+            </label>
+          </div>
+          <button type="submit" class="btn btn-primary" style="margin-top: 1rem;">Seçili port için bağlantı oluştur</button>
         </form>
-        <p id="workspace-share-status" role="status" aria-live="polite"></p>
-        <div id="workspace-share-list"></div>
+        <p id="workspace-share-status" class="view-status" role="status"></p>
+        <div id="workspace-share-list" class="record-list"></div>
       </section>
 
       <div style="font-size: 0.8rem; color: var(--text-muted);">
@@ -192,10 +191,10 @@
 
 <!-- Snapshot Modal -->
 <div id="snapshot-modal" class="modal-backdrop">
-  <div class="modal" role="dialog" aria-modal="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="snapshot-modal-title">
     <div class="card-header" style="margin-bottom: 1.5rem;">
-      <h2 class="card-title">Çalışma Alanından Şablon Oluştur</h2>
-      <button id="btn-close-snapshot-modal" aria-label="Kapat" style="background: none; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer;">&times;</button>
+      <h2 class="card-title" id="snapshot-modal-title">Çalışma Alanından Şablon Oluştur</h2>
+      <button id="btn-close-snapshot-modal" class="modal-close" type="button" aria-label="Kapat">&times;</button>
     </div>
     <form id="snapshot-form" data-workspace-id="{{ workspace.id }}">
       <div class="form-group">

@@ -17,7 +17,7 @@ def test_workspace_detail_metrics_and_tabs_have_responsive_assets():
     assert ".tab-btn.active" in css
     assert "data-detail-metrics-ws-id" in javascript
     assert "encodeURIComponent(detailWorkspaceId)" in javascript
-    assert 'btn.style.color = "var(--heading)"' in javascript
+    assert 'b.setAttribute("aria-pressed", String(active))' in javascript
 
 
 def test_app_version_cannot_be_pinned_by_stale_environment(monkeypatch):
@@ -493,11 +493,11 @@ def test_linear_onboarding_tour_has_multiple_persistent_steps():
     assert "AIFactoryWorkspaceCreateModal" in javascript
     assert "AIFactoryWorkspaceCreateModal" in app_javascript
     assert 'close({force: true})' in javascript
-    assert "handleModalKeydown" in app_javascript
+    assert "initDialogNavigation()" in app_javascript
     assert 'event.key === "Escape"' in app_javascript
-    assert "setBackgroundInert" in app_javascript
-    assert "restoreBackground" in app_javascript
-    assert "previousFocus" in app_javascript
+    assert "sibling.inert = true" in app_javascript
+    assert "element.inert = inert" in app_javascript
+    assert "active?.opener || document.activeElement" in app_javascript
     assert "LEGACY_STEP" in javascript
     assert "onboardingConflict" in javascript
     assert 'event.key === "Escape"' in javascript

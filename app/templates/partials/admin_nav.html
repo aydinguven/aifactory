@@ -1,10 +1,15 @@
 <nav class="admin-category-nav" aria-label="Yönetim kategorileri">
-  {% set ns = namespace(group=None) %}
-  {% for key, item in admin_sections.items() %}
-    {% if item.group != ns.group %}
-      {% if item.group %}<span class="admin-category-group">{{ item.group }}</span>{% endif %}
-      {% set ns.group = item.group %}
-    {% endif %}
-    <a class="admin-category-link{% if admin_section == key %} is-active{% endif %}" href="/admin{% if key != 'overview' %}/{{ key }}{% endif %}" {% if admin_section == key %}aria-current="page"{% endif %}>{{ item.title }}</a>
-  {% endfor %}
+  <button type="button" class="admin-category-toggle" id="admin-category-toggle" aria-expanded="false" aria-controls="admin-category-links" hidden>
+    <span>Yönetim bölümleri</span>
+  </button>
+  <div class="admin-category-links" id="admin-category-links">
+    {% set ns = namespace(group=None) %}
+    {% for key, item in admin_sections.items() %}
+      {% if item.group != ns.group %}
+        {% if item.group %}<span class="admin-category-group">{{ item.group }}</span>{% endif %}
+        {% set ns.group = item.group %}
+      {% endif %}
+      <a class="admin-category-link{% if admin_section == key %} is-active{% endif %}" href="/admin{% if key != 'overview' %}/{{ key }}{% endif %}" {% if admin_section == key %}aria-current="page"{% endif %}>{{ item.title }}</a>
+    {% endfor %}
+  </div>
 </nav>

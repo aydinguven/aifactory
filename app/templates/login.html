@@ -5,34 +5,34 @@
 {% block content %}
 <div class="auth-shell">
   <div class="card auth-card">
-    <div class="card-header" style="justify-content: center; flex-direction: column; text-align: center; gap: 0.5rem;">
-      <h1 class="card-title" style="font-size: 1.5rem;">AI Factory'ye Hoş Geldiniz</h1>
-      <p style="color: var(--text-muted); font-size: 0.875rem;">Bulut geliştirme çalışma alanlarınıza erişmek için giriş yapın</p>
+    <div class="auth-heading">
+      <h1>AI Factory'ye Hoş Geldiniz</h1>
+      <p>Bulut geliştirme çalışma alanlarınıza erişmek için giriş yapın.</p>
     </div>
 
-    <div id="login-error" style="display: none; background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger); padding: 0.75rem; border-radius: 8px; font-size: 0.875rem; margin-bottom: 1.25rem;"></div>
+    <div id="login-error" class="form-error" role="alert" hidden></div>
 
     <form id="login-form">
       <div class="form-group">
         <label class="form-label" for="username">Kullanıcı Adı veya E-posta</label>
-        <input type="text" id="username" class="form-input" placeholder="örn. admin veya geliştirici" required autofocus>
+        <input type="text" id="username" class="form-input" autocomplete="username" required>
       </div>
 
       <div class="form-group">
         <label class="form-label" for="password">Parola</label>
-        <input type="password" id="password" class="form-input" placeholder="••••••••" required>
+        <input type="password" id="password" class="form-input" autocomplete="current-password" required>
       </div>
 
-      <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem; padding: 0.75rem;">Giriş Yap</button>
+      <button type="submit" class="btn btn-primary auth-submit">Giriş Yap</button>
     </form>
 
     {% if registration_enabled %}
-    <div style="text-align: center; margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--border-color); font-size: 0.875rem; color: var(--text-muted);">
-      <p style="margin-bottom: 0.75rem;">Yeni kullanıcılara {{ registration_cpu_quota|int }} CPU, {{ registration_memory_gb_quota|int }} GB RAM ve {{ registration_disk_gb_quota|int }} GB Disk kotası tanımlanır.</p>
-      <a href="/register" class="btn btn-secondary" style="width: 100%;">Yeni Hesap Oluştur</a>
+    <div class="auth-footer">
+      <p>Yeni kullanıcılara {{ registration_cpu_quota|int }} CPU, {{ registration_memory_gb_quota|int }} GB RAM ve {{ registration_disk_gb_quota|int }} GB disk kotası tanımlanır.</p>
+      <a href="/register">Yeni Hesap Oluştur</a>
     </div>
     {% elif directory_enabled %}
-    <p style="text-align: center; margin-top: 1.25rem; color: var(--text-muted); font-size: 0.875rem;">
+    <p class="auth-footer">
       Kurumsal dizin hesabınızla giriş yapın. Yetkiniz ilk girişte otomatik eşlenir.
     </p>
     {% endif %}
@@ -48,7 +48,7 @@ document.getElementById("login-form").addEventListener("submit", async (e) => {
   const password = document.getElementById("password").value;
   const errorBox = document.getElementById("login-error");
 
-  errorBox.style.display = "none";
+  errorBox.hidden = true;
 
   try {
     const res = await fetch("/api/auth/login", {
@@ -66,14 +66,14 @@ document.getElementById("login-form").addEventListener("submit", async (e) => {
         || (res.status >= 500
           ? `Sunucu hatası (HTTP ${res.status}). Lütfen yöneticinize başvurun.`
           : "Kimlik doğrulama başarısız.");
-      errorBox.style.display = "block";
+      errorBox.hidden = false;
       return;
     }
 
     window.location.href = "/";
   } catch (err) {
     errorBox.textContent = "Ağ hatası: " + err.message;
-    errorBox.style.display = "block";
+    errorBox.hidden = false;
   }
 });
 </script>

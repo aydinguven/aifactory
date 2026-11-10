@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/setup_panel.html" import setup_panel %}
 
 {% block title %}GenAI - {{ app_name }}{% endblock %}
 
@@ -14,33 +15,33 @@
 {% include "partials/genai_nav.html" %}
 
 {% if not genai_configured %}
-<section class="card">
-  <h2 class="card-title">Henüz yapılandırılmadı</h2>
-  <p class="text-muted">GenAI erişimi bir yönetici tarafından LiteLLM bağlantısı tanımlandığında kullanılabilir olacaktır.</p>
-</section>
+{{ setup_panel("Henüz yapılandırılmadı", "Yönetici LiteLLM bağlantısını tanımladığında kişisel GenAI erişiminizi bu ekrandan oluşturabilirsiniz.") }}
 {% else %}
-<div id="genai-app">
-  <div id="genai-loading" role="status" class="text-muted">GenAI durumu yükleniyor...</div>
-  <p id="genai-error" class="text-destructive" role="alert" hidden></p>
+<div id="genai-app" class="card-stack">
+  <p id="genai-loading" class="view-status" data-state="loading" role="status">GenAI durumu yükleniyor…</p>
+  <p id="genai-error" class="view-status" data-state="error" role="alert" hidden></p>
 
-  <section id="genai-issued" class="card" style="border-top:3px solid #16a34a;" hidden>
+  <section id="genai-issued" class="card" hidden>
     <div class="card-header">
       <h2 class="card-title">Yeni API anahtarınız</h2>
       <span class="badge badge-running">Yalnızca bir kez gösterilir</span>
     </div>
-    <p class="text-muted">Anahtarı şimdi kopyalayıp güvenli bir yerde saklayın. Bu sayfadan ayrıldığınızda tekrar gösterilmez; kaybederseniz yeni bir anahtar oluşturabilirsiniz.</p>
-    <div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.75rem;">
-      <input id="genai-issued-key" class="form-input" readonly spellcheck="false" style="font-family:monospace;flex:1">
+    <p class="view-status" data-state="warning">Anahtarı şimdi kopyalayıp güvenli bir yerde saklayın. Bu sayfadan ayrıldığınızda tekrar gösterilmez.</p>
+    <div class="responsive-form-grid">
+      <label>
+        <span class="form-label">API anahtarı</span>
+        <input id="genai-issued-key" class="form-input" readonly spellcheck="false" style="font-family:var(--font-mono);">
+      </label>
       <button id="btn-genai-copy" type="button" class="btn btn-secondary">Kopyala</button>
     </div>
-    <p id="genai-issued-warning" class="text-destructive" hidden></p>
+    <p id="genai-issued-warning" class="view-status" data-state="warning" role="status" hidden></p>
     <h3 class="card-title" style="font-size:1rem;">Kullanım örneği</h3>
     <pre id="genai-snippet" style="white-space:pre-wrap;overflow-x:auto;padding:.75rem;border:1px solid var(--border-color);border-radius:var(--radius-md);"></pre>
   </section>
 
-  <section id="genai-none" class="card" hidden>
+  <section id="genai-none" class="card setup-panel" hidden>
     <h2 class="card-title" id="genai-none-title">GenAI erişiminiz yok</h2>
-    <p class="text-muted" id="genai-none-text"></p>
+    <p class="card-description" id="genai-none-text"></p>
     <button id="btn-genai-create" type="button" class="btn btn-primary">GenAI erişimi oluştur</button>
   </section>
 
@@ -60,8 +61,8 @@
       <div><dt class="text-muted">LiteLLM takımı</dt><dd id="genai-team" style="margin:0;"></dd></div>
       <div><dt class="text-muted">Workspace AI anahtarı</dt><dd id="genai-workspace-key" style="margin:0;"></dd></div>
     </dl>
-    <p id="genai-team-changed" class="text-destructive" hidden></p>
-    <p id="genai-key-missing" class="text-destructive" hidden>Bu anahtar LiteLLM'de artık bulunmuyor. Yeni bir anahtar oluşturun.</p>
+    <p id="genai-team-changed" class="view-status" data-state="warning" hidden></p>
+    <p id="genai-key-missing" class="view-status" data-state="warning" hidden>Bu anahtar LiteLLM'de artık bulunmuyor. Yeni bir anahtar oluşturun.</p>
     <div class="table-actions">
       <button id="btn-genai-rotate" type="button" class="btn btn-secondary">Anahtarı yenile</button>
       <span class="text-muted">Yeni anahtar oluşturulur ve eski anahtar hemen geçersiz olur. Harcama geçmişiniz korunur.</span>
@@ -69,15 +70,15 @@
   </section>
 
   <section id="genai-usage" hidden>
-    <section class="mlflow-stat-grid" aria-label="GenAI harcama özeti">
-      <article class="card mlflow-stat-card"><span>Toplam harcama</span><strong id="genai-spend">—</strong></article>
-      <article class="card mlflow-stat-card"><span>Bütçe</span><strong id="genai-budget">—</strong></article>
-      <article class="card mlflow-stat-card"><span>Bütçe sıfırlama</span><strong id="genai-reset">—</strong></article>
+    <section class="summary-grid" aria-label="GenAI harcama özeti">
+      <article class="card summary-card"><span class="summary-label">Toplam harcama</span><strong class="summary-value" id="genai-spend">—</strong></article>
+      <article class="card summary-card"><span class="summary-label">Bütçe</span><strong class="summary-value" id="genai-budget">—</strong></article>
+      <article class="card summary-card"><span class="summary-label">Bütçe sıfırlama</span><strong class="summary-value summary-value--text" id="genai-reset">—</strong></article>
     </section>
     <section id="genai-history" class="card" hidden>
       <div class="card-header"><h2 class="card-title">Son 30 gün</h2></div>
       <div class="data-table-shell">
-        <table class="table">
+        <table class="table table--compact">
           <thead><tr><th>Tarih</th><th>İstek</th><th>Token</th><th>Harcama</th></tr></thead>
           <tbody id="genai-history-rows"></tbody>
         </table>

@@ -347,6 +347,9 @@
     if (!root) return;
     const status = document.getElementById("mlflow-deployment-list-status");
     const body = document.getElementById("mlflow-deployment-list-body");
+    const shell = body.closest(".data-table-shell");
+    const actionStatus = root.querySelector("[data-job-action-status]");
+    let renderedRows;
     const actions = deployment => {
       let lifecycle = "";
       if (deployment.status === "running") lifecycle = `<button class="btn btn-secondary btn-sm" data-deployment-action="stop" data-deployment-id="${esc(deployment.id)}">Durdur</button>`;
@@ -354,23 +357,27 @@
       if (deployment.status === "failed") lifecycle = `<button class="btn btn-primary btn-sm" data-deployment-action="retry" data-deployment-id="${esc(deployment.id)}">Yeniden Dene</button>`;
       return `${lifecycle} <button class="btn btn-secondary btn-sm" data-deployment-action="token" data-deployment-id="${esc(deployment.id)}">Token Yenile</button>`;
     };
-    async function load() {
+    async function load(background = false) {
       const data = await fetchJson("/api/mlflow/deployments");
-      body.innerHTML = (data.deployments || []).map(item => `<tr>
-        <td class="mlflow-job-name"><strong>${esc(item.name)}</strong><br><span class="text-muted">${esc(item.model_name)} v${esc(item.model_version)}</span></td>
-        <td class="mlflow-job-nowrap"><span class="badge badge-neutral">${esc(DEPLOY_TARGETS[item.target || "ai-factory"]?.label || item.target)}</span></td>
-        <td class="mlflow-job-status"><span class="badge ${statusBadge(item.status)}">${esc(statusLabel(item.status))}</span><br><span class="text-muted mlflow-job-message" title="${esc(item.status_message || "")}">${esc(item.status_message || "")}</span></td>
-        <td class="mlflow-job-nowrap">${esc(item.flavor_id)}</td>
-        <td class="data-value mlflow-job-ref"><code>${esc(item.endpoint_url)}</code></td>
-        <td class="mlflow-job-actions">${logButton("deployment", item.id)} ${actions(item)} ${terminalStatuses.has(item.status) ? `<button class="btn btn-danger btn-sm" data-deployment-action="delete" data-deployment-id="${esc(item.id)}">Sil</button>` : ""}</td>
-      </tr>`).join("") || '<tr><td colspan="6" class="text-muted">Henüz model deployment oluşturulmadı.</td></tr>';
-      status.textContent = "";
+      if (background && (root.contains(document.activeElement) || document.querySelector(".modal-backdrop.open"))) return;
+      const rows = (data.deployments || []).map(item => `<tr>
+        <td class="mlflow-job-name" data-label="Model servisi"><div><strong>${esc(item.name)}</strong><br><span class="text-muted">${esc(item.model_name)} v${esc(item.model_version)}</span></div></td>
+        <td class="mlflow-job-nowrap" data-label="Hedef"><span class="badge badge-neutral">${esc(DEPLOY_TARGETS[item.target || "ai-factory"]?.label || item.target)}</span></td>
+        <td class="mlflow-job-status" data-label="Durum"><div><span class="badge ${statusBadge(item.status)}">${esc(statusLabel(item.status))}</span><span class="text-muted mlflow-job-message" title="${esc(item.status_message || "")}">${esc(item.status_message || "")}</span></div></td>
+        <td class="mlflow-job-nowrap" data-label="Kaynak">${esc(item.flavor_id)}</td>
+        <td class="data-value mlflow-job-ref" data-label="Endpoint"><code>${esc(item.endpoint_url)}</code></td>
+        <td class="mlflow-job-actions" data-label="İşlemler"><div class="table-actions">${logButton("deployment", item.id)} ${actions(item)} ${terminalStatuses.has(item.status) ? `<button class="btn btn-danger btn-sm" data-deployment-action="delete" data-deployment-id="${esc(item.id)}">Sil</button>` : ""}</div></td>
+      </tr>`).join("");
+      if (rows !== renderedRows) body.innerHTML = renderedRows = rows;
+      shell.hidden = !rows;
+      setViewStatus(status, rows ? "" : "Henüz model servisi oluşturulmadı.");
     }
     root.addEventListener("click", async event => {
       const button = event.target.closest("[data-deployment-action]");
       if (!button) return;
       const action = button.dataset.deploymentAction;
       if (action === "delete" && !confirm("Model deployment ve servis workspace silinsin mi?")) return;
+      setViewStatus(actionStatus, "");
       button.disabled = true;
       try {
         const actionResult = await fetchJson(`/api/mlflow/deployments/${encodeURIComponent(button.dataset.deploymentId)}${action === "delete" ? "" : `/${action}`}`, {method: action === "delete" ? "DELETE" : "POST"});
@@ -379,14 +386,13 @@
         }
         await load();
       } catch (value) {
-        status.textContent = value.message;
-        status.className = "text-destructive";
+        setViewStatus(actionStatus, value.message, "error");
       } finally {
         button.disabled = false;
       }
     });
-    load().catch(value => { status.textContent = value.message; status.className = "text-destructive"; });
-    window.setInterval(() => load().catch(() => {}), 5000);
+    load().catch(value => setViewStatus(status, value.message, "error"));
+    window.setInterval(() => load(true).catch(() => {}), 5000);
   }
 
   function initReleaseList() {
@@ -394,6 +400,9 @@
     if (!root) return;
     const status = document.getElementById("mlflow-release-list-status");
     const body = document.getElementById("mlflow-release-list-body");
+    const shell = body.closest(".data-table-shell");
+    const actionStatus = root.querySelector("[data-job-action-status]");
+    let renderedRows;
     const imageCell = item => item.status === "published"
       ? `<code>${esc(item.image_ref)}</code><br><span class="text-muted" title="${esc(item.digest)}">${esc(item.digest.slice(0, 19))}…</span>`
       : `<code>${esc(item.image_ref || `${item.rfs_code}/${item.app_name}:${item.version}`)}</code>`;
@@ -409,37 +418,40 @@
       const kind = item.bamboo_status === "failed" ? "text-destructive" : "text-muted";
       return `<br><span class="${kind}" title="${esc(item.bamboo_error || "")}">${esc(label)}${key}</span>`;
     };
-    async function load() {
+    async function load(background = false) {
       const data = await fetchJson("/api/mlflow/image-releases");
-      body.innerHTML = (data.releases || []).map(item => `<tr>
-        <td class="mlflow-job-name"><strong>${esc(item.rfs_code)}/${esc(item.app_name)}</strong><br><span class="text-muted">${esc(item.model_name)} v${esc(item.model_version)}</span><br><span class="text-muted">Namespace: ${esc(item.namespace)}</span></td>
-        <td class="mlflow-job-nowrap"><strong>${esc(item.version)}</strong></td>
-        <td class="mlflow-job-status"><span class="badge ${statusBadge(item.status)}">${esc(statusLabel(item.status))}</span><br><span class="text-muted mlflow-job-message" title="${esc(item.error_message || item.status_message || "")}">${esc(item.status_message || "")}</span>${bambooLine(item)}</td>
-        <td class="data-value mlflow-job-ref">${imageCell(item)}</td>
-        <td class="mlflow-job-nowrap">${esc(item.username)}<br><span class="text-muted">${esc(new Date(item.created_at).toLocaleString("tr-TR"))}</span></td>
-        <td class="mlflow-job-actions">${logButton("release", item.id)}${item.status === "failed" ? ` <button class="btn btn-primary btn-sm" data-release-retry="${esc(item.id)}">Yeniden Dene</button>` : ""}${item.bamboo_status === "failed" ? ` <button class="btn btn-secondary btn-sm" data-bamboo-retry="${esc(item.id)}">Bamboo'yu Yeniden Tetikle</button>` : ""}</td>
-      </tr>`).join("") || '<tr><td colspan="6" class="text-muted">Henüz Kubernetes yayını yapılmadı.</td></tr>';
-      status.textContent = "";
-      status.className = "";
+      if (background && (root.contains(document.activeElement) || document.querySelector(".modal-backdrop.open"))) return;
+      const rows = (data.releases || []).map(item => `<tr>
+        <td class="mlflow-job-name" data-label="Uygulama"><div><strong>${esc(item.rfs_code)}/${esc(item.app_name)}</strong><br><span class="text-muted">${esc(item.model_name)} v${esc(item.model_version)}</span><br><span class="text-muted">Namespace: ${esc(item.namespace)}</span></div></td>
+        <td class="mlflow-job-nowrap" data-label="Versiyon"><strong>${esc(item.version)}</strong></td>
+        <td class="mlflow-job-status" data-label="Durum"><div><span class="badge ${statusBadge(item.status)}">${esc(statusLabel(item.status))}</span><span class="text-muted mlflow-job-message" title="${esc(item.error_message || item.status_message || "")}">${esc(item.status_message || "")}</span>${bambooLine(item)}</div></td>
+        <td class="data-value mlflow-job-ref" data-label="İmaj"><div>${imageCell(item)}</div></td>
+        <td class="mlflow-job-nowrap" data-label="Yayınlayan"><div>${esc(item.username)}<br><span class="text-muted">${esc(new Date(item.created_at).toLocaleString("tr-TR"))}</span></div></td>
+        <td class="mlflow-job-actions" data-label="İşlemler"><div class="table-actions">${logButton("release", item.id)}${item.status === "failed" ? ` <button class="btn btn-primary btn-sm" data-release-retry="${esc(item.id)}">Yeniden Dene</button>` : ""}${item.bamboo_status === "failed" ? ` <button class="btn btn-secondary btn-sm" data-bamboo-retry="${esc(item.id)}">Bamboo'yu Yeniden Tetikle</button>` : ""}</div></td>
+      </tr>`).join("");
+      if (rows !== renderedRows) body.innerHTML = renderedRows = rows;
+      shell.hidden = !rows;
+      setViewStatus(status, rows ? "" : "Henüz Kubernetes yayını yapılmadı.");
     }
     root.addEventListener("click", async event => {
       const button = event.target.closest("[data-release-retry], [data-bamboo-retry]");
       if (!button) return;
       const bamboo = button.hasAttribute("data-bamboo-retry");
       if (bamboo && !confirm("Bamboo planı yeniden tetiklensin mi? Önceki tetikleme Bamboo'ya ulaştıysa Jira görevleri tekrar açılabilir.")) return;
+      setViewStatus(actionStatus, "");
       button.disabled = true;
       try {
         const releaseId = bamboo ? button.dataset.bambooRetry : button.dataset.releaseRetry;
         await fetchJson(`/api/mlflow/image-releases/${encodeURIComponent(releaseId)}/${bamboo ? "bamboo-retry" : "retry"}`, {method: "POST"});
         await load();
       } catch (value) {
-        status.textContent = value.message;
-        status.className = "text-destructive";
+        setViewStatus(actionStatus, value.message, "error");
+      } finally {
         button.disabled = false;
       }
     });
-    load().catch(value => { status.textContent = value.message; status.className = "text-destructive"; });
-    window.setInterval(() => load().catch(() => {}), 5000);
+    load().catch(value => setViewStatus(status, value.message, "error"));
+    window.setInterval(() => load(true).catch(() => {}), 5000);
   }
 
   // Log viewer on /deployments: opens from a row's "Günlük" button or from
@@ -519,7 +531,6 @@
 
     el("mlflow-log-close").addEventListener("click", close);
     modal.addEventListener("click", event => { if (event.target === modal) close(); });
-    document.addEventListener("keydown", event => { if (event.key === "Escape" && current) close(); });
     document.addEventListener("click", event => {
       const button = event.target.closest("[data-log-kind]");
       if (button) open(button.dataset.logKind, button.dataset.logId);

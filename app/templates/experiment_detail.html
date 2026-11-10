@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-heading">
   <div><span class="page-kicker">MLflow Experiment</span><h1 id="experiment-name">Deney</h1><p><a href="/experiments">← Deneylere dön</a></p></div>
-  <a id="experiment-open" class="btn btn-secondary" target="_blank" rel="noopener noreferrer">MLflow'da aç ↗</a>
+  <a id="experiment-open" class="btn btn-secondary" target="_blank" rel="noopener noreferrer" hidden>MLflow'da aç ↗</a>
 </div>
 {% include "partials/mlflow_nav.html" %}
 <section class="card" id="experiment-root" data-experiment-id="{{ experiment_id }}">
@@ -29,9 +29,9 @@
     <button class="btn btn-primary" style="margin-top:0.85rem">Filtrele</button>
   </form>
   <div class="table-actions" style="margin:1.25rem 0 1rem"><button id="compare-runs" class="btn btn-secondary" type="button" disabled>Seçilen run'ları karşılaştır</button><span id="run-count" class="badge badge-neutral"></span></div>
-  <div id="run-status">Run'lar yükleniyor...</div>
-  <div class="data-table-shell"><table id="run-table" class="table" hidden><thead><tr><th>Seç</th><th>Run</th><th>Durum</th><th>Başlangıç</th><th>Metrik</th><th>Parametre</th><th></th></tr></thead><tbody></tbody></table></div>
+  <p id="run-status" class="view-status" data-state="loading" role="status">Run'lar yükleniyor…</p>
+  <div class="data-table-shell" id="run-table-shell" hidden><table id="run-table" class="table"><thead><tr><th>Seç</th><th>Run</th><th>Durum</th><th>Başlangıç</th><th>Metrik</th><th>Parametre</th><th>İşlem</th></tr></thead><tbody></tbody></table></div>
   <button id="run-more" class="btn btn-secondary" type="button" hidden>Daha fazla yükle</button>
 </section>
 {% endblock %}
-{% block scripts %}<script src="/static/js/mlflow.js"></script>{% endblock %}
+{% block scripts %}<script src="/static/js/mlflow.js?v={{ static_version }}"></script>{% endblock %}
