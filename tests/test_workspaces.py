@@ -179,7 +179,7 @@ async def test_admin_catalog_toggles_hide_new_choices_but_preserve_existing_work
     assert "vscode-kilo" not in template_ids
     assert "t1.nano" not in flavor_ids
     hidden_dashboard = await client.get("/", headers=user_headers)
-    assert 'data-template-id="vscode-kilo"' not in hidden_dashboard.text
+    assert 'name="template_id" value="vscode-kilo"' not in hidden_dashboard.text
     assert 'name="flavor_id" value="t1.nano"' not in hidden_dashboard.text
 
     disabled_template_create = await client.post(
@@ -242,7 +242,7 @@ async def test_admin_catalog_toggles_hide_new_choices_but_preserve_existing_work
     assert "vscode-kilo" in template_ids
     assert "t1.nano" in flavor_ids
     restored_dashboard = await client.get("/", headers=user_headers)
-    assert 'data-template-id="vscode-kilo"' in restored_dashboard.text
+    assert 'name="template_id" value="vscode-kilo"' in restored_dashboard.text
     assert 'name="flavor_id" value="t1.nano"' in restored_dashboard.text
 
 
