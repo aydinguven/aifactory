@@ -9,7 +9,8 @@ from http.cookies import SimpleCookie
 from typing import Annotated
 from urllib.parse import parse_qsl, urlencode
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, WebSocket, WebSocketDisconnect, status
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from pathlib import Path
 import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -68,6 +69,39 @@ async def get_authorized_workspace(
     return workspace
 
 
+# code-server's tab, home-screen and PWA icons are Coder's logo; the proxy
+# answers these paths with the AI Factory icon instead. This applies to every
+# code-server workspace without rebuilding or recreating its container.
+_STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
+_CODE_SERVER_MEDIA = "_static/src/browser/media/"
+IDE_ICON_OVERRIDES = {
+    "favicon.svg": (_STATIC_DIR / "favicon.svg", "image/svg+xml"),
+    "favicon-dark-support.svg": (_STATIC_DIR / "favicon.svg", "image/svg+xml"),
+    "favicon.ico": (_STATIC_DIR / "ide-icons" / "favicon.ico", "image/x-icon"),
+    **{
+        f"{name}-{size}.png": (_STATIC_DIR / "ide-icons" / f"{name}-{size}.png", "image/png")
+        for name in ("pwa-icon", "pwa-icon-maskable")
+        for size in (192, 512)
+    },
+}
+
+
+def ide_icon_override(path: str) -> FileResponse | None:
+    """The AI Factory replacement for a code-server icon path, else None."""
+    normalized = path.lstrip("/")
+    if not normalized.startswith(_CODE_SERVER_MEDIA):
+        return None
+    override = IDE_ICON_OVERRIDES.get(normalized[len(_CODE_SERVER_MEDIA):])
+    if override is None:
+        return None
+    file_path, media_type = override
+    return FileResponse(
+        file_path,
+        media_type=media_type,
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
 def get_upstream_path(workspace_id: str, template_id: str, path: str) -> str:
     """Keep Jupyter's configured proxy prefix while other IDEs use root paths."""
     normalized_path = path.lstrip("/")
@@ -82,6 +116,7 @@ STARTING_PAGE_HTML = """<!DOCTYPE html>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>__WORKSPACE_NAME__ başlatılıyor - AI Factory</title>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
     <style>
         :root { color-scheme: light; font-family: "Segoe UI", Arial, sans-serif; color: #323a47; }
         * { box-sizing: border-box; }
@@ -519,6 +554,8 @@ async def proxy_http_request(
             path=custom_parts[2] if len(custom_parts) == 3 else "",
         )
     workspace = await get_authorized_workspace(workspace_id, db, current_user)
+    if request.method in {"GET", "HEAD"} and (icon := ide_icon_override(path)):
+        return icon
     upstream_path = get_upstream_path(workspace.id, workspace.template_id, path)
     return await proxy_remote_http(workspace, request, upstream_path)
 
