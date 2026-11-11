@@ -135,7 +135,7 @@
 
 .public-share-error {
   background: var(--danger-bg);
-  border: 1px solid #e9aeba;
+  border: 1px solid var(--danger-border);
   border-radius: var(--radius-sm);
   color: var(--danger);
   font-size: 0.82rem;

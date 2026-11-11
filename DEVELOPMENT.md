@@ -35,6 +35,13 @@
 
 ## Decisions
 
+- 2026-11-11: admin sidebar on the left edge, dark mode, UI consistency pass. Checked at 1440, 1024 and 390 px in both themes.
+  - **Sidebar:** the admin menu is a full-height column on the window's left edge (sticky under the top bar) instead of a card inside the centred content. The page heading moved into the content column. Top bar and footer now span the full width so the brand lines up with the sidebar. Below 1180 px the menu still becomes chips above the content.
+  - **Dark mode:** a sun/moon button in the top bar (also on the login page). The choice is stored in `localStorage` (`aifactory-theme`); without one the OS setting is followed. `partials/theme_head.html` sets `data-theme` on `<html>` before the stylesheets apply, so a dark page never flashes light; `/status` uses it too. Public share pages stay light: their CSP forbids inline scripts.
+  - **Tokens:** components use only the variables in `style.css` `:root`; `:root[data-theme="dark"]` swaps them. About 200 hard-coded light colours in `kurumsal.css` became tokens (`--bg-subtle`, `--border-subtle`, `--text-subtle`, `--info*`, `--warning-border`, `--track`, …). Solid fills with white text use `--primary-fill` / `--secondary-fill` / `--success-fill`, so dark mode can lighten `--primary` text without washing out buttons. Terminals and log panes stay dark in both themes. MLflow chart grid and labels follow the theme.
+  - **Consistency:** the per-card coloured top borders (purple, blue, teal, gold…) are gone; cards look alike. Card-header buttons and counters stay right of the text on desktop. Image catalog actions stack in a column wide enough for "Devre Dışı Bırak" (they were clipped). Table actions align under their header; buttons no longer break mid-word ("Kayde/t"). The worker and placement-tag tables no longer print upper-case headers. The new-profile form puts its four fields on one row with the button aligned to the inputs. Overview card arrows are grey until hover.
+  - No tests added: CSS and markup only; the suite still passes.
+
 - 2026-11-09 (3.50.1): the names kept in 3.49.x switch to aifactory.
   - Bundles are `aifactory-platform-update-*` and `aifactory-*offline-*`; workspace image tags are `localhost/aifactory-*`; the cookies are `aifactory_session` and `aifactory_share_`; the migrations table is `aifactory_schema_migrations` (migration 39 renames it and rewrites the stored image tags and storage paths).
   - 3.49.x already accepted all of these. A 3.49 worker still reports old image tags, so the controller treats both prefixes with the same checksum as one image (`app/image_refs.py`).

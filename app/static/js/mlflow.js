@@ -95,8 +95,8 @@
     const svg = svgNode("svg", {viewBox: `0 0 ${width} ${height}`, role: "img", "aria-label": `${metricKey} metrik grafiği`});
     for (let index = 0; index <= 4; index += 1) {
       const gridY = top + (plotHeight * index / 4);
-      svg.appendChild(svgNode("line", {x1:left, y1:gridY, x2:width-right, y2:gridY, stroke:"#dbe2ea", "stroke-width":"1"}));
-      const label = svgNode("text", {x:left-8, y:gridY+4, "text-anchor":"end", fill:"#657186", "font-size":"11"});
+      svg.appendChild(svgNode("line", {x1:left, y1:gridY, x2:width-right, y2:gridY, style:"stroke: var(--border-color)", "stroke-width":"1"}));
+      const label = svgNode("text", {x:left-8, y:gridY+4, "text-anchor":"end", style:"fill: var(--text-muted)", "font-size":"11"});
       label.textContent = (maxY - ((maxY - minY) * index / 4)).toPrecision(4);
       svg.appendChild(label);
     }
@@ -105,7 +105,7 @@
       const coordinates = item.points.map(point => `${x(xValue(point)).toFixed(2)},${y(point.value).toFixed(2)}`).join(" ");
       svg.appendChild(svgNode("polyline", {points:coordinates, fill:"none", stroke:colors[index % colors.length], "stroke-width":"2.5", "stroke-linecap":"round", "stroke-linejoin":"round"}));
     });
-    const axisLabel = svgNode("text", {x:left + plotWidth / 2, y:height-10, "text-anchor":"middle", fill:"#657186", "font-size":"12"});
+    const axisLabel = svgNode("text", {x:left + plotWidth / 2, y:height-10, "text-anchor":"middle", style:"fill: var(--text-muted)", "font-size":"12"});
     axisLabel.textContent = useStep ? "Adım" : "Zaman / kayıt sırası";
     svg.appendChild(axisLabel);
     container.appendChild(svg);

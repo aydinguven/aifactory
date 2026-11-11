@@ -1,28 +1,55 @@
+/* Theme tokens. Components use only these; [data-theme="dark"] below
+   swaps the values. The theme is set on <html> by partials/theme_head.html. */
 :root {
   color-scheme: light;
   --bg-main: #f5f6f8;
   --bg-card: #fff;
   --bg-card-hover: #f1f3f6;
   --bg-input: #fff;
+  --bg-subtle: #f7f9fc;
   --border-color: #dbe0e7;
+  --border-subtle: #e1e7ef;
+  --border-strong: #d4deeb;
   --border-control: #8995a5;
   --border-focus: #a90d35;
   --text-main: #333e4e;
   --text-muted: #586579;
+  --text-subtle: #8592a5;
   --heading: #1b2535;
   --primary: #b70e36;
   --primary-hover: #930a2b;
   --primary-soft: #fceef2;
+  --primary-border: #efb2c0;
+  /* Solid fills that carry white text (buttons, avatars, markers). */
+  --primary-fill: #b70e36;
+  --primary-fill-hover: #930a2b;
   --secondary: #344358;
   --secondary-hover: #273448;
+  --secondary-fill: #344358;
   --success: #0b6b52;
   --success-bg: #e9f6f0;
+  --success-border: #b5dbcb;
+  --success-fill: #0b6b52;
+  --success-fill-hover: #095340;
   --warning: #795715;
   --warning-bg: #fff6df;
+  --warning-bg-hover: #fceac0;
+  --warning-border: #e7d6a5;
+  --warning-accent: #d39b2a;
   --danger: #a82035;
   --danger-bg: #fff0f2;
+  --danger-border: #edb4bd;
+  --info: #1d4f91;
+  --info-bg: #e9f1fb;
+  --info-border: #bcd2ee;
   --gold: #92661b;
   --pale-blue: #e8edf3;
+  --track: #e2e8f0;
+  --toggle-off: #c3ccdb;
+  --toggle-off-hover: #aeb9cb;
+  --terminal-bg: #202a38;
+  --terminal-border: #3a485e;
+  --backdrop: rgba(24, 31, 43, 0.55);
   --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --radius-sm: 6px;
@@ -34,6 +61,59 @@
   --page-gutter: clamp(1rem, 3vw, 2.25rem);
   --shell-gutter: max(var(--page-gutter), calc((100% - var(--content-width)) / 2 + var(--page-gutter)));
   --header-height: 4.25rem;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-main: #0e131a;
+  --bg-card: #161c25;
+  --bg-card-hover: #1e2631;
+  --bg-input: #11171f;
+  --bg-subtle: #1a212b;
+  --border-color: #2a3341;
+  --border-subtle: #232b37;
+  --border-strong: #354052;
+  --border-control: #4c5869;
+  --border-focus: #f0587c;
+  --text-main: #d3dae3;
+  --text-muted: #9ba7b6;
+  --text-subtle: #7c8898;
+  --heading: #f0f3f7;
+  --primary: #f0587c;
+  --primary-hover: #ff8199;
+  --primary-soft: #35161f;
+  --primary-border: #6b2639;
+  --primary-fill: #c41840;
+  --primary-fill-hover: #a8133a;
+  --secondary: #c3cdd9;
+  --secondary-hover: #e3e8ee;
+  --secondary-fill: #3a475a;
+  --success: #4fc59c;
+  --success-bg: #0f2a22;
+  --success-border: #1f5a45;
+  --success-fill: #17805f;
+  --success-fill-hover: #116b4f;
+  --warning: #e5b75a;
+  --warning-bg: #2c2312;
+  --warning-bg-hover: #3a2e15;
+  --warning-border: #5c4a1f;
+  --warning-accent: #d39b2a;
+  --danger: #f27387;
+  --danger-bg: #33161c;
+  --danger-border: #6e2a36;
+  --info: #7fb0ef;
+  --info-bg: #142338;
+  --info-border: #2b4a70;
+  --gold: #d6a548;
+  --pale-blue: #222b37;
+  --track: #2a3340;
+  --toggle-off: #3b4656;
+  --toggle-off-hover: #4a5668;
+  --terminal-bg: #0a0e14;
+  --terminal-border: #2a3341;
+  --backdrop: rgba(0, 0, 0, 0.62);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-overlay: 0 16px 40px rgba(0, 0, 0, 0.55);
 }
 
 * {
@@ -129,7 +209,7 @@ a:hover {
   transition: all 0.15s ease;
 }
 .nav-link:hover {
-  color: #fff;
+  color: var(--heading);
   background-color: var(--bg-card-hover);
   text-decoration: none;
 }
@@ -272,13 +352,13 @@ a:hover {
 }
 .btn:hover { text-decoration: none; }
 .btn-primary {
-  background-color: var(--primary);
-  border-color: var(--primary);
+  background-color: var(--primary-fill);
+  border-color: var(--primary-fill);
   color: #fff;
 }
 .btn-primary:hover {
-  background-color: var(--primary-hover);
-  border-color: var(--primary-hover);
+  background-color: var(--primary-fill-hover);
+  border-color: var(--primary-fill-hover);
 }
 .btn-secondary {
   background-color: var(--bg-card);
@@ -290,11 +370,11 @@ a:hover {
   color: var(--heading);
 }
 .btn-success {
-  background-color: var(--success);
-  border-color: var(--success);
+  background-color: var(--success-fill);
+  border-color: var(--success-fill);
   color: #fff;
 }
-.btn-success:hover { background-color: #095340; border-color: #095340; }
+.btn-success:hover { background-color: var(--success-fill-hover); border-color: var(--success-fill-hover); }
 .btn-danger {
   background-color: var(--bg-card);
   border-color: var(--danger);
@@ -306,7 +386,7 @@ a:hover {
   border-color: var(--warning);
   color: var(--warning);
 }
-.btn-warning:hover { background-color: #fceac0; }
+.btn-warning:hover { background-color: var(--warning-bg-hover); }
 .btn:disabled { cursor: not-allowed; opacity: 0.55; }
 .btn-sm {
   padding: 0.35rem 0.75rem;
@@ -329,27 +409,27 @@ a:hover {
 .badge-running {
   background-color: var(--success-bg);
   color: var(--success);
-  border: 1px solid rgba(16, 185, 129, 0.3);
+  border: 1px solid var(--success-border);
 }
 .badge-stopped {
-  background-color: rgba(148, 163, 184, 0.15);
+  background-color: var(--bg-card-hover);
   color: var(--text-muted);
-  border: 1px solid rgba(148, 163, 184, 0.3);
+  border: 1px solid var(--border-color);
 }
 .badge-creating, .badge-starting {
   background-color: var(--warning-bg);
   color: var(--warning);
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  border: 1px solid var(--warning-border);
 }
 .badge-error {
   background-color: var(--danger-bg);
   color: var(--danger);
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  border: 1px solid var(--danger-border);
 }
 .badge-flavor {
-  background-color: rgba(56, 189, 248, 0.15);
-  color: #38bdf8;
-  border: 1px solid rgba(56, 189, 248, 0.3);
+  background-color: var(--info-bg);
+  color: var(--info);
+  border: 1px solid var(--info-border);
 }
 
 /* Forms */
@@ -414,14 +494,14 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--primary); }
 }
 .selectable-card.selected {
   border-color: var(--primary);
-  background-color: rgba(59, 130, 246, 0.15);
+  background-color: var(--primary-soft);
 }
 
 /* Modal */
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--backdrop);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -456,8 +536,8 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--primary); }
 
 /* Terminal / Log Box */
 .terminal-window {
-  background-color: #000;
-  border: 1px solid var(--border-color);
+  background-color: var(--terminal-bg);
+  border: 1px solid var(--terminal-border);
   border-radius: 8px;
   padding: 1rem;
   font-family: var(--font-mono);
@@ -489,7 +569,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--primary); }
   font-size: 0.75rem;
 }
 .table tr:hover td {
-  background-color: rgba(255, 255, 255, 0.02);
+  background-color: var(--bg-card-hover);
 }
 
 .data-table-shell {
@@ -665,7 +745,7 @@ td code {
 .quota-summary { min-width: 180px; }
 .quota-summary span { color: var(--text-muted); display: block; font-size: 0.74rem; white-space: nowrap; }
 .quota-summary span + span { margin-top: 0.25rem; }
-.quota-summary strong { color: #e2e8f0; display: inline-block; width: 2.5rem; }
+.quota-summary strong { color: var(--heading); display: inline-block; width: 2.5rem; }
 .quota-form { min-width: 390px; }
 .quota-input-grid { display: grid; gap: 0.5rem; grid-template-columns: repeat(3, minmax(90px, 1fr)); }
 .quota-field span { color: var(--text-muted); display: block; font-size: 0.65rem; margin-bottom: 0.2rem; }
@@ -694,10 +774,10 @@ td code {
   margin-bottom: 0.8rem;
 }
 .download-update-logs { color: #cbd5e1; max-height: 260px; min-height: 90px; }
-.download-update-warning { color: #64748b; font-size: 0.72rem; margin-top: 0.8rem; }
+.download-update-warning { color: var(--text-muted); font-size: 0.72rem; margin-top: 0.8rem; }
 .download-item { align-items: center; display: flex; justify-content: space-between; gap: 1rem; }
 .download-item + .download-item { border-top: 1px solid var(--border-color); margin-top: 1rem; padding-top: 1rem; }
-.download-filename { color: #fff; font-family: var(--font-mono); font-size: 0.86rem; }
+.download-filename { color: var(--heading); font-family: var(--font-mono); font-size: 0.86rem; }
 .download-meta { color: var(--text-muted); font-size: 0.75rem; margin-top: 0.2rem; }
 .download-actions { display: flex; flex-shrink: 0; gap: 0.6rem; }
 

@@ -1861,10 +1861,10 @@ function initNodeManagement() {
     tokenBox.style.display = "block";
     tokenBox.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:0.5rem;">
-        <strong style="color:var(--text-main,#fff);font-size:0.95rem;">✨ Worker Token / Bağlantı Bilgisi: ${data.name}</strong>
-        <span style="font-size:0.75rem;color:var(--text-muted,#9ca3af);">Token yalnızca şimdi gösterilir</span>
+        <strong style="color:#fff;font-size:0.95rem;">✨ Worker Token / Bağlantı Bilgisi: ${data.name}</strong>
+        <span style="font-size:0.75rem;color:#9caabc;">Token yalnızca şimdi gösterilir</span>
       </div>
-      <div style="font-size:0.8rem;color:var(--text-muted,#9ca3af);margin-top:0.75rem;line-height:1.5;">
+      <div style="font-size:0.8rem;color:#9caabc;margin-top:0.75rem;line-height:1.5;">
         <div><strong>Node ID:</strong> <code style="color:#e2e8f0;">${data.id}</code></div>
         <div><strong>Token:</strong> <code style="color:#e2e8f0;">${data.enrollment_token}</code></div>
         <div style="margin-top:0.5rem;font-size:0.75rem;">
@@ -1882,15 +1882,15 @@ AIFACTORY_NODE_TOKEN=${data.enrollment_token}</pre>
     ticketBox.style.display = "block";
     ticketBox.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;gap:.75rem;margin-bottom:.75rem;border-bottom:1px solid rgba(255,255,255,.1);padding-bottom:.5rem;flex-wrap:wrap;">
-        <strong style="color:var(--text-main,#fff);font-size:.95rem;">Worker Kurulum Komutu</strong>
-        <span id="worker-bootstrap-expiry" style="font-size:.75rem;color:var(--text-muted,#9ca3af);"></span>
+        <strong style="color:#fff;font-size:.95rem;">Worker Kurulum Komutu</strong>
+        <span id="worker-bootstrap-expiry" style="font-size:.75rem;color:#9caabc;"></span>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;margin-bottom:.35rem;">
-        <span style="font-size:.85rem;font-weight:600;color:var(--accent,#38bdf8);">Yeni worker üzerinde root olarak çalıştırın:</span>
+        <span style="font-size:.85rem;font-weight:600;color:#9fc8ea;">Yeni worker üzerinde root olarak çalıştırın:</span>
         <button type="button" class="btn btn-secondary btn-sm" id="btn-copy-bootstrap-ticket" style="padding:.25rem .65rem;font-size:.75rem;">Kopyala</button>
       </div>
       <pre id="worker-bootstrap-ticket-command" style="background:rgba(0,0,0,.4);padding:.65rem;border-radius:4px;overflow-x:auto;margin:0;font-size:.8rem;white-space:pre-wrap;overflow-wrap:anywhere;color:#a7f3d0;"></pre>
-      <p style="margin:.65rem 0 0;font-size:.76rem;color:var(--text-muted,#9ca3af);">Komut yalnızca bir kez kullanılabilir. Script worker adını sorar ve node/token oluşturma işlemini otomatik tamamlar.</p>
+      <p style="margin:.65rem 0 0;font-size:.76rem;color:#9caabc;">Komut yalnızca bir kez kullanılabilir. Script worker adını sorar ve node/token oluşturma işlemini otomatik tamamlar.</p>
     `;
     const command = document.getElementById("worker-bootstrap-ticket-command");
     const expiry = document.getElementById("worker-bootstrap-expiry");
