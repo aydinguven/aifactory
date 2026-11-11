@@ -1,3 +1,3 @@
 """AI Factory - Self-hosted Cloud Development Environment Platform."""
 
-__version__ = "3.52.0"
+__version__ = "3.52.1"
