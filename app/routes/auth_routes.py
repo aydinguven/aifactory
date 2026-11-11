@@ -11,6 +11,7 @@ from app.auth import (
     create_access_token,
 )
 from app import genai
+from app.audit import audit_event, client_ip
 from app.config import settings
 from app.session_settings import session_timeout_minutes
 from app.database import get_db
@@ -95,6 +96,13 @@ async def register_user(
         )
 
     user = await auth_provider.create_user(user_in, db)
+    audit_event(
+        "auth.register",
+        actor=user.username,
+        actor_role=user.role.value,
+        src_ip=client_ip(request),
+        target=user.username,
+    )
 
     # Generate JWT token
     timeout = await session_timeout_minutes(db)
@@ -117,15 +125,25 @@ async def login_user(
     auth_provider: Annotated[AuthProvider, Depends(get_auth_provider)],
 ):
     """Authenticate user and return JWT access token."""
+    attempted = login_data.username.strip()[:255]
+    src_ip = client_ip(request)
     try:
         user = await auth_provider.authenticate(
             login_data.username, login_data.password, db
         )
     except DirectoryLoginRejected as exc:
+        audit_event(
+            "auth.login", outcome="failure", actor=attempted, src_ip=src_ip,
+            reason="directory_rejected",
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)
         ) from exc
     except DirectoryUnavailableError as exc:
+        audit_event(
+            "auth.login", outcome="failure", actor=attempted, src_ip=src_ip,
+            reason="directory_unavailable",
+        )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=(
@@ -135,10 +153,21 @@ async def login_user(
             ),
         ) from exc
     if not user:
+        audit_event(
+            "auth.login", outcome="failure", actor=attempted, src_ip=src_ip,
+            reason="invalid_credentials",
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Kullanıcı adı veya parola hatalı.",
         )
+    audit_event(
+        "auth.login",
+        actor=user.username,
+        actor_role=user.role.value,
+        src_ip=src_ip,
+        auth_source=user.auth_source,
+    )
 
     timeout = await session_timeout_minutes(db)
     token = create_access_token(

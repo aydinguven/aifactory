@@ -17,6 +17,7 @@ EnvironmentFile=/etc/aifactory/worker.env
 Environment=XDG_RUNTIME_DIR=/run/user/{{UID}}
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:{{PROJECT_DIR}}/.venv/bin
 ExecStartPre=+/usr/bin/install -d -o {{USER}} -g {{USER}} -m 0700 /run/user/{{UID}}
+ExecStartPre=+/usr/bin/install -d -o {{USER}} -g {{USER}} -m 0750 /var/log/aifactory/worker
 LimitNOFILE=65535
 TimeoutStopSec=15
 

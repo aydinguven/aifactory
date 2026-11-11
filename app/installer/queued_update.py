@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,6 +22,9 @@ from app.installer.update_source import validate_git_source
 # Matches app.installer.cli.EXIT_APPLIED_PUBLISH_FAILED (kept local: this
 # module runs with the system Python and imports as little as possible).
 PUBLISH_FAILED_EXIT_CODE = 3
+# The installer creates this; each run's output is kept there.
+UPDATER_LOG_DIR = Path("/var/log/aifactory/updater")
+UPDATER_LOGS_KEPT = 30
 
 
 def _write_json(path: Path, value: dict) -> None:
@@ -51,6 +55,22 @@ def _open_output(path: Path):
             pass
     os.chmod(path, 0o600)
     return handle
+
+
+def _archive_output(output: Path, started_at: str, log_dir: Path = UPDATER_LOG_DIR) -> None:
+    """Keep the run's output beside the other AI Factory logs (newest 30)."""
+    if not log_dir.is_dir() or not output.is_file():
+        return
+    stamp = "".join(character for character in started_at[:19] if character.isdigit())
+    try:
+        target = log_dir / f"update-{stamp[:8]}-{stamp[8:]}.log"
+        shutil.copyfile(output, target)
+        os.chmod(target, 0o640)
+        archived = sorted(log_dir.glob("update-*.log"))
+        for old in archived[:-UPDATER_LOGS_KEPT]:
+            old.unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 def main() -> int:
@@ -119,6 +139,7 @@ def main() -> int:
             returncode = subprocess.run(
                 command, text=True, stdout=log, stderr=subprocess.STDOUT, env=env
             ).returncode
+        _archive_output(output, started_at)
         # Exit code 3: applied, but the worker bundle was not published.
         applied = returncode in (0, PUBLISH_FAILED_EXIT_CODE)
         progress.finish(applied)

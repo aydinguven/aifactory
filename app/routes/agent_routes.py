@@ -23,9 +23,13 @@ from app.models.node import Node, NodeStatus
 from app.models.workspace import Workspace, WorkspaceStatus
 from app.models.workspace_image import WorkspaceImage
 from app.models.jupyter_ai_settings import JupyterAiSettings
+from app.models.logging_settings import LoggingSettings
 from app.orchestrator.templates import requires_accelerator
 from app.schemas.node import NodeHeartbeat
 from app.schemas.jupyter_ai_settings import WorkerJupyterAiSettings
+from app.schemas.logging_settings import WorkerLoggingSettings
+from app.audit import audit_event, client_ip
+from app.logging_settings import worker_settings
 from app.jupyter_ai import parse_model_catalog
 from app.config import settings
 from app.release_catalog import RELEASE_PATTERN, latest_release
@@ -125,6 +129,13 @@ async def _authenticated_node(
         or not node.enabled
         or not secrets.compare_digest(node.agent_token_hash, token_hash)
     ):
+        audit_event(
+            "worker.auth",
+            outcome="denied",
+            src_ip=client_ip(request),
+            target=node_id,
+            path=request.url.path,
+        )
         raise HTTPException(status_code=403, detail="Geçersiz worker kimliği")
     return node
 
@@ -313,6 +324,19 @@ async def worker_jupyter_ai_settings(
     )
 
 
+@agent_router.get("/logging-settings", response_model=WorkerLoggingSettings)
+async def worker_logging_settings(
+    request: Request,
+    response: Response,
+    node_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the central logging policy to an enrolled, enabled worker."""
+    await _authenticated_node(request, node_id, db)
+    response.headers["Cache-Control"] = "no-store"
+    return worker_settings(await db.get(LoggingSettings, 1))
+
+
 @agent_router.api_route("/images/{image_id}/archive", methods=["GET", "HEAD"])
 async def worker_download_image(
     image_id: str,
@@ -352,11 +376,24 @@ async def connect_agent(
     node = await db.get(Node, node_id)
     token_hash = hashlib.sha256(_bearer_token(websocket).encode("utf-8")).hexdigest()
     if not node or not node.enabled or not secrets.compare_digest(node.agent_token_hash, token_hash):
+        audit_event(
+            "worker.auth",
+            outcome="denied",
+            src_ip=client_ip(websocket),
+            target=node_id,
+            path=websocket.url.path,
+        )
         await websocket.close(code=4403, reason="Geçersiz worker kimliği")
         return
 
     await websocket.accept()
     connection = await agent_manager.register(node.id, websocket)
+    audit_event(
+        "worker.connect",
+        src_ip=client_ip(websocket),
+        target=node.id,
+        name=node.name,
+    )
     node.status = NodeStatus.ONLINE
     node.last_seen_at = datetime.now(timezone.utc)
     db.add(node)
@@ -431,6 +468,7 @@ async def connect_agent(
     finally:
         disconnected = await agent_manager.unregister(node.id, connection)
         if disconnected:
+            audit_event("worker.disconnect", target=node.id, name=node.name)
             fresh_node = await db.get(Node, node.id)
             if fresh_node:
                 fresh_node.status = NodeStatus.OFFLINE

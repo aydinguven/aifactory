@@ -24,6 +24,8 @@ from app.models.model_container_registry_settings import (
 from app.models.download_settings import DownloadSettings
 from app.models.deploy_registry_settings import DeployRegistrySettings
 from app.models.bamboo_settings import BambooSettings
+from app.models.logging_settings import LoggingSettings
+from app.logging_settings import settings_out as logging_settings_out
 from app.bamboo import (
     BambooConfigurationError,
     bamboo_settings_out,
@@ -569,6 +571,11 @@ ADMIN_SECTIONS = {
         "description": "Kilo Code ve Jupyter AI sohbetlerinin kullanacağı SKILL.md talimatlarını yönetin.",
         "group": "Platform",
     },
+    "logs": {
+        "title": "Günlükler",
+        "description": "Controller ve worker günlüklerinin saklama süresini ve QRadar gibi toplayıcılara yönlendirmeyi yönetin.",
+        "group": "Platform",
+    },
     "system": {
         "title": "Sistem",
         "description": "Platform güncellemelerini, oturum ayarlarını, HTTPS'i ve offline paketleri yönetin.",
@@ -777,6 +784,9 @@ async def admin_page(
         except BambooConfigurationError as exc:
             context["bamboo_settings"] = None
             context["bamboo_error"] = str(exc)
+    elif section == "logs":
+        context["logging_settings"] = logging_settings_out(await db.get(LoggingSettings, 1))
+        context["log_dir"] = settings.LOG_DIR
     elif section == "system":
         context["session_timeout_minutes"] = await session_timeout_minutes(db)
         context["onboarding_settings"] = await db.get(OnboardingSettings, 1)

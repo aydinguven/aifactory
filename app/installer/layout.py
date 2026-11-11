@@ -34,6 +34,10 @@ class Layout:
         return f"/srv/{self.name}-downloads"
 
     @property
+    def log_dir(self) -> str:
+        return f"/var/log/{self.name}"
+
+    @property
     def state_root(self) -> str:
         return f"{self.var_dir}/installer"
 

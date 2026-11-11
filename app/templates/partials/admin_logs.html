@@ -1,0 +1,139 @@
+{% set ls = logging_settings %}
+<form id="logging-settings-form" autocomplete="off" data-revision="{{ ls.revision }}">
+<section class="card admin-settings-card" id="log-retention" style="margin-bottom: 2rem;">
+  <div class="card-header">
+    <div>
+      <h2 class="card-title">Yerel Günlükler</h2>
+      <p class="admin-section-description">Controller ve her worker JSON satırlarını <code>{{ log_dir }}/controller</code> ve <code>{{ log_dir }}/worker</code> altına yazar: <code>app.log</code>, <code>audit.log</code> ve controller'da <code>access.log</code>. Dosyalar her gece veya boyut sınırının onda birine ulaşınca döndürülür ve sıkıştırılır.</p>
+    </div>
+  </div>
+  <div class="grid grid-cols-3" style="gap:.75rem;margin-bottom:.75rem;">
+    <label class="form-group" style="margin:0;">
+      <span class="form-label">Saklama süresi (gün)</span>
+      <input class="form-input" name="retention_days" type="number" min="1" max="365" step="1" value="{{ ls.retention_days }}" required>
+      <small class="form-help">Daha eski döndürülmüş dosyalar silinir.</small>
+    </label>
+    <label class="form-group" style="margin:0;">
+      <span class="form-label">Bileşen başına en fazla alan (MB)</span>
+      <input class="form-input" name="max_total_mb" type="number" min="50" max="102400" step="1" value="{{ ls.max_total_mb }}" required>
+      <small class="form-help">Aşılırsa en eski dosyalar önce silinir; denetim kayıtları en son silinir.</small>
+    </label>
+    <label class="form-group" style="margin:0;">
+      <span class="form-label">Uygulama günlük seviyesi</span>
+      <select class="form-input" name="log_level">
+        {% for level in ['DEBUG', 'INFO', 'WARNING', 'ERROR'] %}
+        <option value="{{ level }}" {% if ls.log_level == level %}selected{% endif %}>{{ level }}</option>
+        {% endfor %}
+      </select>
+      <small class="form-help">Denetim ve erişim kayıtları her seviyede tutulur.</small>
+    </label>
+  </div>
+</section>
+
+<section class="card admin-integration-card" id="log-forwarding" style="margin-bottom: 2rem;">
+  <div class="card-header">
+    <div>
+      <h2 class="card-title">Günlük Yönlendirme (QRadar / Syslog)</h2>
+      <p class="admin-section-description">Controller ve her worker seçilen kayıtları doğrudan toplayıcıya gönderir; host üzerindeki rsyslog yapılandırması değiştirilmez. Worker'ların toplayıcıya ağ erişimi olmalıdır. Toplayıcıya ulaşılamazken kayıtlar bellekte bekler (en fazla 10.000); kuyruk dolarsa en eskiler düşürülür, yerel dosyalar etkilenmez.</p>
+    </div>
+    <span id="log-forwarding-status-badge" class="badge {% if ls.forward_enabled %}badge-running{% else %}badge-stopped{% endif %}">{% if ls.forward_enabled %}Etkin{% else %}Devre Dışı{% endif %}</span>
+  </div>
+  <label style="display:flex;gap:.5rem;align-items:center;margin-bottom:1rem;">
+    <input type="checkbox" class="toggle" role="switch" name="forward_enabled" {% if ls.forward_enabled %}checked{% endif %}>
+    <span>Günlükleri toplayıcıya yönlendir</span>
+  </label>
+  <div class="grid grid-cols-3" style="gap:.75rem;margin-bottom:.75rem;">
+    <label class="form-group" style="margin:0;">
+      <span class="form-label">Toplayıcı adresi</span>
+      <input class="form-input" name="forward_host" value="{{ ls.forward_host }}" placeholder="qradar-ec.example.internal" maxlength="255">
+      <small class="form-help">Host adı veya IP; şema ya da port eklemeyin.</small>
+    </label>
+    <label class="form-group" style="margin:0;">
+      <span class="form-label">Port</span>
+      <input class="form-input" name="forward_port" type="number" min="1" max="65535" step="1" value="{{ ls.forward_port }}" required>
+      <small class="form-help">Genellikle UDP/TCP için 514, TLS için 6514.</small>
+    </label>
+    <label class="form-group" style="margin:0;">
+      <span class="form-label">Protokol</span>
+      <select class="form-input" name="forward_protocol">
+        <option value="udp" {% if ls.forward_protocol == 'udp' %}selected{% endif %}>UDP</option>
+        <option value="tcp" {% if ls.forward_protocol == 'tcp' %}selected{% endif %}>TCP</option>
+        <option value="tls" {% if ls.forward_protocol == 'tls' %}selected{% endif %}>TCP + TLS</option>
+      </select>
+    </label>
+    <label class="form-group" style="margin:0;">
+      <span class="form-label">Biçim</span>
+      <select class="form-input" name="forward_format">
+        <option value="leef" {% if ls.forward_format == 'leef' %}selected{% endif %}>LEEF 2.0 (QRadar)</option>
+        <option value="rfc5424" {% if ls.forward_format == 'rfc5424' %}selected{% endif %}>Syslog RFC 5424 + JSON</option>
+      </select>
+      <small class="form-help">LEEF, QRadar'da özel ayrıştırıcı gerektirmez.</small>
+    </label>
+    <label style="display:flex;gap:.5rem;align-items:center;">
+      <input type="checkbox" class="toggle" role="switch" name="forward_tls_verify" {% if ls.forward_tls_verify %}checked{% endif %}>
+      <span>TLS sertifikasını doğrula</span>
+    </label>
+  </div>
+  <label class="form-group">
+    <span class="form-label">Toplayıcı CA paketi (isteğe bağlı, yalnızca TLS)</span>
+    <textarea class="form-input" name="forward_ca_pem" rows="4" spellcheck="false" style="font-family: monospace; font-size: 0.8rem;" placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----">{{ ls.forward_ca_pem }}</textarea>
+    <small class="form-help">Boşsa sistem güven deposu kullanılır.</small>
+  </label>
+  <fieldset style="border:0;padding:0;margin:0 0 .75rem;">
+    <legend class="form-label">Gönderilecek kayıtlar</legend>
+    <div class="grid grid-cols-3" style="gap:.75rem;">
+      <label style="display:flex;gap:.5rem;align-items:center;">
+        <input type="checkbox" name="forward_audit" {% if ls.forward_audit %}checked{% endif %}>
+        <span>Denetim (girişler, yönetim işlemleri, worker bağlantıları)</span>
+      </label>
+      <label style="display:flex;gap:.5rem;align-items:center;">
+        <input type="checkbox" name="forward_access" {% if ls.forward_access %}checked{% endif %}>
+        <span>HTTP erişim kayıtları (yüksek hacimli)</span>
+      </label>
+      <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
+        <label style="display:flex;gap:.5rem;align-items:center;">
+          <input type="checkbox" name="forward_app" {% if ls.forward_app %}checked{% endif %}>
+          <span>Uygulama kayıtları, en az</span>
+        </label>
+        <select class="form-input" name="forward_app_min_level" style="width:auto;" aria-label="Yönlendirilecek en düşük uygulama seviyesi">
+          {% for level in ['DEBUG', 'INFO', 'WARNING', 'ERROR'] %}
+          <option value="{{ level }}" {% if ls.forward_app_min_level == level %}selected{% endif %}>{{ level }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  </fieldset>
+  <div class="table-actions">
+    <button id="btn-save-logging" type="submit" class="btn btn-primary">Günlük Ayarlarını Kaydet</button>
+    <button id="btn-test-log-forwarding" type="button" class="btn btn-secondary">Test Olayı Gönder</button>
+    <span id="logging-form-status" class="quota-form-status" role="status" aria-live="polite"></span>
+  </div>
+  <p class="text-muted" id="logging-revision-note">{% if ls.managed %}Revizyon {{ ls.revision }}{% if ls.updated_by %} · {{ ls.updated_by }}{% endif %}. {% endif %}Kaydedilen ayarlar controller'da hemen, worker'larda 30 saniye içinde uygulanır. Test olayı kaydedilmemiş form değerleriyle controller'dan gönderilir.</p>
+</section>
+</form>
+
+<section class="card" id="logging-status" style="margin-bottom: 2rem;">
+  <div class="card-header">
+    <div>
+      <h2 class="card-title">Durum</h2>
+      <p class="admin-section-description">Worker bilgileri son heartbeat'ten gelir (en fazla 20 saniyelik gecikme).</p>
+    </div>
+  </div>
+  <div class="data-table-shell">
+  <table class="table" id="logging-status-table">
+    <thead>
+      <tr>
+        <th scope="col">Bileşen</th>
+        <th scope="col">Revizyon</th>
+        <th scope="col">Yerel dosyalar</th>
+        <th scope="col">Yönlendirme</th>
+        <th scope="col" style="text-align:right;">Gönderilen / Kuyruk / Düşürülen</th>
+        <th scope="col">Son hata</th>
+      </tr>
+    </thead>
+    <tbody id="logging-status-rows">
+      <tr><td colspan="6" class="text-muted">Durum yükleniyor...</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>

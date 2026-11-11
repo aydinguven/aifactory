@@ -1091,6 +1091,10 @@ class InstallerEngine:
                         "/etc/aifactory/pki",
                     ]
                 )
+            for value, owner, group in self._log_directories(config):
+                self.runner.run(
+                    ["install", "-d", "-o", owner, "-g", group, "-m", "0750", value]
+                )
             return
         for value in owned:
             path = self.host_path(value)
@@ -1113,6 +1117,11 @@ class InstallerEngine:
                 ["chown", f"root:{config.service_user}", str(pki_dir)]
             )
             os.chmod(pki_dir, 0o750)
+        for value, owner, group in self._log_directories(config):
+            path = self.host_path(value)
+            path.mkdir(parents=True, exist_ok=True)
+            self.runner.run(["chown", f"{owner}:{group}", str(path)])
+            os.chmod(path, 0o750)
         if config.containerized_controller:
             controller_owned = [
                 "/var/lib/aifactory/database",
@@ -1132,6 +1141,24 @@ class InstallerEngine:
                         str(self.host_path("/var/lib/aifactory/postgresql")),
                     ]
                 )
+
+    @staticmethod
+    def _log_directories(config: InstallConfig) -> list[tuple[str, str, str]]:
+        """/var/log/aifactory and one directory per process that writes there.
+
+        app.logging_setup writes files only into a directory created here.
+        The container units also create theirs before start, because their
+        bind mounts need it.
+        """
+        root = CURRENT.log_dir
+        user = config.service_user
+        directories = [(root, "root", user), (f"{root}/updater", "root", "root")]
+        if config.installs_controller:
+            owner = "10001" if config.containerized_controller else user
+            directories.append((f"{root}/controller", owner, owner))
+        if config.installs_worker:
+            directories.append((f"{root}/worker", user, user))
+        return directories
 
     def _install_release_keyring(self, release_root: Path) -> None:
         bundled_keyring = release_root / "release-keyring.gpg"
