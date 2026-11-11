@@ -8,6 +8,7 @@ from app.routes.admin import (
     images,
     integrations,
     kubernetes,
+    logs,
     network,
     nodes,
     skills,
@@ -19,6 +20,7 @@ from app.routes.admin import (
 admin_router = APIRouter(prefix="/api/admin", tags=["Admin"])
 for _module in (
     system,
+    logs,
     images,
     catalog,
     network,

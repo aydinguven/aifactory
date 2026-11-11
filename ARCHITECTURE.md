@@ -139,6 +139,8 @@ root.
   for Kubernetes image releases. Only the controller pushes there (`skopeo
   copy` from the Model Container Registry); workers never connect to it.
 - Worker to image registry and package repositories as configured.
+- Controller and workers to the syslog collector (QRadar) configured in
+  Admin > Günlükler, over UDP, TCP or TLS. See [LOGGING.md](LOGGING.md).
 
 When both the managed server and a user's MLflow connection are enabled,
 AI Factory passes the effective tracking URL and that user's credentials only to

@@ -28,12 +28,23 @@ from app.routes.onboarding_routes import onboarding_router
 from app.routes.genai_routes import genai_admin_router, genai_router
 from app.routes.health_routes import health_router
 
-# Setup logging
-logging.basicConfig(
-    level=logging.INFO if not settings.DEBUG else logging.DEBUG,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
+from app.logging_setup import apply_config, configure_logging, shutdown_forwarding
+from app.request_logging import RequestLoggingMiddleware
+
+# Files under /var/log/aifactory/controller once the installer created it;
+# the stored admin policy is applied during startup.
+configure_logging("controller")
 logger = logging.getLogger("aifactory")
+
+
+async def apply_stored_logging_settings() -> None:
+    from app.logging_settings import stored_runtime_config
+
+    try:
+        async with AsyncSessionLocal() as db:
+            apply_config(await stored_runtime_config(db))
+    except Exception:  # noqa: BLE001 - keep the env defaults
+        logger.exception("Stored logging settings could not be applied")
 
 
 async def seed_initial_admin():
@@ -118,6 +129,7 @@ async def lifespan(app: FastAPI):
         await upgrade()
     else:
         await require_current()
+    await apply_stored_logging_settings()
     await seed_bootstrap_worker()
     await mark_workers_offline_on_startup()
     await recover_interrupted_workspace_operations()
@@ -175,6 +187,7 @@ async def lifespan(app: FastAPI):
         return_exceptions=True,
     )
     logger.info("AI Factory shutting down...")
+    shutdown_forwarding()
 
 
 app = FastAPI(
@@ -247,6 +260,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# Outermost, so every response (including CORS and errors) is logged.
+app.add_middleware(RequestLoggingMiddleware)
 
 # Mount static files
 static_dir = Path(__file__).resolve().parent / "static"

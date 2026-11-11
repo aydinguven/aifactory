@@ -12,6 +12,15 @@ class Settings(BaseSettings):
     APP_VERSION: ClassVar[str] = __version__
     ENV: str = "development"
     DEBUG: bool = True
+
+    # Logging (app/logging_setup.py). Files are written to LOG_DIR/<component>
+    # only when the installer created that directory. LOG_LEVEL is the
+    # starting level; Admin > Günlükler overrides it once saved. An empty
+    # LOG_CONSOLE_LEVEL means WARNING while file logging is active, otherwise
+    # the application level.
+    LOG_DIR: str = "/var/log/aifactory"
+    LOG_LEVEL: str = ""
+    LOG_CONSOLE_LEVEL: str = ""
     
     # Security
     SECRET_KEY: str = "aifactory-super-secret-key-change-in-production-1234567890"

@@ -41,6 +41,9 @@ from app.model_container_registry import (
 from app.release_catalog import semantic_version
 from app.jupyter_ai import normalize_ca_bundle
 from app.schemas.jupyter_ai_settings import JupyterAiModel
+from app import logging_setup
+from app.logging_settings import runtime_config
+from app.schemas.logging_settings import WorkerLoggingSettings
 from app.worker_gpu import discover_nvidia_capabilities
 
 logger = logging.getLogger("aifactory.worker")
@@ -177,6 +180,11 @@ class WorkerAgent:
         self.registry_path = Path(settings.STORAGE_ROOT) / ".aifactory-agent-registry.json"
         self.registry = self._load_registry()
         self.image_state_path = Path(settings.STORAGE_ROOT) / ".aifactory-image-state.json"
+        # Last policy fetched from the controller, so forwarding resumes after
+        # a restart before the controller is reachable again.
+        self.logging_settings_path = (
+            Path(settings.STORAGE_ROOT) / ".aifactory-logging-settings.json"
+        )
         self.image_state = self._load_image_state()
         self.image_progress: dict[str, dict] = {}
         self.upgrade_status: dict = {
@@ -568,6 +576,61 @@ class WorkerAgent:
         settings.JUPYTER_AI_CLINE_ENABLED = True
         return True
 
+    def _apply_logging_settings(self, value: WorkerLoggingSettings) -> None:
+        logging_setup.apply_config(
+            runtime_config(value, managed=value.managed, revision=value.revision)
+        )
+
+    def load_cached_logging_settings(self) -> None:
+        try:
+            payload = json.loads(self.logging_settings_path.read_text(encoding="utf-8"))
+            value = WorkerLoggingSettings.model_validate(payload)
+        except FileNotFoundError:
+            return
+        except Exception as exc:  # noqa: BLE001 - a bad cache only loses forwarding
+            logger.warning("Cached logging settings ignored: %s", exc)
+            return
+        self._apply_logging_settings(value)
+
+    async def sync_logging_settings(self) -> bool:
+        """Apply the controller's logging policy when its revision changed."""
+        base_url = _controller_http_url()
+        node_id = _required_env("AIFACTORY_NODE_ID")
+        headers = {"Authorization": f"Bearer {_required_env('AIFACTORY_NODE_TOKEN')}"}
+        async with httpx.AsyncClient(
+            headers=headers,
+            timeout=30.0,
+            verify=self._http_verify_context(base_url),
+            follow_redirects=False,
+        ) as client:
+            response = await client.get(
+                f"{base_url}/api/agent/logging-settings",
+                params={"node_id": node_id},
+            )
+            if response.status_code == 404:
+                # Controller older than this worker.
+                return False
+            response.raise_for_status()
+            value = WorkerLoggingSettings.model_validate(response.json())
+        if logging_setup.current_revision() == (value.managed, value.revision):
+            return False
+        await asyncio.to_thread(self._apply_logging_settings, value)
+        self.logging_settings_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = self.logging_settings_path.with_suffix(".tmp")
+        temporary.write_text(value.model_dump_json(), encoding="utf-8")
+        os.chmod(temporary, 0o600)
+        temporary.replace(self.logging_settings_path)
+        logger.info("Applied logging settings revision %s", value.revision)
+        return True
+
+    async def logging_settings_sync_loop(self) -> None:
+        while True:
+            await asyncio.sleep(30)
+            try:
+                await self.sync_logging_settings()
+            except Exception as exc:
+                logger.warning("Logging settings synchronization failed: %s", exc)
+
     async def jupyter_ai_settings_sync_loop(self) -> None:
         while True:
             try:
@@ -693,6 +756,7 @@ class WorkerAgent:
                             "health": health,
                             **accelerator_capabilities,
                             "upgrade": self._reported_upgrade_status(),
+                            "logging": logging_setup.status(),
                             "workspace_images": workspace_images,
                             "workspace_image_sync": [
                                 self.image_progress[key]
@@ -1611,6 +1675,10 @@ class WorkerAgent:
             await self.sync_jupyter_ai_settings()
         except Exception as exc:
             logger.warning("Initial Jupyter AI settings synchronization failed: %s", exc)
+        try:
+            await self.sync_logging_settings()
+        except Exception as exc:
+            logger.warning("Initial logging settings synchronization failed: %s", exc)
         async with websockets.connect(
             connection_url,
             additional_headers=headers,
@@ -1626,6 +1694,7 @@ class WorkerAgent:
             jupyter_ai_sync_task = asyncio.create_task(
                 self.jupyter_ai_settings_sync_loop()
             )
+            logging_sync_task = asyncio.create_task(self.logging_settings_sync_loop())
             tasks: set[asyncio.Task] = set()
             try:
                 async for raw in websocket:
@@ -1643,10 +1712,12 @@ class WorkerAgent:
                 heartbeat_task.cancel()
                 image_sync_task.cancel()
                 jupyter_ai_sync_task.cancel()
+                logging_sync_task.cancel()
                 for task in tasks:
                     task.cancel()
                 await asyncio.gather(*tasks, transfer_cleanup_task, heartbeat_task,
-                                     image_sync_task, jupyter_ai_sync_task, return_exceptions=True)
+                                     image_sync_task, jupyter_ai_sync_task,
+                                     logging_sync_task, return_exceptions=True)
                 await asyncio.to_thread(self.transfers.expire, True)
 
     async def run_forever(self) -> None:
@@ -1664,8 +1735,14 @@ class WorkerAgent:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO)
-    asyncio.run(WorkerAgent().run_forever())
+    # Files under /var/log/aifactory/worker once the installer created it.
+    logging_setup.configure_logging("worker")
+    agent = WorkerAgent()
+    agent.load_cached_logging_settings()
+    try:
+        asyncio.run(agent.run_forever())
+    finally:
+        logging_setup.shutdown_forwarding()
 
 
 if __name__ == "__main__":

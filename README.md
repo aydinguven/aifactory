@@ -192,6 +192,7 @@ installations created before the unified installer.
 For a secure public hostname, follow [the Cloudflare Tunnel deployment guide](CLOUDFLARE.md).
 For Rocky/RHEL enforcing mode, follow [the SELinux deployment guide](SELINUX.md).
 For controller plus CPU/GPU worker topology, follow [the worker deployment guide](WORKERS.md).
+For log files, audit events and QRadar forwarding, see [LOGGING.md](LOGGING.md).
 
 ### 1. Clean install from Git
 
@@ -661,6 +662,9 @@ intelligent-nobel/
 | `GET` | `/api/admin/stats` | System statistics | Yes (Admin) |
 | `GET`, `POST` | `/api/admin/skills` | List the skill library, add a `SKILL.md` | Yes (Admin) |
 | `PUT`, `DELETE` | `/api/admin/skills/{id}` | Replace, enable/disable or delete a skill | Yes (Admin) |
+| `GET`, `PUT` | `/api/admin/logging-settings` | Log retention, level and forwarding policy | Yes (Admin) |
+| `POST` | `/api/admin/logging-settings/test` | Send a test event with unsaved forwarding values | Yes (Admin) |
+| `GET` | `/api/admin/logging-status` | Controller and per-worker logging state | Yes (Admin) |
 
 ---
 

@@ -58,6 +58,10 @@
   {% include "partials/admin_skills.html" %}
 {% endif %}
 
+{% if admin_section == 'logs' %}
+  {% include "partials/admin_logs.html" %}
+{% endif %}
+
 {% if admin_section == 'kubernetes' %}
   {% include "partials/admin_kubernetes.html" %}
 {% endif %}
@@ -1616,5 +1620,8 @@ USER coder" required></textarea>
 {% endif %}
 {% if admin_section == 'kubernetes' %}
 <script src="/static/js/admin_kubernetes.js?v={{ static_version }}"></script>
+{% endif %}
+{% if admin_section == 'logs' %}
+<script src="/static/js/admin_logs.js?v={{ static_version }}"></script>
 {% endif %}
 {% endblock %}

@@ -16,6 +16,7 @@ Volume=/var/lib/aifactory/download-builds:/var/lib/aifactory/download-builds:Z
 Volume=/var/lib/aifactory/ingress:/var/lib/aifactory/ingress:Z
 Volume=/var/lib/aifactory/update-queue:/var/lib/aifactory/update-queue:Z
 Volume=/srv/aifactory-downloads:/srv/aifactory-downloads:Z
+Volume=/var/log/aifactory/controller:/var/log/aifactory/controller:Z
 HealthCmd=python -m app.container_healthcheck
 HealthInterval=10s
 HealthTimeout=5s
@@ -25,6 +26,9 @@ ReadOnly=true
 Tmpfs=/tmp:rw,size=256m,mode=1777
 
 [Service]
+# The bind mount source must exist, including after an update rendered by an
+# older installer that does not create it.
+ExecStartPre=/usr/bin/install -d -o 10001 -g 10001 -m 0750 /var/log/aifactory/controller
 Restart=always
 RestartSec=5
 TimeoutStartSec=180

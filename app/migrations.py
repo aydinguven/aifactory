@@ -19,7 +19,7 @@ from app.config import settings
 from app.database import engine, init_db
 
 
-CURRENT_SCHEMA_VERSION = 39
+CURRENT_SCHEMA_VERSION = 40
 # ai_config_digest of the workspaces migration 33 moved off TCMB Code.
 TCMB_CODE_MIGRATED_DIGEST = "tcmb-code-migrated"
 
@@ -1257,6 +1257,9 @@ async def upgrade() -> None:
         if 39 not in applied:
             await _rename_devcloud_values(conn)
             await _record_version(conn, 39, "aifactory image tags and storage paths")
+        if 40 not in applied:
+            # init_db creates the portable logging_settings table.
+            await _record_version(conn, 40, "log retention and forwarding settings")
 
 
 async def current_version() -> int:

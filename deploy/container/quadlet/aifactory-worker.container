@@ -15,12 +15,16 @@ Volume=/run/podman/podman.sock:/run/podman/podman.sock
 Volume={{WORKSPACE_ROOT}}:{{WORKSPACE_ROOT}}
 Volume=/var/lib/aifactory/update-queue:/var/lib/aifactory/update-queue
 Volume=/etc/aifactory:/etc/aifactory:ro
+Volume=/var/log/aifactory/worker:/var/log/aifactory/worker
 SecurityLabelDisable=true
 NoNewPrivileges=true
 ReadOnly=true
 Tmpfs=/tmp:rw,size=256m,mode=1777
 
 [Service]
+# The bind mount source must exist, including after an update rendered by an
+# older installer that does not create it.
+ExecStartPre=/usr/bin/install -d -m 0750 /var/log/aifactory/worker
 Restart=always
 RestartSec=5
 TimeoutStartSec=180
