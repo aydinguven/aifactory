@@ -2,8 +2,13 @@
 
 {% block title %}Yönetim Paneli - {{ app_name }}{% endblock %}
 
+{% block body_class %}has-sidebar{% endblock %}
+
 {% block content %}
 {% set status_labels = {'running': 'Çalışıyor', 'stopped': 'Durduruldu', 'creating': 'Oluşturuluyor', 'starting': 'Başlatılıyor', 'stopping': 'Durduruluyor', 'error': 'Hata', 'deleted': 'Silindi'} %}
+<div class="admin-shell">
+  {% include "partials/admin_nav.html" %}
+  <section class="admin-section-content" id="admin-section-content" aria-labelledby="admin-section-title">
 <div class="page-heading admin-page-heading">
   <div>
     <span class="page-kicker">Sistem Yönetimi</span>
@@ -11,10 +16,6 @@
     <p>{{ admin_meta.description }}</p>
   </div>
 </div>
-
-<div class="admin-shell">
-  {% include "partials/admin_nav.html" %}
-  <section class="admin-section-content" id="admin-section-content" aria-labelledby="admin-section-title">
 
 {% if admin_section == 'overview' %}
 <dl class="summary-grid" data-tour="admin-summary" aria-label="Sistem özeti">
@@ -201,7 +202,7 @@
 
   <!-- Custom Template Builder Trigger Card -->
   {% if admin_section == 'workspaces' %}
-  <section class="card admin-action-card admin-action-card--template" id="template-builder-card">
+  <section class="card admin-action-card" id="template-builder-card">
     <div class="card-header">
       <div>
         <span class="section-eyebrow">Özel ortam</span>
@@ -210,10 +211,8 @@
           Containerfile içeriğiyle yeni bir ortam şablonu derleyin ve kataloğa ekleyin.
         </p>
       </div>
+      <button id="btn-open-template-builder-modal" class="btn btn-secondary btn-sm" type="button">Yeni Şablon Derle</button>
     </div>
-    <button id="btn-open-template-builder-modal" class="btn btn-secondary admin-action-card-button" type="button">
-      Yeni Şablon Derle
-    </button>
   </section>
   {% endif %}
 </div>
@@ -403,7 +402,7 @@ cd aifactory
 {% endif %}
 
 {% if admin_section == 'workers' %}
-<section class="card" style="margin-bottom: 2rem; border-top: 3px solid var(--secondary);">
+<section class="card" style="margin-bottom: 2rem;">
   <div class="card-header">
     <div>
       <h2 class="card-title">Worker Node'ları</h2>
@@ -437,14 +436,14 @@ cd aifactory
   <table class="table responsive-card-table" id="admin-nodes-table">
     <thead>
       <tr>
-        <th style="padding: 0.6rem 0.5rem;">WORKER</th>
-        <th style="padding: 0.6rem 0.4rem; text-align: center;">DURUM</th>
-        <th style="padding: 0.6rem 0.5rem;">CPU</th>
-        <th style="padding: 0.6rem 0.5rem;">RAM</th>
-        <th style="padding: 0.6rem 0.5rem;">GPU</th>
-        <th style="padding: 0.6rem 0.5rem;">DİSK / CNT</th>
-        <th style="padding: 0.6rem 0.4rem;">YERLEŞİM / ETİKETLER</th>
-        <th style="padding: 0.6rem 0.4rem; text-align: right;">İŞLEMLER</th>
+        <th scope="col">Worker</th>
+        <th scope="col" style="text-align: center;">Durum</th>
+        <th scope="col">CPU</th>
+        <th scope="col">RAM</th>
+        <th scope="col">GPU</th>
+        <th scope="col">Disk / CNT</th>
+        <th scope="col">Yerleşim / Etiketler</th>
+        <th scope="col">İşlemler</th>
       </tr>
     </thead>
     <tbody id="node-table-body">
@@ -608,11 +607,11 @@ cd aifactory
   <table class="table" id="placement-tags-table">
     <thead>
       <tr>
-        <th>AD</th>
-        <th>AÇIKLAMA</th>
-        <th style="text-align:center;">WORKER</th>
-        <th style="text-align:center;">DURUM</th>
-        <th style="text-align:right;">İŞLEMLER</th>
+        <th scope="col">Ad</th>
+        <th scope="col">Açıklama</th>
+        <th scope="col" style="text-align:center;">Worker</th>
+        <th scope="col" style="text-align:center;">Durum</th>
+        <th scope="col">İşlemler</th>
       </tr>
     </thead>
     <tbody>
@@ -622,7 +621,7 @@ cd aifactory
         <td>{{ tag.description }}</td>
         <td style="text-align:center;">{{ placement_tag_usage.get(tag.name, 0) }}</td>
         <td style="text-align:center;"><span class="badge {{ 'badge-running' if tag.enabled else 'badge-stopped' }}">{{ 'Etkin' if tag.enabled else 'Devre dışı' }}</span></td>
-        <td style="text-align:right;">
+        <td>
           <div class="table-actions">
             <button type="button" class="btn btn-secondary btn-sm placement-tag-toggle" data-enabled="{{ 'true' if tag.enabled else 'false' }}">{{ 'Devre dışı bırak' if tag.enabled else 'Etkinleştir' }}</button>
             <button type="button" class="btn btn-danger btn-sm placement-tag-delete">Sil</button>
@@ -698,7 +697,7 @@ cd aifactory
   <a href="#mlflow-integration">MLflow</a>
   <a href="#genai-integration">GenAI</a>
 </nav>
-<section class="card admin-integration-card admin-integration-card--ai" id="workspace-ai-integration" style="margin-bottom: 2rem; border-top: 3px solid #8b5cf6;">
+<section class="card admin-integration-card admin-integration-card--ai" id="workspace-ai-integration" style="margin-bottom: 2rem;">
   <div class="card-header">
     <div>
       <h2 class="card-title">Workspace AI · Jupyter + VS Code</h2>
@@ -794,7 +793,7 @@ cd aifactory
 </section>
 
 {% set kilo_code_ready = kilo_code_settings and kilo_code_settings.enabled and jupyter_ai_settings and jupyter_ai_settings.enabled %}
-<section class="card admin-integration-card admin-integration-card--ai" id="kilo-code-integration" style="margin-bottom: 2rem; border-top: 3px solid #d50032;">
+<section class="card admin-integration-card admin-integration-card--ai" id="kilo-code-integration" style="margin-bottom: 2rem;">
   <div class="card-header">
     <div>
       <h2 class="card-title">Kilo Code</h2>
@@ -870,7 +869,7 @@ cd aifactory
   </form>
 </section>
 
-<section class="card admin-integration-card admin-integration-card--registry" id="container-registry-integration" style="margin-bottom: 2rem; border-top: 3px solid #0f766e;">
+<section class="card admin-integration-card admin-integration-card--registry" id="container-registry-integration" style="margin-bottom: 2rem;">
   <div class="card-header">
     <div>
       <h2 class="card-title">Model Container Registry</h2>
@@ -919,7 +918,7 @@ cd aifactory
   </form>
 </section>
 
-<section class="card admin-integration-card admin-integration-card--mlflow" id="mlflow-integration" style="margin-bottom: 2rem; border-top: 3px solid var(--gold);">
+<section class="card admin-integration-card admin-integration-card--mlflow" id="mlflow-integration" style="margin-bottom: 2rem;">
   <div class="card-header">
     <div>
       <h2 class="card-title">MLflow Model Registry</h2>
@@ -940,7 +939,7 @@ cd aifactory
   </form>
 </section>
 
-<section class="card admin-integration-card admin-integration-card--genai" id="genai-integration" style="margin-bottom: 2rem; border-top: 3px solid #d50032;">
+<section class="card admin-integration-card admin-integration-card--genai" id="genai-integration" style="margin-bottom: 2rem;">
   <div class="card-header">
     <div>
       <h2 class="card-title">GenAI · LiteLLM Kişisel API Anahtarları</h2>
@@ -987,7 +986,7 @@ cd aifactory
 {% endif %}
 
 {% if admin_section == 'users' %}
-<section class="card admin-directory-card" id="directory-settings" style="margin-bottom: 2rem; border-top: 3px solid #2563eb;">
+<section class="card admin-directory-card" id="directory-settings" style="margin-bottom: 2rem;">
   <div class="card-header">
     <div>
       <h2 class="card-title">Kurumsal Dizin (LDAPS / Active Directory)</h2>
@@ -1392,7 +1391,7 @@ cd aifactory
     </div>
     <button id="btn-sync-workspace-catalog" class="btn btn-primary btn-sm" type="button">Worker'lara Güncelle</button>
   </div>
-  <form id="admin-flavor-create-form" class="responsive-form-grid" style="margin-bottom:1rem">
+  <form id="admin-flavor-create-form" class="responsive-form-grid flavor-create-form">
     <label class="form-group"><span class="form-label">Profil ID</span><input class="form-input" name="id" placeholder="cpu.analysis" pattern="^[a-z0-9][a-z0-9._-]{1,63}$" required></label>
     <label class="form-group"><span class="form-label">Görünen ad</span><input class="form-input" name="display_name" placeholder="Analiz" required></label>
     <label class="form-group"><span class="form-label">CPU</span><input class="form-input" type="number" name="cpus" min="0.1" max="256" step="0.1" value="2" required></label>

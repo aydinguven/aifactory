@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#f5f6f8">
+  {% include "partials/theme_head.html" %}
   <title>Sistem Durumu · TCMB AI Factory</title>
   <link rel="stylesheet" href="/static/css/style.css?v={{ static_version }}">
   <link rel="stylesheet" href="/static/css/kurumsal.css?v={{ static_version }}">
@@ -13,8 +13,12 @@
 </head>
 <body class="public-share-page status-page" data-admin="{{ 'true' if is_admin else 'false' }}">
   <header class="public-share-header status-header">
-    <a href="/" class="public-share-brand" aria-label="TCMB AI Factory ana sayfa">
-      <img src="/static/img/tcmb_ai_factory_logo.svg?v={{ static_version }}" alt="TCMB AI Factory · Yapay Zeka Geliştirme Platformu">
+    <a href="/" class="navbar-brand" aria-label="TCMB AI Factory ana sayfa">
+      <img class="brand-mark" src="/static/favicon.svg?v={{ static_version }}" alt="" width="32" height="32">
+      <span class="brand-copy">
+        <span class="brand-name"><span class="brand-tcmb">TCMB</span> <span class="brand-ai">AI FACTORY</span></span>
+        <span class="brand-subtitle">Yapay Zeka Geliştirme Platformu</span>
+      </span>
     </a>
     <a class="btn btn-secondary" href="{{ '/admin/system' if is_admin else '/' }}">{{ 'Yönetim paneli' if is_admin else 'Platforma git' }}</a>
   </header>

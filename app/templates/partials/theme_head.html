@@ -1,0 +1,12 @@
+<meta name="theme-color" content="#f5f6f8">
+<script>
+  // Runs before the stylesheets apply so a dark page never flashes light.
+  // An explicit choice (localStorage) wins; otherwise follow the OS setting.
+  (function () {
+    var stored = null;
+    try { stored = localStorage.getItem("aifactory-theme"); } catch (e) {}
+    var dark = stored === "dark" || (stored !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+    document.querySelector('meta[name="theme-color"]').content = dark ? "#0e131a" : "#f5f6f8";
+  })();
+</script>
