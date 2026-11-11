@@ -173,6 +173,22 @@ def resolve_mlflow_cli(
     )
 
 
+def with_window_title(settings_json: str, workspace_name: str) -> str:
+    """Add the browser tab title "AI Factory - <workspace name>" to VS Code settings.
+
+    ``${...}`` would be expanded by VS Code, so it is broken up in the name.
+    Without a name the opened folder's name is used.
+    """
+    name = "".join(
+        character for character in str(workspace_name or "") if ord(character) >= 32
+    ).strip()[:120]
+    values = json.loads(settings_json)
+    values["window.title"] = (
+        "AI Factory - " + (name.replace("${", "$ {") if name else "${rootName}")
+    )
+    return json.dumps(values, ensure_ascii=False, separators=(",", ":"))
+
+
 class PodmanExecutionError(Exception):
     """Exception raised when a podman command fails."""
     pass
@@ -348,6 +364,7 @@ class PodmanService:
         kilo_code_config: str = "",
         ai_ca_bundle: str = "",
         ai_skills_bundle: str = "",
+        workspace_name: str = "",
         progress_callback: Any | None = None,
     ) -> tuple[str, str]:
         """Create and run a new container for a workspace.
@@ -493,7 +510,9 @@ class PodmanService:
             if is_kilo_code:
                 cmd_args.extend([
                     "-e", "AIFACTORY_VSCODE_SETTINGS_JSON="
-                    + kilo_code_vscode_settings(kilo_code_config),
+                    + with_window_title(
+                        kilo_code_vscode_settings(kilo_code_config), workspace_name
+                    ),
                 ])
                 if kilo_code_config:
                     cmd_args.extend([
@@ -502,7 +521,8 @@ class PodmanService:
                     ])
             else:
                 cmd_args.extend([
-                    "-e", "AIFACTORY_VSCODE_SETTINGS_JSON=" + managed_vscode_settings(),
+                    "-e", "AIFACTORY_VSCODE_SETTINGS_JSON="
+                    + with_window_title(managed_vscode_settings(), workspace_name),
                 ])
                 cline_files = managed_cline_files(
                     settings.JUPYTER_AI_GATEWAY_URL,

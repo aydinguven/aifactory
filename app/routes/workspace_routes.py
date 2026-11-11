@@ -258,6 +258,7 @@ async def create_workspace(
             image_ref=image_ref,
             image_sha256=image_sha256,
             mlflow_environment=await workspace_mlflow_environment(db, current_user.id),
+            workspace_name=workspace.name,
             **ai_config.create_arguments(),
         )
         workspace.container_id = container_id
@@ -391,6 +392,7 @@ async def deploy_workspace_stream(
                 image_ref=image_ref,
                 image_sha256=image_sha256,
                 mlflow_environment=await workspace_mlflow_environment(db, current_user.id),
+                workspace_name=workspace.name,
                 **ai_config.create_arguments(),
                 progress_callback=emit_log,
             )
@@ -648,6 +650,7 @@ async def start_workspace_endpoint(
                     else await workspace_mlflow_environment(db, workspace.user_id)
                 ),
                 service_environment=await workspace_service_environment(db, workspace),
+                workspace_name=workspace.name,
                 **ai_config.create_arguments(),
             )
             workspace.container_id = container_id

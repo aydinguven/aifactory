@@ -827,8 +827,11 @@ class WorkerAgent:
                 "accelerator_cdi_name", "image_ref", "image_sha256",
                 "mlflow_environment", "service_environment", "ai_gateway_token",
                 "kilo_code_config", "ai_ca_bundle", "ai_skills_bundle",
+                "workspace_name",
             }
             args = {key: value for key, value in payload.items() if key in allowed}
+            if not isinstance(args.get("workspace_name", ""), str):
+                args.pop("workspace_name")
             token = args.get("ai_gateway_token")
             if token is not None and (
                 not isinstance(token, str)

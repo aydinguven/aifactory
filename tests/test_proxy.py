@@ -517,3 +517,34 @@ def test_worker_requests_client_subprotocols_upstream():
     assert 'payload.get("subprotocols")' in source
     # The negotiated value has to travel back so the browser handshake matches.
     assert '"subprotocol"' in source
+
+
+@pytest.mark.asyncio
+async def test_code_server_icons_are_replaced_by_the_ai_factory_icon(client: AsyncClient, monkeypatch):
+    class NoUpstreamClient:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("icon requests must not reach code-server")
+
+    monkeypatch.setattr(proxy_module.httpx, "AsyncClient", NoUpstreamClient)
+    register = await client.post(
+        "/api/auth/register",
+        json={"username": "icon_user", "email": "icon@test.com", "password": "Password123!"},
+    )
+    headers = {"Authorization": f"Bearer {register.json()['access_token']}"}
+    workspace = await client.post(
+        "/api/workspaces",
+        json={"name": "Icon IDE", "template_id": "jupyter-python", "flavor_id": "t1.nano"},
+        headers=headers,
+    )
+    base = f"/proxy/{workspace.json()['id']}/_static/src/browser/media"
+
+    svg = await client.get(f"{base}/favicon-dark-support.svg", headers=headers)
+    assert svg.status_code == 200
+    assert svg.content == (proxy_module._STATIC_DIR / "favicon.svg").read_bytes()
+    for name, media_type in (("favicon.ico", "image/x-icon"), ("pwa-icon-192.png", "image/png")):
+        response = await client.get(f"{base}/{name}", headers=headers)
+        assert response.status_code == 200
+        assert response.headers["content-type"] == media_type
+    # Unauthenticated requests are still rejected before any icon is served.
+    client.cookies.clear()
+    assert (await client.get(f"{base}/favicon.ico")).status_code == 401
