@@ -38,6 +38,14 @@
   function initLoggingSettings() {
     const form = document.getElementById("logging-settings-form");
     if (!form) return;
+    // TLS verification and the CA bundle apply only to the TLS protocol.
+    const tlsFields = form.querySelectorAll("[data-tls-only]");
+    const showTlsFields = () => {
+      const tls = form.elements.forward_protocol.value === "tls";
+      tlsFields.forEach(element => { element.hidden = !tls; });
+    };
+    form.elements.forward_protocol.addEventListener("change", showTlsFields);
+    showTlsFields();
     const status = document.getElementById("logging-form-status");
     const badge = document.getElementById("log-forwarding-status-badge");
     const note = document.getElementById("logging-revision-note");
@@ -108,7 +116,16 @@
     let counters = "—";
     let lastError = "";
     if (forwarding.enabled) {
-      forwardCell = `<span class="badge ${forwarding.connected ? "badge-running" : "badge-error"}">${forwarding.connected ? "Bağlı" : "Bağlantı yok"}</span> <small class="text-muted">${esc(forwarding.destination)} · ${esc(forwarding.format)}</small>`;
+      // A forwarder opens its connection with the first record. A worker that
+      // has logged nothing to forward yet is waiting, not disconnected.
+      const udp = String(forwarding.destination || "").endsWith("/udp");
+      let state = ["badge-error", "Bağlantı yok", "Son gönderim denemesi başarısız oldu."];
+      if (forwarding.connected) {
+        state = ["badge-running", udp ? "Gönderiyor" : "Bağlı", udp ? "UDP teslimatı doğrulanamaz; kayıtlar gönderildi." : "Toplayıcıya bağlı."];
+      } else if (!forwarding.last_error && !forwarding.sent) {
+        state = ["badge-neutral", "Bekliyor", "Henüz yönlendirilecek kayıt oluşmadı; bağlantı ilk kayıtla açılır."];
+      }
+      forwardCell = `<span class="badge ${state[0]}" title="${esc(state[2])}">${state[1]}</span> <small class="text-muted">${esc(forwarding.destination)} · ${esc(forwarding.format)}</small>`;
       counters = `${esc(forwarding.sent)} / ${esc(forwarding.queued)} / ${esc(forwarding.dropped)}`;
       if (forwarding.last_error) lastError = `${esc(forwarding.last_error)}<br><small class="text-muted">${esc(formatDate(forwarding.last_error_at))}</small>`;
     }
