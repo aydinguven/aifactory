@@ -69,13 +69,13 @@
       </select>
       <small class="form-help">LEEF, QRadar'da özel ayrıştırıcı gerektirmez.</small>
     </label>
-    <label style="display:flex;gap:.5rem;align-items:center;">
+    <label style="display:flex;gap:.5rem;align-items:center;" data-tls-only>
       <input type="checkbox" class="toggle" role="switch" name="forward_tls_verify" {% if ls.forward_tls_verify %}checked{% endif %}>
       <span>TLS sertifikasını doğrula</span>
     </label>
   </div>
-  <label class="form-group">
-    <span class="form-label">Toplayıcı CA paketi (isteğe bağlı, yalnızca TLS)</span>
+  <label class="form-group" data-tls-only>
+    <span class="form-label">Toplayıcı CA paketi (isteğe bağlı)</span>
     <textarea class="form-input" name="forward_ca_pem" rows="4" spellcheck="false" style="font-family: monospace; font-size: 0.8rem;" placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----">{{ ls.forward_ca_pem }}</textarea>
     <small class="form-help">Boşsa sistem güven deposu kullanılır.</small>
   </label>

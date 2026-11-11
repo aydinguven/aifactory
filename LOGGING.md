@@ -75,6 +75,7 @@ this.
 | `logging.settings.update` | Admin changed the logging policy; `changed` lists the fields. |
 | `worker.connect`, `worker.disconnect` | A worker tunnel opened or closed. |
 | `worker.auth` | A request with an unknown, disabled or wrong worker token (outcome `denied`). |
+| `logging.settings.applied` | A worker applied a logging policy revision, at start (cached policy) or after a change. This is the first event QRadar receives from each worker. |
 
 `outcome` is `success` (HTTP < 400), `denied` (401 or 403) or `failure`.
 Failures and denials are logged as WARNING. Worker-token API calls and model
@@ -117,6 +118,9 @@ Saving applies the policy on the controller immediately. Workers fetch
 cache the last policy in the workspace root so forwarding resumes after a
 restart. The status table on the admin page shows each worker's applied
 revision, file state, and forwarding counters from its latest heartbeat.
+A forwarder connects with its first record, so a node that has sent nothing
+yet shows **Bekliyor**. UDP nodes show **Gönderiyor** instead of **Bağlı**,
+because UDP delivery cannot be confirmed.
 
 ## Request IDs
 

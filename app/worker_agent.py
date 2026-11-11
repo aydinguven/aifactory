@@ -42,6 +42,7 @@ from app.release_catalog import semantic_version
 from app.jupyter_ai import normalize_ca_bundle
 from app.schemas.jupyter_ai_settings import JupyterAiModel
 from app import logging_setup
+from app.audit import audit_event
 from app.logging_settings import runtime_config
 from app.schemas.logging_settings import WorkerLoggingSettings
 from app.worker_gpu import discover_nvidia_capabilities
@@ -580,6 +581,16 @@ class WorkerAgent:
         logging_setup.apply_config(
             runtime_config(value, managed=value.managed, revision=value.revision)
         )
+        if value.managed:
+            # One audit record per applied policy, so the collector receives a
+            # first event from every worker and the forwarding path is proven
+            # without waiting for a warning.
+            audit_event(
+                "logging.settings.applied",
+                target=os.environ.get("AIFACTORY_NODE_ID", ""),
+                revision=value.revision,
+                forwarding=value.forward_enabled,
+            )
 
     def load_cached_logging_settings(self) -> None:
         try:
