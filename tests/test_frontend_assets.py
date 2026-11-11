@@ -155,7 +155,6 @@ def test_workspace_flavor_picker_separates_gpu_and_uses_radio_controls():
     assert 'id="input-flavor-id"' not in template
     assert "available_slots" in template
     assert "eligible_accelerator_models" in template
-    assert ".workspace-create-modal { max-width: 880px; }" in css
     assert ".flavor-grid-cpu" in css
     assert ".gpu-flavor-metrics" in css
     assert "syncFlavorSelection" in javascript

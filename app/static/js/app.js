@@ -1327,7 +1327,10 @@ function initWorkspaceCreationModal() {
       return;
     }
 
-    if (terminalBox) terminalBox.style.display = "block";
+    if (terminalBox) {
+      terminalBox.style.display = "block";
+      terminalBox.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
     if (terminal) terminal.innerHTML = "";
     if (statusBadge) {
       statusBadge.className = "badge badge-creating";
