@@ -200,13 +200,16 @@
 
 <div id="create-modal" class="modal-backdrop">
   <div class="modal workspace-create-modal" data-tour="workspace-create-dialog" role="dialog" aria-modal="true" aria-labelledby="create-modal-title">
-    <div class="card-header" style="margin-bottom: 1.5rem;">
+    <div class="card-header workspace-create-header">
       <h2 id="create-modal-title" class="card-title">Bulut Çalışma Alanı Oluştur</h2>
       <button id="btn-close-create-modal" class="modal-close" type="button" aria-label="Kapat">&times;</button>
     </div>
 
     {% if templates and flavors %}
-    <form id="create-workspace-form">
+    <form id="create-workspace-form" class="workspace-create-form">
+      <div class="workspace-create-body">
+      <div class="workspace-create-columns">
+      <div class="workspace-create-column">
       <div class="form-group">
         <label class="form-label" for="input-workspace-name">Çalışma Alanı Adı</label>
         <input type="text" id="input-workspace-name" data-tour="workspace-name" class="form-input" placeholder="örn. veri-analizi" aria-describedby="workspace-name-help" required minlength="2" maxlength="60" pattern="[a-zA-Z0-9_\- ]+">
@@ -214,6 +217,26 @@
           Benzersiz bir ad seçin. A–Z, rakam, boşluk, alt çizgi ve tire kullanabilirsiniz.
         </p>
       </div>
+
+      <fieldset class="form-group workspace-template-picker">
+        <legend class="form-label">Geliştirme Ortamı Şablonu</legend>
+        <div class="template-grid" data-tour="template-picker">
+          {% for tpl in templates %}
+            <label class="selectable-card template-card {% if loop.first %}selected{% endif %}"{% if tpl.requires_accelerator %} data-requires-gpu="true"{% endif %} title="{{ tpl.description }}{% if tpl.features %} · {{ tpl.features[:2]|join(', ') }}{% endif %}">
+              <input class="card-choice-input" type="radio" name="template_id" value="{{ tpl.id }}" aria-labelledby="template-title-{{ loop.index }}" aria-describedby="template-description-{{ loop.index }}"{% if loop.first %} checked{% endif %}>
+              <span class="card-selected-mark" aria-hidden="true">✓</span>
+              <span class="template-card-heading">
+                <span class="template-card-icon" aria-hidden="true">
+                  {% if 'terminal' in tpl.id %}&gt;_{% elif 'cuda' in tpl.id %}GPU{% elif 'react' in tpl.id %}⚛{% elif 'python' in tpl.id %}Py{% elif 'java' in tpl.id %}J{% elif 'jupyter' in tpl.id %}Jp{% else %}📦{% endif %}
+                </span>
+                <span class="template-card-title" id="template-title-{{ loop.index }}">{{ tpl.name }}</span>
+                {% if tpl.requires_accelerator %}<span class="badge badge-running template-card-gpu">GPU</span>{% endif %}
+              </span>
+              <span class="template-card-description" id="template-description-{{ loop.index }}">{{ tpl.description }}{% if tpl.requires_accelerator %}<span class="sr-only"> GPU profili gerekir.</span>{% endif %}</span>
+            </label>
+          {% endfor %}
+        </div>
+      </fieldset>
 
       <details class="workspace-optional-settings">
         <summary>İsteğe bağlı ayarlar <span>Açıklama, çalışma süresi{% if placement_options.tags %}, yerleşim{% endif %}</span></summary>
@@ -225,26 +248,23 @@
 
           <div class="form-group">
             <label class="form-label" for="input-auto-stop">Maksimum Çalışma Süresi</label>
-            <p class="form-help">Süre her başlatmada sıfırlanır. Aktif IDE oturumları ve çalışan işler olsa da süre dolunca durdurulur.</p>
-            <select id="input-auto-stop" class="form-input" style="background: var(--bg-input); color: var(--heading);">
+            <select id="input-auto-stop" class="form-input" aria-describedby="auto-stop-help">
               <option value="0" selected>Devre Dışı (Sürekli Çalışsın)</option>
               <option value="30">30 Dakika Sonra Durdur</option>
               <option value="60">1 Saat Sonra Durdur</option>
               <option value="120">2 Saat Sonra Durdur</option>
               <option value="240">4 Saat Sonra Durdur</option>
             </select>
-            <small style="color: var(--text-muted); font-size: 0.72rem; display: block; margin-top: 0.25rem;">
-              RAM ve CPU tasarrufu sağlamak için container durdurulur; dosyalarınız eksiksiz saklanır ve tek tıkla devam ettirilebilir.
-            </small>
+            <p class="form-help" id="auto-stop-help">Süre her başlatmada sıfırlanır; dolunca container durdurulur. Dosyalarınız saklanır ve tek tıkla devam ettirilebilir.</p>
           </div>
 
           {% if placement_options.tags %}
           <div class="form-group" id="placement-picker">
             <span class="form-label">Gerekli Etiketler (İsteğe Bağlı)</span>
             <p class="form-help">Çalışma alanı yalnızca seçilen etiketlerin tümünü taşıyan bir worker'a yerleşir. GPU profilleri GPU worker'larda, CPU profilleri CPU worker'larda çalışır.</p>
-            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem 1rem;">
+            <div class="placement-tag-options">
               {% for tag in placement_options.tags %}
-                <label style="display: flex; gap: 0.35rem; align-items: center; font-size: 0.8rem;" title="{{ tag.description }}">
+                <label title="{{ tag.description }}">
                   <input type="checkbox" class="input-placement-tag" value="{{ tag.name }}">
                   <span>{{ tag.name }}</span>
                 </label>
@@ -254,41 +274,13 @@
           {% endif %}
         </div>
       </details>
+      </div>
 
-      <fieldset class="form-group workspace-template-picker">
-        <legend class="form-label">Geliştirme Ortamı Şablonu</legend>
-        <div class="grid grid-cols-2" data-tour="template-picker" style="gap: 0.75rem;">
-          {% for tpl in templates %}
-            <label class="selectable-card template-card {% if loop.first %}selected{% endif %}"{% if tpl.requires_accelerator %} data-requires-gpu="true"{% endif %}>
-              <input class="card-choice-input" type="radio" name="template_id" value="{{ tpl.id }}" aria-labelledby="template-title-{{ loop.index }}" aria-describedby="template-description-{{ loop.index }}"{% if loop.first %} checked{% endif %}>
-              <span class="card-selected-mark" aria-hidden="true">✓</span>
-              <span class="template-card-heading">
-                <span class="template-card-icon" aria-hidden="true">
-                  {% if 'terminal' in tpl.id %}&gt;_{% elif 'cuda' in tpl.id %}GPU{% elif 'react' in tpl.id %}⚛{% elif 'python' in tpl.id %}Py{% elif 'java' in tpl.id %}J{% elif 'jupyter' in tpl.id %}Jp{% else %}📦{% endif %}
-                </span>
-                <span class="template-card-title" id="template-title-{{ loop.index }}">{{ tpl.name }}</span>
-              </span>
-              <span class="template-card-description" id="template-description-{{ loop.index }}">{{ tpl.description }}{% if tpl.requires_accelerator %}<span class="sr-only"> GPU profili gerekir.</span>{% endif %}</span>
-              <span class="template-card-features">
-                {% if tpl.requires_accelerator %}
-                  <span class="badge badge-running">GPU profili gerekir</span>
-                {% endif %}
-                {% for feat in tpl.features[:2] %}
-                  <span class="badge badge-neutral">{{ feat }}</span>
-                {% endfor %}
-              </span>
-            </label>
-          {% endfor %}
-        </div>
-      </fieldset>
-
+      <div class="workspace-create-column">
       <div class="form-group flavor-picker" id="flavor-picker" data-tour="flavor-picker" role="group" aria-labelledby="flavor-picker-title" tabindex="-1">
         <div class="flavor-picker-heading">
-          <div>
-            <span class="form-label" id="flavor-picker-title">Kaynak Profili</span>
-            <p>CPU/RAM profili veya GPU hızlandırmalı çalışma alanı seçin.</p>
-            <p id="workspace-flavor-error" class="text-destructive" role="alert" hidden></p>
-          </div>
+          <span class="form-label" id="flavor-picker-title">Kaynak Profili</span>
+          <p id="workspace-flavor-error" class="text-destructive" role="alert" hidden></p>
         </div>
 
         <section class="flavor-section" aria-labelledby="cpu-flavor-heading">
@@ -298,13 +290,13 @@
           </div>
           <div class="flavor-grid flavor-grid-cpu">
             {% for flav in flavors if not flav.accelerator_count %}
-            <label class="selectable-card flavor-card {% if flav.id == default_flavor_id %}selected{% endif %}" data-flavor-id="{{ flav.id }}" data-flavor-summary="{{ flav.display_name }} · {{ flav.cpus }} CPU · {{ flav.memory_display }}">
+            <label class="selectable-card flavor-card {% if flav.id == default_flavor_id %}selected{% endif %}" data-flavor-id="{{ flav.id }}" data-flavor-summary="{{ flav.display_name }} · {{ flav.cpus }} CPU · {{ flav.memory_display }}"{% if flav.description %} title="{{ flav.description }}"{% endif %}>
               <input class="card-choice-input" type="radio" name="flavor_id" value="{{ flav.id }}" {% if flav.id == default_flavor_id %}checked{% endif %}>
               <span class="card-selected-mark" aria-hidden="true">✓</span>
               <span class="flavor-card-title">{{ flav.display_name or flav.name }}</span>
               <span class="flavor-card-code">{{ flav.id }}</span>
               <span class="flavor-card-resources">{{ flav.cpus }} CPU <b>·</b> {{ flav.memory_display }}</span>
-              <span class="flavor-card-description">{{ flav.description }}</span>
+              {% if flav.description %}<span class="sr-only">{{ flav.description }}</span>{% endif %}
             </label>
             {% endfor %}
           </div>
@@ -317,7 +309,11 @@
           </div>
           <div class="flavor-grid-gpu">
             {% for flav in flavors if flav.accelerator_count %}
-            <label class="selectable-card flavor-card flavor-card-gpu {% if flav.available is sameas false %}is-unavailable{% endif %}" data-flavor-id="{{ flav.id }}" data-flavor-summary="{{ flav.display_name }} · {{ flav.cpus }} CPU · {{ flav.memory_display }} · GPU slot" data-gpu-quota-ok="{{ 'false' if (flav.gpu_quota_remaining or 0) < flav.accelerator_count else 'true' }}">
+            {% set mode_labels = [] %}
+            {% if 'shared' in flav.allocation_modes %}{% set _ = mode_labels.append('Paylaşımlı GPU slotu') %}{% endif %}
+            {% if 'mig' in flav.allocation_modes %}{% set _ = mode_labels.append('İzole MIG') %}{% endif %}
+            {% if 'dedicated' in flav.allocation_modes %}{% set _ = mode_labels.append('Özel GPU') %}{% endif %}
+            <label class="selectable-card flavor-card flavor-card-gpu {% if flav.available is sameas false %}is-unavailable{% endif %}" data-flavor-id="{{ flav.id }}" data-flavor-summary="{{ flav.display_name }} · {{ flav.cpus }} CPU · {{ flav.memory_display }} · GPU slot" data-gpu-quota-ok="{{ 'false' if (flav.gpu_quota_remaining or 0) < flav.accelerator_count else 'true' }}" title="Tahsis: {{ mode_labels|join(' / ') if mode_labels else 'Kapasite oluştuğunda otomatik' }}. GPU belleği paylaşımlı fiziksel kartlarda best-effort, MIG aygıtlarında izoledir.">
               <input class="card-choice-input" type="radio" name="flavor_id" value="{{ flav.id }}" {% if flav.available is sameas false %}disabled{% endif %}>
               <span class="card-selected-mark" aria-hidden="true">✓</span>
               <div class="gpu-flavor-main">
@@ -335,7 +331,7 @@
                 <div class="gpu-flavor-metrics">
                   <span><strong>{{ flav.cpus }}</strong> CPU</span>
                   <span><strong>{{ flav.memory_display }}</strong> RAM</span>
-                  <span><strong>{{ '%.0f'|format(flav.accelerator_memory_mb / 1024) }} GB+</strong> GPU hedefi</span>
+                  <span><strong>{{ '%.0f'|format(flav.accelerator_memory_mb / 1024) }} GB+</strong> GPU</span>
                   <span><strong>{{ flav.gpu_quota_remaining }}</strong> kota kaldı</span>
                 </div>
                 <div class="gpu-flavor-details">
@@ -343,16 +339,7 @@
                     <b>Uygun modeller:</b>
                     <span class="gpu-flavor-models">{{ flav.eligible_accelerator_models|join(', ') if flav.eligible_accelerator_models else 'Uygun GPU worker bekleniyor' }}</span>
                   </span>
-                  <span>
-                    <b>Tahsis:</b>
-                    {% set mode_labels = [] %}
-                    {% if 'shared' in flav.allocation_modes %}{% set _ = mode_labels.append('Paylaşımlı GPU slotu') %}{% endif %}
-                    {% if 'mig' in flav.allocation_modes %}{% set _ = mode_labels.append('İzole MIG') %}{% endif %}
-                    {% if 'dedicated' in flav.allocation_modes %}{% set _ = mode_labels.append('Özel GPU') %}{% endif %}
-                    {{ mode_labels|join(' / ') if mode_labels else 'Kapasite oluştuğunda otomatik' }}
-                  </span>
                 </div>
-                <p class="gpu-flavor-note">GPU belleği paylaşımlı fiziksel kartlarda best-effort, MIG aygıtlarında izoledir.</p>
                 <div class="gpu-flavor-unavailable" role="note" {% if flav.available is not sameas false %}hidden{% endif %}>{{ flav.availability_message if flav.available is sameas false else '' }}</div>
               </div>
             </label>
@@ -360,22 +347,25 @@
           </div>
         </section>
       </div>
+      </div>
+      </div>
 
-      <div id="deploy-terminal-box" style="display: none; margin-top: 1.25rem;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-          <label class="form-label" style="margin-bottom: 0; display: flex; align-items: center; gap: 0.4rem;">
+      <div id="deploy-terminal-box" class="deploy-terminal-box" style="display: none;">
+        <div class="deploy-terminal-heading">
+          <span class="form-label">
             <span class="pulse-dot"></span>
             <span>Kurulum Logları</span>
-          </label>
+          </span>
           <span id="deploy-status-badge" class="badge badge-creating" role="status">Kuruluyor...</span>
         </div>
-        <div id="deploy-terminal" class="terminal-window" style="max-height: 220px; font-size: 0.8rem; line-height: 1.4; padding: 0.75rem;"></div>
+        <div id="deploy-terminal" class="terminal-window"></div>
+      </div>
       </div>
 
       <div id="modal-footer-actions" class="workspace-create-actions">
         <div id="selected-flavor-summary" class="selected-flavor-summary" role="status" aria-live="polite"></div>
         <button type="button" id="btn-cancel-deploy" class="btn btn-secondary">İptal</button>
-        <button type="submit" id="btn-submit-deploy" data-tour="workspace-create-submit" class="btn btn-primary" style="padding: 0.65rem 1.5rem; font-weight: 600;">Çalışma Alanını Kur</button>
+        <button type="submit" id="btn-submit-deploy" data-tour="workspace-create-submit" class="btn btn-primary">Çalışma Alanını Kur</button>
       </div>
     </form>
     {% else %}
