@@ -19,7 +19,7 @@ from app.config import settings
 from app.database import engine, init_db
 
 
-CURRENT_SCHEMA_VERSION = 40
+CURRENT_SCHEMA_VERSION = 41
 # ai_config_digest of the workspaces migration 33 moved off TCMB Code.
 TCMB_CODE_MIGRATED_DIGEST = "tcmb-code-migrated"
 
@@ -1260,6 +1260,9 @@ async def upgrade() -> None:
         if 40 not in applied:
             # init_db creates the portable logging_settings table.
             await _record_version(conn, 40, "log retention and forwarding settings")
+        if 41 not in applied:
+            # init_db creates the portable assistant_settings and api_tokens tables.
+            await _record_version(conn, 41, "in-app assistant settings and MCP access tokens")
 
 
 async def current_version() -> int:

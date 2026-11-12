@@ -1,0 +1,64 @@
+<section class="card admin-integration-card" id="assistant-integration" style="margin-bottom: 2rem;">
+  <div class="card-header">
+    <div>
+      <h2 class="card-title">Asistan ve MCP</h2>
+      <p class="admin-section-description">Uygulama içi yardım asistanı ve dış MCP istemcileri aynı araçları kullanır. Her araç, isteği yapan kullanıcının yetkileriyle çalışır; yönetici araçları yalnızca yöneticilere görünür.</p>
+    </div>
+    <span id="assistant-settings-badge" class="badge badge-stopped">Yükleniyor…</span>
+  </div>
+  <form id="assistant-settings-form" autocomplete="off">
+    <label style="display:flex;gap:.5rem;align-items:center;margin-bottom:1rem;"><input type="checkbox" class="toggle" role="switch" name="enabled"><span>Yan panel asistanını etkinleştir</span></label>
+    <div class="grid grid-cols-2" style="gap:.75rem;margin-bottom:.75rem;">
+      <label class="form-group" style="margin:0;">
+        <span class="form-label">Asistan modeli (LiteLLM model adı)</span>
+        <input class="form-input" name="model" maxlength="255" placeholder="örn. qwen3.6-35b">
+        <small class="form-help" style="display:block;margin-top:.4rem;">Model araç çağırmayı (tool calling) desteklemelidir. İstekler GenAI bölümündeki LiteLLM adresine, her kullanıcının kendi workspace anahtarıyla gider; GenAI hesabı olmayan kullanıcı asistanı kullanamaz.</small>
+      </label>
+      <div>
+        <label style="display:flex;gap:.5rem;align-items:center;margin-bottom:.75rem;"><input type="checkbox" class="toggle" role="switch" name="mcp_enabled"><span>MCP uç noktasını (<code>/mcp</code>) ve kişisel erişim token'larını etkinleştir</span></label>
+        <label style="display:flex;gap:.5rem;align-items:center;"><input type="checkbox" class="toggle" role="switch" name="allow_actions"><span>İşlem araçlarına izin ver (çalışma alanı oluştur / başlat / durdur)</span></label>
+      </div>
+    </div>
+    <p class="text-muted">Panelde işlemler kullanıcının onay kartını onaylamasıyla, MCP'de ise yalnızca "okuma ve işlem" yetkili token'larla çalışır. Silme işlemi sunulmaz. Tüm işlem çağrıları denetim günlüğüne yazılır.</p>
+    <div class="table-actions"><button class="btn btn-primary" type="submit">Asistan Ayarlarını Kaydet</button><span id="assistant-settings-status" class="quota-form-status" role="status" aria-live="polite"></span></div>
+  </form>
+</section>
+<script>
+(() => {
+  const form = document.getElementById("assistant-settings-form");
+  const badge = document.getElementById("assistant-settings-badge");
+  const status = document.getElementById("assistant-settings-status");
+  const fill = (data) => {
+    form.elements.enabled.checked = data.enabled;
+    form.elements.model.value = data.model || "";
+    form.elements.mcp_enabled.checked = data.mcp_enabled;
+    form.elements.allow_actions.checked = data.allow_actions;
+    const parts = [data.enabled ? "Asistan açık" : "Asistan kapalı", data.mcp_enabled ? "MCP açık" : "MCP kapalı"];
+    badge.textContent = parts.join(" · ");
+    badge.className = `badge ${data.enabled || data.mcp_enabled ? "badge-running" : "badge-stopped"}`;
+  };
+  fetch("/api/admin/assistant-settings").then((r) => r.json()).then(fill).catch(() => { badge.textContent = "Okunamadı"; });
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    status.textContent = "Kaydediliyor…";
+    const response = await fetch("/api/admin/assistant-settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        enabled: form.elements.enabled.checked,
+        model: form.elements.model.value,
+        mcp_enabled: form.elements.mcp_enabled.checked,
+        allow_actions: form.elements.allow_actions.checked,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      status.textContent = typeof payload.detail === "string" ? payload.detail : "Kaydedilemedi.";
+      return;
+    }
+    fill(payload);
+    status.textContent = "Kaydedildi.";
+    try { sessionStorage.removeItem("aifactory-assistant-status"); } catch (error) { /* ignore */ }
+  });
+})();
+</script>

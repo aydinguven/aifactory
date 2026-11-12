@@ -23,6 +23,12 @@ from app.routes.worker_bootstrap_routes import bootstrap_router
 from app.routes.view_routes import view_router
 from app.routes.workspace_routes import workspace_router
 from app.routes.mlflow_routes import mlflow_router
+from app.routes.assistant_routes import (
+    assistant_admin_router,
+    assistant_router,
+    token_router,
+)
+from app.routes.mcp_routes import mcp_router
 from app.routes.image_release_routes import image_release_router
 from app.routes.onboarding_routes import onboarding_router
 from app.routes.genai_routes import genai_admin_router, genai_router
@@ -287,4 +293,8 @@ app.include_router(proxy_router)
 app.include_router(download_router)
 app.include_router(bootstrap_router)
 app.include_router(health_router)
+app.include_router(assistant_router)
+app.include_router(token_router)
+app.include_router(assistant_admin_router)
+app.include_router(mcp_router)
 app.include_router(view_router)

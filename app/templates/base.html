@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/static/css/style.css?v={{ static_version }}">
   <link rel="stylesheet" href="/static/css/kurumsal.css?v={{ static_version }}">
   {% if user %}<link rel="stylesheet" href="/static/css/onboarding-tour.css?v={{ static_version }}">{% endif %}
+  {% if user %}<link rel="stylesheet" href="/static/css/assistant.css?v={{ static_version }}">{% endif %}
   <link rel="icon" href="/static/favicon.svg?v={{ static_version }}" type="image/svg+xml">
 </head>
 <body class="{% block body_class %}{% endblock %}"{% if user %} data-onboarding-user="true" data-user-role="{{ user.role.value if user.role.value is defined else user.role }}"{% endif %}>
@@ -53,6 +54,10 @@
       <span class="sr-only">Koyu tema</span>
     </button>
     {% if user %}
+      <button type="button" class="assistant-toggle" data-assistant-toggle aria-controls="assistant-panel" aria-expanded="false" title="AI Factory Asistanı" hidden>
+        <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><path d="M4.5 5.5h15a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H12l-4.5 3.5v-3.5h-3a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8.5 10h7M8.5 13h4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <span class="sr-only">AI Factory Asistanı</span>
+      </button>
       {% set display_name = user.full_name or user.username %}
       <details class="user-menu" data-user-menu>
         <summary class="user-menu-trigger{% if path == '/profile' %} active{% endif %}" data-tour="nav-profile" title="{{ display_name }}">
@@ -78,6 +83,22 @@
     {% block content %}{% endblock %}
   </main>
 
+  {% if user %}
+  <aside class="assistant-panel" id="assistant-panel" aria-label="AI Factory Asistanı" aria-hidden="true">
+    <div class="assistant-header">
+      <h2>AI Factory Asistanı<small>Yalnızca uygulama içi yardım · yetkileriniz dahilinde</small></h2>
+      <button type="button" class="btn btn-secondary btn-xs" data-assistant-reset>Yeni sohbet</button>
+      <button type="button" class="btn btn-secondary btn-xs" data-assistant-close aria-label="Asistanı kapat">✕</button>
+    </div>
+    <div class="assistant-messages" data-assistant-messages aria-live="polite"></div>
+    <form class="assistant-form" data-assistant-form autocomplete="off">
+      <textarea class="form-input" rows="1" maxlength="4000" placeholder="AI Factory hakkında sorun…" aria-label="Asistana mesaj" required></textarea>
+      <button type="submit" class="btn btn-primary">Gönder</button>
+    </form>
+    <p class="assistant-note">Yanıtlar LiteLLM anahtarınızla üretilir. Değişiklik yapan işlemler onayınızla çalışır.</p>
+  </aside>
+  {% endif %}
+
   <footer class="site-footer">
     <div class="site-footer-inner">
       <span><strong>TCMB AI Factory</strong> · Yapay Zeka Geliştirme Platformu</span>
@@ -87,6 +108,7 @@
 
   <script src="/static/js/app.js?v={{ static_version }}"></script>
   {% if user %}<script src="/static/js/onboarding-tour.js?v={{ static_version }}"></script>{% endif %}
+  {% if user %}<script src="/static/js/assistant.js?v={{ static_version }}"></script>{% endif %}
   <script>
     // Pop-up menus (account menu, "⋯" action menus) built on <details>:
     // close on a click outside, after choosing an item, and on Escape.

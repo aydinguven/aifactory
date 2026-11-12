@@ -35,6 +35,14 @@
 
 ## Decisions
 
+- 2026-11-12: in-app assistant and MCP endpoint (branch `feat/assistant-mcp`, migration 41, not released).
+  - **One tool layer** in `app/assistant/tools.py` for both. Handlers call the route functions directly, so ownership, quota and placement checks are the existing ones. Calling a route function skips its FastAPI dependencies, so `call_tool` itself enforces administrator-only tools and write permission. A new admin tool must set `admin=True`; a new state-changing tool must set `write=True`.
+  - **MCP** (`app/routes/mcp_routes.py`) is implemented by hand instead of with the `mcp` SDK: tools only, stateless, JSON responses, no SSE stream (GET answers 405). This keeps the offline bundle free of a new dependency. Checked against the official Python SDK client (2.3.0): initialize, tools/list, tools/call, ping. Authentication is a personal access token (`api_tokens`, SHA-256 only); cookies are ignored on `/mcp`.
+  - **Assistant** (`app/assistant/chat.py`): a tool-calling loop (at most 6 steps) against LiteLLM `/v1/chat/completions` with the user's stored workspace key (`genai.assistant_gateway`). No shared-key fallback. The reply is not streamed token by token; the panel shows progress events and then the whole answer.
+  - **Actions**: write tools are never run from the chat loop. The request becomes a signed card (JWT with its own audience, bound to the user, 5 minutes) and runs on `POST /api/assistant/actions`. The card is not single-use within those 5 minutes; a repeat hits the normal checks (for example the duplicate-name rule).
+  - **Not done**: automatic MCP configuration inside Kilo Code workspaces (would need a token issued and injected per workspace), a docs-search tool, MLflow deploy and delete actions, per-user rate limiting (LiteLLM budgets are the only spend limit).
+  - Tests: `tests/test_assistant.py`.
+
 - 2026-11-11: admin sidebar on the left edge, dark mode, UI consistency pass. Checked at 1440, 1024 and 390 px in both themes.
   - **Sidebar:** the admin menu is a full-height column on the window's left edge (sticky under the top bar) instead of a card inside the centred content. The page heading moved into the content column. Top bar and footer now span the full width so the brand lines up with the sidebar. Below 1180 px the menu still becomes chips above the content.
   - **Dark mode:** a sun/moon button in the top bar (also on the login page). The choice is stored in `localStorage` (`aifactory-theme`); without one the OS setting is followed. `partials/theme_head.html` sets `data-theme` on `<html>` before the stylesheets apply, so a dark page never flashes light; `/status` uses it too. Public share pages stay light: their CSP forbids inline scripts.

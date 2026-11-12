@@ -24,4 +24,104 @@
       <button type="button" class="btn btn-secondary btn-sm" data-onboarding-restart data-tour="tour-restart-profile" hidden>Canlı Turu Yeniden Başlat</button>
     </div>
   </section>
+
+  <section class="card" id="mcp-tokens" aria-labelledby="mcp-tokens-title" style="margin-top:1.5rem;" hidden>
+    <div class="card-header">
+      <div>
+        <h2 class="card-title" id="mcp-tokens-title">MCP Erişim Token'ları</h2>
+        <p class="admin-section-description">Kilo Code, Claude veya başka bir MCP istemcisini AI Factory'ye bağlayın. İstemci sizin adınıza ve yalnızca sizin yetkilerinizle çalışır.</p>
+      </div>
+      <span id="mcp-token-count" class="badge badge-stopped"></span>
+    </div>
+    <form id="mcp-token-form" autocomplete="off">
+      <div class="grid grid-cols-2" style="gap:.75rem;margin-bottom:.75rem;">
+        <label class="form-group" style="margin:0;"><span class="form-label">Ad</span><input class="form-input" name="name" maxlength="80" required placeholder="örn. Kilo Code - dizüstü"></label>
+        <label class="form-group" style="margin:0;"><span class="form-label">Yetki</span>
+          <select class="form-input" name="scope">
+            <option value="read">Salt okunur</option>
+            <option value="write">Okuma ve işlem (çalışma alanı oluştur / başlat / durdur)</option>
+          </select>
+        </label>
+        <label class="form-group" style="margin:0;"><span class="form-label">Geçerlilik (gün)</span><input class="form-input" name="expires_days" type="number" min="1" max="365" value="90" required></label>
+      </div>
+      <div class="table-actions"><button class="btn btn-primary" type="submit">Token Oluştur</button><span id="mcp-token-status" class="quota-form-status" role="status" aria-live="polite"></span></div>
+    </form>
+    <div id="mcp-token-reveal" class="token-reveal" hidden>
+      <strong>Token'ınız yalnızca şimdi gösterilir; kopyalayıp güvenli bir yerde saklayın.</strong>
+      <code id="mcp-token-value"></code>
+      <p class="text-muted" style="margin:.75rem 0 0;">MCP istemci yapılandırması:</p>
+      <code id="mcp-token-config" class="mcp-config"></code>
+    </div>
+    <div class="table-container" style="margin-top:1rem;">
+      <table class="table">
+        <thead><tr><th>Ad</th><th>Yetki</th><th>Token</th><th>Son kullanım</th><th>Bitiş</th><th>İşlem</th></tr></thead>
+        <tbody id="mcp-token-rows"><tr><td colspan="6" class="text-muted">Yükleniyor…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+  const section = document.getElementById("mcp-tokens");
+  const rows = document.getElementById("mcp-token-rows");
+  const form = document.getElementById("mcp-token-form");
+  const status = document.getElementById("mcp-token-status");
+  const reveal = document.getElementById("mcp-token-reveal");
+  const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const when = (value) => (value ? new Date(value).toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" }) : "—");
+
+  async function load() {
+    const response = await fetch("/api/tokens");
+    if (!response.ok) return;
+    const tokens = await response.json();
+    document.getElementById("mcp-token-count").textContent = `${tokens.length} token`;
+    rows.innerHTML = tokens.length ? tokens.map((token) => `
+      <tr>
+        <td><strong>${esc(token.name)}</strong></td>
+        <td>${token.scope === "write" ? "Okuma ve işlem" : "Salt okunur"}</td>
+        <td><code>${esc(token.token_prefix)}…</code></td>
+        <td>${when(token.last_used_at)}</td>
+        <td>${token.expired ? '<span class="badge badge-error">Süresi doldu</span>' : when(token.expires_at)}</td>
+        <td><button type="button" class="btn btn-danger btn-xs" data-token-delete="${token.id}" data-token-name="${esc(token.name)}">Sil</button></td>
+      </tr>`).join("") : '<tr><td colspan="6" class="text-muted">Henüz token oluşturulmadı.</td></tr>';
+  }
+
+  rows.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-token-delete]");
+    if (!button || !confirm(`"${button.dataset.tokenName}" token'ı silinsin mi? Bu token'ı kullanan istemciler bağlanamaz.`)) return;
+    await fetch(`/api/tokens/${button.dataset.tokenDelete}`, { method: "DELETE" });
+    load();
+  });
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    status.textContent = "";
+    const response = await fetch("/api/tokens", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: data.get("name"), scope: data.get("scope"), expires_days: Number(data.get("expires_days")) }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      status.textContent = typeof payload.detail === "string" ? payload.detail : "Token oluşturulamadı.";
+      return;
+    }
+    const url = `${window.location.origin}/mcp`;
+    document.getElementById("mcp-token-value").textContent = payload.token;
+    document.getElementById("mcp-token-config").textContent = JSON.stringify(
+      { mcpServers: { aifactory: { type: "streamable-http", url, headers: { Authorization: `Bearer ${payload.token}` } } } }, null, 2);
+    reveal.hidden = false;
+    form.reset();
+    load();
+  });
+
+  fetch("/api/assistant/status")
+    .then((response) => (response.ok ? response.json() : {}))
+    .then((state) => { if (state.mcp_enabled) { section.hidden = false; load(); } })
+    .catch(() => {});
+})();
+</script>
 {% endblock %}
