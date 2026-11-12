@@ -36,8 +36,11 @@ from app.models.directory_team import DirectoryTeam
 from app.models.flavor_settings import FlavorSettings
 from app.models.template_settings import TemplateSettings
 from app.models.skill import Skill
+from app.models.assistant import ApiToken, AssistantSettings
 
 __all__ = [
+    "ApiToken",
+    "AssistantSettings",
     "Base",
     "WorkspaceShare",
     "SessionSettings",

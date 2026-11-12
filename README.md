@@ -42,7 +42,25 @@ AI Factory is a lightweight, high-performance cloud development platform built w
 - **Managed MLflow Tracking & Registry View**: Administrators define one MLflow URL and TLS policy while every user supplies encrypted personal credentials. AI Factory browses experiments, runs, parameters, metrics, artifacts, registered models, versions, aliases, tags, and run-to-model lineage, then injects the effective MLflow environment into newly created or recreated workspaces.
 - **Kubernetes image releases**: The deploy modal's Kubernetes target builds a model version's serving image and publishes it to the deploy registry (Nexus) as `rfs_code/app_name:X.Y.Z`, for the platform team to re-tag and deploy. Admins define the registry and the RFS codes under Admin > Kubernetes. Users pick an RFS code and an app name in the modal, and the first release creates the application bound to that MLflow model. See `CONTAINERS.md`.
 
+- **In-app assistant and MCP endpoint**: An optional side panel answers questions about the user's own workspaces, quota, MLflow data and GenAI account, and can propose creating, starting or stopping a workspace. The same tools are served to external MCP clients at `/mcp`. See [Assistant and MCP](#assistant-and-mcp).
+
 ---
+
+## Assistant and MCP
+
+Both are off by default. An administrator turns them on under **Admin > Entegrasyonlar > Asistan ve MCP**.
+
+- **One tool layer** (`app/assistant/tools.py`) serves both. Each tool runs as one user and calls the same route functions as the web UI, so it returns only what that user may see. Administrator tools (workers, all users, all workspaces) are neither listed for nor callable by other users.
+- **Side panel**: the button appears in the top bar once the assistant is enabled and a model name is set. The model is called through the LiteLLM configured in the GenAI section, with the user's own workspace key (the one AI Factory already issues and stores for workspaces), so the user's budget and team limits apply. A user without a GenAI account cannot use the assistant; there is no shared-key fallback. The model must support tool calling.
+- **Actions need confirmation**: when the model asks to create, start or stop a workspace, the panel shows a confirmation card; the action runs only when the user presses **Onayla**. Deleting is not offered. The system prompt restricts the assistant to AI Factory topics, which is a prompt-level limit, not a guarantee; the data and action limits above do not depend on it.
+- **MCP**: users create personal access tokens under **Profil > MCP Erişim Token'ları** (shown once, stored as a SHA-256 hash, 1-365 days, at most 10 per user). A token acts as its owner. `Salt okunur` tokens see only read tools; `Okuma ve işlem` tokens also get the three workspace actions. The endpoint is Streamable HTTP at `https://<host>/mcp` with `Authorization: Bearer aif_...`; it is stateless, answers in JSON and offers tools only. Session cookies are not accepted on `/mcp`, and a token is not accepted anywhere else.
+- **Audit**: token creation and deletion, settings changes, every action call and every refused call are written to the audit log.
+
+Example client configuration:
+
+```json
+{"mcpServers": {"aifactory": {"type": "streamable-http", "url": "https://<host>/mcp", "headers": {"Authorization": "Bearer aif_..."}}}}
+```
 
 ## Sharing a workspace application
 

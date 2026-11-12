@@ -493,3 +493,26 @@ async def _discard_key(client: LiteLLMClient, token: str, alias: str = "") -> bo
     except (LiteLLMConnectionError, LiteLLMConfigurationError) as exc:
         logger.warning("Could not delete LiteLLM key: %s", exc)
         return False
+
+
+async def assistant_gateway(db: AsyncSession, user: User) -> tuple[str, str, bool | str]:
+    """LiteLLM URL, the user's own workspace key and the TLS setting.
+
+    The in-app assistant spends on the same per-user key that AI Factory
+    issues and stores for the user's workspaces, so the user's LiteLLM
+    budget and team limits apply. There is no shared-key fallback.
+    """
+    record = await _settings(db)
+    if not is_configured(record):
+        raise GenAiUnavailable("GenAI (LiteLLM) bağlantısı yapılandırılmamış.")
+    account = await _account(db, user)
+    if account is None:
+        raise GenAiUnavailable(
+            "Asistanı kullanmak için önce GenAI sekmesinden hesabınızı oluşturun."
+        )
+    async with _lock_for(user.id):
+        key = await _ensure_workspace_key(db, record, account)
+    if not key:
+        raise GenAiUnavailable("LiteLLM kullanıcınız bulunamadı; GenAI sekmesini kontrol edin.")
+    verify: bool | str = record.ca_cert_file or record.validate_tls
+    return record.base_url.rstrip("/"), key, verify
