@@ -116,6 +116,12 @@ digest-pinned Debian 13, because Rocky Linux 10 ships neither an X server nor a
 VNC server; Chromium itself comes from Debian security updates, so **rebuild the
 image regularly** to pick up browser fixes.
 
+- **Start page**: Chromium opens `containers/browser-chromium/start/index.html`
+  (baked in at `/opt/aifactory-browser/start/`) on every start and as its home
+  page, with cards for Merkez Asistan, Claude and ChatGPT. Edit that file to
+  change the cards, and `policies/managed.json` for the bookmarks. Because the
+  start page opens on every start, tabs from the previous session are not
+  restored; sign-ins are kept.
 - **Network**: the worker needs outbound access to the sites. With a
   TLS-inspecting proxy, put its CA in **Admin > Entegrasyonlar > Workspace AI** (the gateway CA
   bundle); the entrypoint imports it into Chromium's trust store on every start

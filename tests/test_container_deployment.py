@@ -183,6 +183,10 @@ def test_browser_workspace_image_is_pinned_and_proxy_compatible():
     assert 'from "./core/rfb.js"' in client
     assert 'src="/' not in client and 'href="/' not in client
     assert "location.pathname" in client
+    # noVNC reuses its send buffer; each message must be copied before send()
+    # or a WebSocket wrapper that sends later corrupts the VNC stream.
+    assert "data.slice()" in client
+    assert "new RFB(screen, openSocket()" in client
 
     managed = json.loads(
         (context / "policies" / "managed.json").read_text(encoding="utf-8")
@@ -192,7 +196,27 @@ def test_browser_workspace_image_is_pinned_and_proxy_compatible():
     assert managed["SyncDisabled"] is True
     bookmarks = {item.get("url") for item in managed["ManagedBookmarks"]}
     assert {"https://claude.ai/", "https://chatgpt.com/"} <= bookmarks
-    json.loads((context / "policies" / "recommended.json").read_text(encoding="utf-8"))
+    assert "https://merkezasistan.tcmb.gov.tr/" in bookmarks
+
+    # Chromium opens the bundled start page, which links the three assistants.
+    start_url = "file:///opt/aifactory-browser/start/index.html"
+    recommended = json.loads(
+        (context / "policies" / "recommended.json").read_text(encoding="utf-8")
+    )
+    assert recommended["RestoreOnStartup"] == 4
+    assert recommended["RestoreOnStartupURLs"] == [start_url]
+    assert recommended["HomepageLocation"] == start_url
+    assert "COPY start/index.html /opt/aifactory-browser/start/index.html" in containerfile
+    start_page = (context / "start" / "index.html").read_text(encoding="utf-8")
+    for link in (
+        "https://merkezasistan.tcmb.gov.tr/",
+        "https://claude.ai/",
+        "https://chatgpt.com/",
+    ):
+        assert f'href="{link}"' in start_page
+    # Self-contained: the page must render without any network request.
+    assert "<script" not in start_page and "<link" not in start_page
+    assert "url(" not in start_page and "<img" not in start_page
 
 
 def test_browser_template_matches_its_image_contract():

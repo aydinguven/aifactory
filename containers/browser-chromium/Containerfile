@@ -42,12 +42,16 @@ RUN ln -s /usr/share/novnc/core /opt/aifactory-browser/web/core \
     && ln -s /usr/share/novnc/vendor /opt/aifactory-browser/web/vendor \
     && test -r /opt/aifactory-browser/web/core/rfb.js
 
+# The page Chromium opens on start and as its home page.
+COPY start/index.html /opt/aifactory-browser/start/index.html
+
 # Managed policies are root-owned, so a workspace user cannot change them.
 COPY policies/managed.json /etc/chromium/policies/managed/aifactory.json
 COPY policies/recommended.json /etc/chromium/policies/recommended/aifactory.json
 COPY openbox-rc.xml /etc/xdg/openbox/rc.xml
 COPY entrypoint.sh /usr/local/bin/aifactory-browser-entrypoint
 RUN chmod 0644 /opt/aifactory-browser/web/index.html \
+        /opt/aifactory-browser/start/index.html \
         /etc/chromium/policies/managed/aifactory.json \
         /etc/chromium/policies/recommended/aifactory.json \
         /etc/xdg/openbox/rc.xml \

@@ -1,6 +1,9 @@
 {
   "HomepageIsNewTabPage": false,
-  "HomepageLocation": "https://claude.ai/",
-  "RestoreOnStartup": 1,
+  "HomepageLocation": "file:///opt/aifactory-browser/start/index.html",
+  "RestoreOnStartup": 4,
+  "RestoreOnStartupURLs": [
+    "file:///opt/aifactory-browser/start/index.html"
+  ],
   "ShowHomeButton": true
 }

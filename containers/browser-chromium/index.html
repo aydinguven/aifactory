@@ -92,6 +92,18 @@ function socketUrl() {
   return `${scheme}//${location.host}${directory}websockify`;
 }
 
+// noVNC hands WebSocket.send() a view on one buffer that it reuses for the next
+// message. That is safe only when send() copies the bytes at once. A browser
+// extension or security agent that wraps WebSocket and sends later would
+// transmit whatever the buffer holds by then, and the VNC server drops the
+// connection ("Invalid pixel format"). Give every send its own copy.
+function openSocket() {
+  const socket = new WebSocket(socketUrl());
+  const send = socket.send;
+  socket.send = (data) => send.call(socket, ArrayBuffer.isView(data) ? data.slice() : data);
+  return socket;
+}
+
 let rfb = null;
 let retryDelay = 1000;
 let retryTimer = null;
@@ -111,7 +123,7 @@ function connect() {
     try { rfb.disconnect(); } catch { /* already closed */ }
   }
   showStatus("Tarayıcıya bağlanılıyor…");
-  rfb = new RFB(screen, socketUrl(), { shared: true });
+  rfb = new RFB(screen, openSocket(), { shared: true });
   rfb.resizeSession = true;   // the remote screen follows this window's size
   rfb.scaleViewport = false;
   rfb.qualityLevel = 7;

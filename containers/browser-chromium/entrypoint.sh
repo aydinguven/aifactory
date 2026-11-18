@@ -120,8 +120,8 @@ websockify --web "${WEB_ROOT}" --heartbeat 30 \
 children+=("$!")
 websockify_pid="$!"
 
-# The sites open on the very first start only; afterwards Chromium restores the
-# previous session.
+# Chromium opens the start page by policy (policies/recommended.json).
+# AIFACTORY_BROWSER_START_URLS adds tabs on the very first start only.
 first_run_urls=()
 if [[ ! -e "${PROFILE_DIR}/Local State" ]]; then
     # `custom_chrome_frame: false` drops Chromium's own minimize/maximize/close
@@ -133,7 +133,7 @@ if [[ ! -e "${PROFILE_DIR}/Local State" ]]; then
         printf '%s\n' '{"browser":{"custom_chrome_frame":false}}' \
             > "${PROFILE_DIR}/Default/Preferences"
     fi
-    read -r -a first_run_urls <<< "${AIFACTORY_BROWSER_START_URLS:-https://claude.ai/ https://chatgpt.com/}"
+    read -r -a first_run_urls <<< "${AIFACTORY_BROWSER_START_URLS:-}"
 fi
 
 # --no-sandbox: rootless Podman's default seccomp profile does not let Chromium

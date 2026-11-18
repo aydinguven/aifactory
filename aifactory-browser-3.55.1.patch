@@ -1,0 +1,320 @@
+diff --git a/CONTAINERS.md b/CONTAINERS.md
+index 675fd01..a031e90 100644
+--- a/CONTAINERS.md
++++ b/CONTAINERS.md
+@@ -116,6 +116,12 @@ digest-pinned Debian 13, because Rocky Linux 10 ships neither an X server nor a
+ VNC server; Chromium itself comes from Debian security updates, so **rebuild the
+ image regularly** to pick up browser fixes.
+ 
++- **Start page**: Chromium opens `containers/browser-chromium/start/index.html`
++  (baked in at `/opt/aifactory-browser/start/`) on every start and as its home
++  page, with cards for Merkez Asistan, Claude and ChatGPT. Edit that file to
++  change the cards, and `policies/managed.json` for the bookmarks. Because the
++  start page opens on every start, tabs from the previous session are not
++  restored; sign-ins are kept.
+ - **Network**: the worker needs outbound access to the sites. With a
+   TLS-inspecting proxy, put its CA in **Admin > Entegrasyonlar > Workspace AI** (the gateway CA
+   bundle); the entrypoint imports it into Chromium's trust store on every start
+diff --git a/README.md b/README.md
+index 7e2ee3e..0a6c728 100644
+--- a/README.md
++++ b/README.md
+@@ -14,7 +14,7 @@ AI Factory is a lightweight, high-performance cloud development platform built w
+ 
+   The Cline-based VS Code templates (Boş Proje, Python 3.14, React/Node.js, Java 21 LTS) were retired in 3.18.1: existing workspaces keep running, new ones use Kilo Code. TCMB Code (TCMB's Kilo Code build, 3.18–3.23) was replaced by upstream Kilo Code in 3.24.0.
+ - **Native Linux Terminal Workspace**: A full Rocky Linux 10 shell in the browser, served by `ttyd` over the same authenticated proxy as the IDEs. The session runs inside `tmux`, so a dropped connection reattaches instead of killing running work, and the entire home directory persists across restarts. Workspaces carry no `sudo`; the image ships git, Python 3, a C/C++ toolchain, and the usual shell utilities.
+-- **Browser Workspace (Chromium)**: A Chromium window streamed to the user's browser tab over the same authenticated proxy, for sites the worker can reach but user desktops cannot (Claude, ChatGPT, Gemini, Copilot are bookmarked). Sign-ins, open tabs and downloads persist in the workspace's home directory. Copy and paste work in both directions; extensions, browser sync and the password manager are disabled by policy. Needs a flavor with at least 2 GB RAM and a 3.55.0+ worker. See `CONTAINERS.md`.
++- **Browser Workspace (Chromium)**: A Chromium window streamed to the user's browser tab over the same authenticated proxy, for sites the worker can reach but user desktops cannot (a start page links Merkez Asistan, Claude and ChatGPT). Sign-ins, open tabs and downloads persist in the workspace's home directory. Copy and paste work in both directions; extensions, browser sync and the password manager are disabled by policy. Needs a flavor with at least 2 GB RAM and a 3.55.0+ worker. See `CONTAINERS.md`.
+ - **Resource Flavors**:
+   - `t1.nano`: 0.5 CPU, 512 MB RAM (Light scripts and utilities)
+   - `t1.micro`: 1 CPU, 1 GB RAM (Default profile for newly registered users)
+diff --git a/app/__init__.py b/app/__init__.py
+index 49c4a32..eafe60b 100644
+--- a/app/__init__.py
++++ b/app/__init__.py
+@@ -1,3 +1,3 @@
+ """AI Factory - Self-hosted Cloud Development Environment Platform."""
+ 
+-__version__ = "3.55.0"
++__version__ = "3.55.1"
+diff --git a/app/orchestrator/templates.py b/app/orchestrator/templates.py
+index a19e3e0..f6670de 100644
+--- a/app/orchestrator/templates.py
++++ b/app/orchestrator/templates.py
+@@ -188,7 +188,7 @@ TEMPLATES: dict[str, WorkspaceTemplate] = {
+         image_tag="localhost/aifactory-browser-chromium:latest",
+         features=[
+             "Chromium (Türkçe arayüz)",
+-            "Claude, ChatGPT, Gemini ve Copilot yer imleri",
++            "Merkez Asistan, Claude ve ChatGPT başlangıç sayfası",
+             "Kopyala / yapıştır",
+             "Kalıcı oturum ve indirilenler",
+         ],
+diff --git a/containers/browser-chromium/Containerfile b/containers/browser-chromium/Containerfile
+index 173e227..c52d047 100644
+--- a/containers/browser-chromium/Containerfile
++++ b/containers/browser-chromium/Containerfile
+@@ -42,12 +42,16 @@ RUN ln -s /usr/share/novnc/core /opt/aifactory-browser/web/core \
+     && ln -s /usr/share/novnc/vendor /opt/aifactory-browser/web/vendor \
+     && test -r /opt/aifactory-browser/web/core/rfb.js
+ 
++# The page Chromium opens on start and as its home page.
++COPY start/index.html /opt/aifactory-browser/start/index.html
++
+ # Managed policies are root-owned, so a workspace user cannot change them.
+ COPY policies/managed.json /etc/chromium/policies/managed/aifactory.json
+ COPY policies/recommended.json /etc/chromium/policies/recommended/aifactory.json
+ COPY openbox-rc.xml /etc/xdg/openbox/rc.xml
+ COPY entrypoint.sh /usr/local/bin/aifactory-browser-entrypoint
+ RUN chmod 0644 /opt/aifactory-browser/web/index.html \
++        /opt/aifactory-browser/start/index.html \
+         /etc/chromium/policies/managed/aifactory.json \
+         /etc/chromium/policies/recommended/aifactory.json \
+         /etc/xdg/openbox/rc.xml \
+diff --git a/containers/browser-chromium/entrypoint.sh b/containers/browser-chromium/entrypoint.sh
+index 57c7647..fd59784 100755
+--- a/containers/browser-chromium/entrypoint.sh
++++ b/containers/browser-chromium/entrypoint.sh
+@@ -120,8 +120,8 @@ websockify --web "${WEB_ROOT}" --heartbeat 30 \
+ children+=("$!")
+ websockify_pid="$!"
+ 
+-# The sites open on the very first start only; afterwards Chromium restores the
+-# previous session.
++# Chromium opens the start page by policy (policies/recommended.json).
++# AIFACTORY_BROWSER_START_URLS adds tabs on the very first start only.
+ first_run_urls=()
+ if [[ ! -e "${PROFILE_DIR}/Local State" ]]; then
+     # `custom_chrome_frame: false` drops Chromium's own minimize/maximize/close
+@@ -133,7 +133,7 @@ if [[ ! -e "${PROFILE_DIR}/Local State" ]]; then
+         printf '%s\n' '{"browser":{"custom_chrome_frame":false}}' \
+             > "${PROFILE_DIR}/Default/Preferences"
+     fi
+-    read -r -a first_run_urls <<< "${AIFACTORY_BROWSER_START_URLS:-https://claude.ai/ https://chatgpt.com/}"
++    read -r -a first_run_urls <<< "${AIFACTORY_BROWSER_START_URLS:-}"
+ fi
+ 
+ # --no-sandbox: rootless Podman's default seccomp profile does not let Chromium
+diff --git a/containers/browser-chromium/index.html b/containers/browser-chromium/index.html
+index 5f50005..f92a4cc 100644
+--- a/containers/browser-chromium/index.html
++++ b/containers/browser-chromium/index.html
+@@ -92,6 +92,18 @@ function socketUrl() {
+   return `${scheme}//${location.host}${directory}websockify`;
+ }
+ 
++// noVNC hands WebSocket.send() a view on one buffer that it reuses for the next
++// message. That is safe only when send() copies the bytes at once. A browser
++// extension or security agent that wraps WebSocket and sends later would
++// transmit whatever the buffer holds by then, and the VNC server drops the
++// connection ("Invalid pixel format"). Give every send its own copy.
++function openSocket() {
++  const socket = new WebSocket(socketUrl());
++  const send = socket.send;
++  socket.send = (data) => send.call(socket, ArrayBuffer.isView(data) ? data.slice() : data);
++  return socket;
++}
++
+ let rfb = null;
+ let retryDelay = 1000;
+ let retryTimer = null;
+@@ -111,7 +123,7 @@ function connect() {
+     try { rfb.disconnect(); } catch { /* already closed */ }
+   }
+   showStatus("Tarayıcıya bağlanılıyor…");
+-  rfb = new RFB(screen, socketUrl(), { shared: true });
++  rfb = new RFB(screen, openSocket(), { shared: true });
+   rfb.resizeSession = true;   // the remote screen follows this window's size
+   rfb.scaleViewport = false;
+   rfb.qualityLevel = 7;
+diff --git a/containers/browser-chromium/policies/managed.json b/containers/browser-chromium/policies/managed.json
+index a6b166f..522b6e3 100644
+--- a/containers/browser-chromium/policies/managed.json
++++ b/containers/browser-chromium/policies/managed.json
+@@ -9,6 +9,8 @@
+   "ExtensionInstallBlocklist": ["*"],
+   "ManagedBookmarks": [
+     {"toplevel_name": "Yapay Zekâ"},
++    {"name": "Başlangıç", "url": "file:///opt/aifactory-browser/start/index.html"},
++    {"name": "Merkez Asistan", "url": "https://merkezasistan.tcmb.gov.tr/"},
+     {"name": "Claude", "url": "https://claude.ai/"},
+     {"name": "ChatGPT", "url": "https://chatgpt.com/"},
+     {"name": "Gemini", "url": "https://gemini.google.com/"},
+diff --git a/containers/browser-chromium/policies/recommended.json b/containers/browser-chromium/policies/recommended.json
+index d925a43..0cc1272 100644
+--- a/containers/browser-chromium/policies/recommended.json
++++ b/containers/browser-chromium/policies/recommended.json
+@@ -1,6 +1,9 @@
+ {
+   "HomepageIsNewTabPage": false,
+-  "HomepageLocation": "https://claude.ai/",
+-  "RestoreOnStartup": 1,
++  "HomepageLocation": "file:///opt/aifactory-browser/start/index.html",
++  "RestoreOnStartup": 4,
++  "RestoreOnStartupURLs": [
++    "file:///opt/aifactory-browser/start/index.html"
++  ],
+   "ShowHomeButton": true
+ }
+diff --git a/containers/browser-chromium/start/index.html b/containers/browser-chromium/start/index.html
+new file mode 100644
+index 0000000..72035ce
+--- /dev/null
++++ b/containers/browser-chromium/start/index.html
+@@ -0,0 +1,112 @@
++<!DOCTYPE html>
++<html lang="tr">
++<head>
++<meta charset="utf-8">
++<meta name="viewport" content="width=device-width, initial-scale=1">
++<title>Yapay Zekâ Asistanları - AI Factory</title>
++<style>
++  :root {
++    color-scheme: light dark;
++    --page: #e6ecf5; --surface: #ffffff; --text: #323a47; --muted: #5f6b7d;
++    --line: #d3dbe8; --accent: #d50032; --accent-text: #ffffff; --tag: #eef2f8;
++    font-family: "Segoe UI", "Noto Sans", "Liberation Sans", Arial, sans-serif;
++  }
++  @media (prefers-color-scheme: dark) {
++    :root {
++      --page: #1b1f27; --surface: #262c38; --text: #e6ecf5; --muted: #9aa7ba;
++      --line: #3a4354; --accent: #ff4d6d; --accent-text: #1b1f27; --tag: #323a4a;
++    }
++  }
++  * { box-sizing: border-box; }
++  body {
++    margin: 0; min-height: 100vh; background: var(--page); color: var(--text);
++    border-top: 5px solid #d50032; line-height: 1.5;
++  }
++  main { width: min(1040px, 100%); margin: 0 auto; padding: clamp(28px, 7vh, 72px) 24px 40px; }
++  .eyebrow {
++    margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: .08em;
++    text-transform: uppercase; color: var(--accent);
++  }
++  h1 { margin: 0 0 14px; font-size: clamp(28px, 4vw, 38px); line-height: 1.15; text-wrap: balance; }
++  .intro { margin: 0; max-width: 62ch; font-size: 17px; color: var(--muted); }
++  .cards {
++    list-style: none; padding: 0; margin: clamp(28px, 5vh, 44px) 0 0;
++    display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
++  }
++  .card {
++    display: flex; flex-direction: column; height: 100%; padding: 22px;
++    background: var(--surface); color: inherit; text-decoration: none;
++    border: 1px solid var(--line); border-radius: 12px;
++    transition: border-color .15s, transform .15s, box-shadow .15s;
++  }
++  .card:hover, .card:focus-visible {
++    border-color: var(--accent); transform: translateY(-2px);
++    box-shadow: 0 10px 26px rgba(20, 30, 50, .14); outline: none;
++  }
++  .card:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
++  .card-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
++  .mark {
++    flex: none; width: 42px; height: 42px; border-radius: 10px; display: grid; place-items: center;
++    background: var(--accent); color: var(--accent-text); font-size: 20px; font-weight: 700;
++  }
++  h2 { margin: 0; font-size: 20px; line-height: 1.2; }
++  .tag {
++    display: inline-block; margin-top: 3px; padding: 1px 8px; border-radius: 999px;
++    background: var(--tag); color: var(--muted); font-size: 12px; font-weight: 600;
++  }
++  .card p { margin: 0 0 18px; color: var(--muted); font-size: 15px; }
++  .open { margin-top: auto; font-weight: 600; color: var(--accent); }
++  .host { display: block; font-size: 13px; font-weight: 400; color: var(--muted); }
++  .tips { margin: 32px 0 0; padding-top: 18px; border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); }
++  @media (prefers-reduced-motion: reduce) { .card { transition: none; } .card:hover { transform: none; } }
++</style>
++</head>
++<body>
++<main>
++  <p class="eyebrow">AI Factory Tarayıcı</p>
++  <h1>Yapay Zekâ Asistanları</h1>
++  <p class="intro">
++    Bu tarayıcı, yapay zekâ asistanlarına erişmeniz için hazırlandı.
++    Kullanmak istediğiniz asistanı seçin; oturumlarınız bu çalışma alanında saklanır.
++  </p>
++
++  <ul class="cards">
++    <li>
++      <a class="card" href="https://merkezasistan.tcmb.gov.tr/">
++        <div class="card-head">
++          <span class="mark" aria-hidden="true">M</span>
++          <div><h2>Merkez Asistan</h2><span class="tag">Kurum içi</span></div>
++        </div>
++        <p>TCMB'nin kurum içi yapay zekâ asistanı.</p>
++        <span class="open">Merkez Asistan'ı aç →<span class="host">merkezasistan.tcmb.gov.tr</span></span>
++      </a>
++    </li>
++    <li>
++      <a class="card" href="https://claude.ai/">
++        <div class="card-head">
++          <span class="mark" aria-hidden="true">C</span>
++          <div><h2>Claude</h2><span class="tag">Harici servis · Anthropic</span></div>
++        </div>
++        <p>Yazma, analiz ve kodlama için Anthropic'in yapay zekâ asistanı.</p>
++        <span class="open">Claude'u aç →<span class="host">claude.ai</span></span>
++      </a>
++    </li>
++    <li>
++      <a class="card" href="https://chatgpt.com/">
++        <div class="card-head">
++          <span class="mark" aria-hidden="true">G</span>
++          <div><h2>ChatGPT</h2><span class="tag">Harici servis · OpenAI</span></div>
++        </div>
++        <p>Soru yanıtlama, yazma ve kodlama için OpenAI'ın yapay zekâ asistanı.</p>
++        <span class="open">ChatGPT'yi aç →<span class="host">chatgpt.com</span></span>
++      </a>
++    </li>
++  </ul>
++
++  <p class="tips">
++    Kendi bilgisayarınızla bu tarayıcı arasında metin kopyalayıp yapıştırabilirsiniz.
++    Bu sayfaya araç çubuğundaki ana sayfa düğmesiyle dönebilirsiniz.
++  </p>
++</main>
++</body>
++</html>
+diff --git a/tests/test_container_deployment.py b/tests/test_container_deployment.py
+index 11ff343..951131d 100644
+--- a/tests/test_container_deployment.py
++++ b/tests/test_container_deployment.py
+@@ -183,6 +183,10 @@ def test_browser_workspace_image_is_pinned_and_proxy_compatible():
+     assert 'from "./core/rfb.js"' in client
+     assert 'src="/' not in client and 'href="/' not in client
+     assert "location.pathname" in client
++    # noVNC reuses its send buffer; each message must be copied before send()
++    # or a WebSocket wrapper that sends later corrupts the VNC stream.
++    assert "data.slice()" in client
++    assert "new RFB(screen, openSocket()" in client
+ 
+     managed = json.loads(
+         (context / "policies" / "managed.json").read_text(encoding="utf-8")
+@@ -192,7 +196,27 @@ def test_browser_workspace_image_is_pinned_and_proxy_compatible():
+     assert managed["SyncDisabled"] is True
+     bookmarks = {item.get("url") for item in managed["ManagedBookmarks"]}
+     assert {"https://claude.ai/", "https://chatgpt.com/"} <= bookmarks
+-    json.loads((context / "policies" / "recommended.json").read_text(encoding="utf-8"))
++    assert "https://merkezasistan.tcmb.gov.tr/" in bookmarks
++
++    # Chromium opens the bundled start page, which links the three assistants.
++    start_url = "file:///opt/aifactory-browser/start/index.html"
++    recommended = json.loads(
++        (context / "policies" / "recommended.json").read_text(encoding="utf-8")
++    )
++    assert recommended["RestoreOnStartup"] == 4
++    assert recommended["RestoreOnStartupURLs"] == [start_url]
++    assert recommended["HomepageLocation"] == start_url
++    assert "COPY start/index.html /opt/aifactory-browser/start/index.html" in containerfile
++    start_page = (context / "start" / "index.html").read_text(encoding="utf-8")
++    for link in (
++        "https://merkezasistan.tcmb.gov.tr/",
++        "https://claude.ai/",
++        "https://chatgpt.com/",
++    ):
++        assert f'href="{link}"' in start_page
++    # Self-contained: the page must render without any network request.
++    assert "<script" not in start_page and "<link" not in start_page
++    assert "url(" not in start_page and "<img" not in start_page
+ 
+ 
+ def test_browser_template_matches_its_image_contract():

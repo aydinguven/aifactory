@@ -188,7 +188,7 @@ TEMPLATES: dict[str, WorkspaceTemplate] = {
         image_tag="localhost/aifactory-browser-chromium:latest",
         features=[
             "Chromium (Türkçe arayüz)",
-            "Claude, ChatGPT, Gemini ve Copilot yer imleri",
+            "Merkez Asistan, Claude ve ChatGPT başlangıç sayfası",
             "Kopyala / yapıştır",
             "Kalıcı oturum ve indirilenler",
         ],
