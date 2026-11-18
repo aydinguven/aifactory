@@ -378,10 +378,15 @@ jobs:
           # vfs inside the container (overlay cannot sit on Docker's overlay).
           storage_dir="${RUNNER_TEMP}/aifactory-containers-storage"
           install -d -m 0700 "${storage_dir}"
+          # Buildah overlays the build context with an upper dir under
+          # /var/tmp; that must not be on the container's overlay root either.
+          buildah_tmp_dir="${RUNNER_TEMP}/aifactory-var-tmp"
+          install -d -m 1777 "${buildah_tmp_dir}"
           docker run --privileged --rm \
             --volume "${GITHUB_WORKSPACE}:/workspace" \
             --volume "${ASSET_DIR}:/release-assets" \
             --volume "${storage_dir}:/var/lib/containers" \
+            --volume "${buildah_tmp_dir}:/var/tmp" \
             --env GITHUB_SHA \
             --env AIFACTORY_VERSION \
             --env SHORT_SHA \
