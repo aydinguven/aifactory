@@ -31,6 +31,8 @@ class WorkspaceTemplate:
     # First worker release that knows this template. An older worker would
     # register it as a custom template and lose its built-in wiring.
     min_agent_version: str = ""
+    # Smallest flavor the image is usable on; 0 accepts every flavor.
+    min_memory_mb: int = 0
 
     def to_schema(self) -> TemplateInfo:
         return TemplateInfo(
@@ -173,6 +175,33 @@ TEMPLATES: dict[str, WorkspaceTemplate] = {
         ide_type="terminal",
         health_path="/",
     ),
+    "browser-chromium": WorkspaceTemplate(
+        id="browser-chromium",
+        name="Tarayıcı (Chromium)",
+        description="Claude, ChatGPT ve benzeri yapay zekâ sitelerine erişim için tarayıcıda çalışan Chromium.",
+        category="Yapay Zekâ",
+        icon="globe-alt",
+        default_port=6080,
+        # The whole home directory persists: the browser profile (sign-ins,
+        # open tabs, bookmarks) and the Downloads folder survive a restart.
+        container_workdir="/home/browser",
+        image_tag="localhost/aifactory-browser-chromium:latest",
+        features=[
+            "Chromium (Türkçe arayüz)",
+            "Claude, ChatGPT, Gemini ve Copilot yer imleri",
+            "Kopyala / yapıştır",
+            "Kalıcı oturum ve indirilenler",
+        ],
+        # Like the terminal, its own ide_type keeps the image ENTRYPOINT in
+        # charge; the worker only adds the Admin CA bundle to the environment.
+        ide_type="browser",
+        env_vars={"TZ": "Europe/Istanbul"},
+        health_path="/",
+        # The worker passes the CA bundle to "browser" containers from 3.55.0.
+        min_agent_version="3.55.0",
+        # Chromium with a few chat tabs does not fit in less.
+        min_memory_mb=2048,
+    ),
     "vscode-java": WorkspaceTemplate(
         id="vscode-java",
         name="Java 21 LTS",
@@ -232,6 +261,12 @@ def flavor_mismatch(template, flavor) -> str:
             f"'{template.name}' şablonu GPU kaynak profili gerektirir; "
             "GPU Hızlandırma bölümünden bir profil seçin."
         )
+    min_memory_mb = getattr(template, "min_memory_mb", 0)
+    if min_memory_mb and flavor.memory_mb < min_memory_mb:
+        return (
+            f"'{template.name}' şablonu en az {min_memory_mb // 1024} GB RAM "
+            "gerektirir; daha büyük bir kaynak profili seçin."
+        )
     return ""
 
 
@@ -270,6 +305,8 @@ def register_custom_template(
         workdir = "/"
     elif ide_type == "terminal":
         workdir = "/home/devuser"
+    elif ide_type == "browser":
+        workdir = "/home/browser"
     if mount_workspace is None:
         mount_workspace = ide_type != "service"
     features = ["Özel Şablon", f"Port: {default_port}", f"Görüntü: {image_tag}"]

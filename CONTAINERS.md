@@ -104,6 +104,43 @@ serves the shell over HTTP and WebSocket on port 7681. Because its `ide_type` is
 `terminal`, the worker leaves the image's own `ENTRYPOINT` in charge instead of
 injecting IDE environment or rewriting the container command.
 
+### Browser workspace (`browser-chromium`)
+
+The `browser-chromium` image gives users a Chromium window in a browser tab, for
+sites reachable from the worker but not from their desktops (Claude, ChatGPT and
+similar). TigerVNC (`Xvnc`) is the display and `websockify` serves AI Factory's
+noVNC-based client page and the WebSocket on port 6080. The VNC server has no
+TCP listener and no password: it listens on a Unix socket only `websockify`
+uses, and the AI Factory proxy is the only authenticator. The base is
+digest-pinned Debian 13, because Rocky Linux 10 ships neither an X server nor a
+VNC server; Chromium itself comes from Debian security updates, so **rebuild the
+image regularly** to pick up browser fixes.
+
+- **Network**: the worker needs outbound access to the sites. With a
+  TLS-inspecting proxy, put its CA in **Admin > Entegrasyonlar > Workspace AI** (the gateway CA
+  bundle); the entrypoint imports it into Chromium's trust store on every start
+  (3.55.0+ workers). For an explicit proxy, add `https_proxy` (and `no_proxy`)
+  to the template's `env_vars` in `app/orchestrator/templates.py`.
+- **Persistence**: the whole home directory (`/home/browser`) is the workspace
+  volume, so sign-ins, open tabs, bookmarks and `~/Downloads` survive restarts.
+  Files on the user's own computer are not visible to the remote browser.
+- **Policies**: `containers/browser-chromium/policies/managed.json` is baked in
+  as a root-owned file. It disables extensions, browser sync and sign-in, the
+  password manager and autofill, and sets the bookmarks. Nothing restricts which
+  sites can be opened. To allow only chosen sites, add for example
+  `"URLBlocklist": ["*"]` and
+  `"URLAllowlist": ["claude.ai", "anthropic.com", "chatgpt.com", "openai.com", "accounts.google.com"]`
+  (include every sign-in provider your users need) and rebuild.
+- **Clipboard**: text is copied in both directions. Set
+  `AIFACTORY_BROWSER_CLIPBOARD` in the template's `env_vars` to `in` (paste into
+  the workspace only), `out` or `none` to restrict it.
+- **Sandbox**: Chromium runs with `--no-sandbox`, because rootless Podman's
+  default seccomp profile does not allow its sandbox namespaces. The container
+  (non-root, no `sudo`, one per user) is the isolation boundary.
+- **Limits**: no audio or microphone, and local browser shortcuts such as
+  Ctrl+T act on the user's own browser unless the client is in full screen
+  (Chromium-based browsers). The template refuses flavors under 2 GB RAM.
+
 ### Updating Kilo Code
 
 The Kilo Code VSIX is platform specific. The image installs the **linux-x64**

@@ -227,7 +227,7 @@
               <span class="card-selected-mark" aria-hidden="true">✓</span>
               <span class="template-card-heading">
                 <span class="template-card-icon" aria-hidden="true">
-                  {% if 'terminal' in tpl.id %}&gt;_{% elif 'cuda' in tpl.id %}GPU{% elif 'react' in tpl.id %}⚛{% elif 'python' in tpl.id %}Py{% elif 'java' in tpl.id %}J{% elif 'jupyter' in tpl.id %}Jp{% else %}📦{% endif %}
+                  {% if 'terminal' in tpl.id %}&gt;_{% elif 'browser' in tpl.id %}🌐{% elif 'cuda' in tpl.id %}GPU{% elif 'react' in tpl.id %}⚛{% elif 'python' in tpl.id %}Py{% elif 'java' in tpl.id %}J{% elif 'jupyter' in tpl.id %}Jp{% else %}📦{% endif %}
                 </span>
                 <span class="template-card-title" id="template-title-{{ loop.index }}">{{ tpl.name }}</span>
                 {% if tpl.requires_accelerator %}<span class="badge badge-running template-card-gpu">GPU</span>{% endif %}

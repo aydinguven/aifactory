@@ -101,7 +101,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          all_images=(vscode-kilo vscode-cuda jupyter-python terminal-rocky)
+          all_images=(vscode-kilo vscode-cuda jupyter-python terminal-rocky browser-chromium)
 
           forced=" "
           read -r -a requested <<< "${REBUILD_WORKSPACES//,/ }"

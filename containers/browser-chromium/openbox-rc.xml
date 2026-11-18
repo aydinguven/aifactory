@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The browser is the whole desktop: every normal window fills the screen
+     without a title bar. The window manager binds no keys, so nothing the user
+     types is swallowed before Chromium sees it; the only mouse bindings focus
+     and raise the clicked window (sign-in pop-ups, file dialogs). -->
+<openbox_config xmlns="http://openbox.org/3.4/rc">
+  <focus>
+    <focusNew>yes</focusNew>
+    <followMouse>no</followMouse>
+  </focus>
+  <placement>
+    <policy>Smart</policy>
+  </placement>
+  <desktops>
+    <number>1</number>
+  </desktops>
+  <keyboard/>
+  <mouse>
+    <context name="Client">
+      <mousebind button="Left" action="Press">
+        <action name="Focus"/>
+        <action name="Raise"/>
+      </mousebind>
+      <mousebind button="Middle" action="Press">
+        <action name="Focus"/>
+        <action name="Raise"/>
+      </mousebind>
+      <mousebind button="Right" action="Press">
+        <action name="Focus"/>
+        <action name="Raise"/>
+      </mousebind>
+    </context>
+  </mouse>
+  <applications>
+    <application type="normal">
+      <decor>no</decor>
+      <maximized>yes</maximized>
+      <focus>yes</focus>
+    </application>
+  </applications>
+</openbox_config>

@@ -97,6 +97,8 @@ def _snapshot_ide_type(template_id: str) -> str:
         return "jupyter"
     if "terminal" in template_id:
         return "terminal"
+    if "browser" in template_id:
+        return "browser"
     return "vscode"
 
 

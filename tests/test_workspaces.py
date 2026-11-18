@@ -35,10 +35,12 @@ async def test_template_and_flavor_catalogs(client: AsyncClient):
     assert "vscode-kilo" in tpl_ids
     assert "jupyter-python" in tpl_ids
     assert "terminal-rocky" in tpl_ids
+    assert "browser-chromium" in tpl_ids
     for tid, tname in {
         "vscode-kilo": "Kilo Code",
         "jupyter-python": "Jupyter Notebook",
         "terminal-rocky": "Terminal (Rocky Linux 10)",
+        "browser-chromium": "Tarayıcı (Chromium)",
     }.items():
         assert template_names.get(tid) == tname
 

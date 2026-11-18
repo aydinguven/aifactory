@@ -166,7 +166,7 @@ async def workspace_service_environment(
 
 
 # IDE types whose containers receive the Admin gateway CA bundle.
-CA_BUNDLE_IDE_TYPES = frozenset({"vscode", "jupyter"})
+CA_BUNDLE_IDE_TYPES = frozenset({"vscode", "jupyter", "browser"})
 _CA_DIGEST_SALT = b"devcloud-workspace-ai-ca-v1\x00"
 _SKILLS_DIGEST_SALT = b"devcloud-workspace-ai-skills-v1\x00"
 # IDE types whose containers receive the Admin skill library (Kilo Code

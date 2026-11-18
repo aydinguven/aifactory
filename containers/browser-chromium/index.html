@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tarayıcı - AI Factory</title>
+<style>
+  :root { color-scheme: dark; font-family: "Segoe UI", Arial, sans-serif; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; background: #1b1f27; color: #e6ecf5; overflow: hidden; }
+  #screen { position: fixed; inset: 0; }
+  #status {
+    position: fixed; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 14px;
+    background: rgba(27, 31, 39, 0.92); text-align: center; padding: 24px; z-index: 5;
+  }
+  #status[hidden] { display: none; }
+  #status-text { font-size: 17px; }
+  #status-detail { font-size: 13px; color: #9aa7ba; max-width: 46ch; }
+  /* On the left edge, clear of the remote browser's tabs and scrollbar. */
+  #bar {
+    position: fixed; left: 0; top: 50%; transform: translateY(-50%); z-index: 10;
+    display: flex; align-items: center;
+  }
+  #bar-toggle {
+    width: 10px; height: 64px; border: 0; padding: 0; cursor: pointer;
+    border-radius: 0 8px 8px 0; background: #d50032; opacity: 0.55;
+  }
+  #bar-toggle:hover, #bar-toggle:focus-visible { opacity: 1; }
+  #panel {
+    width: min(420px, calc(100vw - 40px)); margin-left: 8px; padding: 14px;
+    background: #262c38; border: 1px solid #3a4354; border-radius: 10px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  }
+  #panel[hidden] { display: none; }
+  #panel h1 { font-size: 14px; margin: 0 0 4px; }
+  #panel p { font-size: 12px; color: #9aa7ba; margin: 0 0 10px; line-height: 1.45; }
+  #clipboard {
+    width: 100%; height: 96px; resize: vertical; padding: 8px; font: inherit; font-size: 13px;
+    color: #e6ecf5; background: #1b1f27; border: 1px solid #3a4354; border-radius: 6px;
+  }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  button.action {
+    font: inherit; font-size: 13px; padding: 7px 12px; cursor: pointer;
+    color: #e6ecf5; background: #343c4c; border: 1px solid #47526a; border-radius: 6px;
+  }
+  button.action:hover { background: #3e4860; }
+  button.action.primary { background: #d50032; border-color: #d50032; }
+</style>
+</head>
+<body>
+<div id="screen"></div>
+
+<div id="status">
+  <div id="status-text">Tarayıcıya bağlanılıyor…</div>
+  <div id="status-detail"></div>
+</div>
+
+<div id="bar">
+  <button id="bar-toggle" type="button" title="Pano ve görünüm" aria-label="Pano ve görünüm" aria-expanded="false"></button>
+  <div id="panel" hidden>
+    <h1>Pano</h1>
+    <p id="clipboard-hint">
+      Kopyala ve yapıştır normalde kendiliğinden çalışır. Çalışmazsa metni buraya
+      yapıştırıp <b>Tarayıcıya gönder</b>'e basın; tarayıcıda kopyaladığınız metin de burada görünür.
+    </p>
+    <textarea id="clipboard" spellcheck="false" aria-label="Pano metni"></textarea>
+    <div class="row">
+      <button id="send-clipboard" class="action primary" type="button">Tarayıcıya gönder</button>
+      <button id="fullscreen" class="action" type="button">Tam ekran</button>
+      <button id="reconnect" class="action" type="button">Yeniden bağlan</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import RFB from "./core/rfb.js";
+
+const screen = document.getElementById("screen");
+const statusBox = document.getElementById("status");
+const statusText = document.getElementById("status-text");
+const statusDetail = document.getElementById("status-detail");
+const panel = document.getElementById("panel");
+const toggle = document.getElementById("bar-toggle");
+const clipboardBox = document.getElementById("clipboard");
+
+// The page is served under /proxy/<workspace-id>/, so every URL is derived
+// from where the page itself was loaded.
+function socketUrl() {
+  const directory = location.pathname.replace(/[^/]*$/, "");
+  const scheme = location.protocol === "https:" ? "wss:" : "ws:";
+  return `${scheme}//${location.host}${directory}websockify`;
+}
+
+let rfb = null;
+let retryDelay = 1000;
+let retryTimer = null;
+let lastLocalClipboard = null;
+let lastRemoteClipboard = null;
+
+function showStatus(text, detail = "") {
+  statusText.textContent = text;
+  statusDetail.textContent = detail;
+  statusBox.hidden = false;
+}
+
+function connect() {
+  clearTimeout(retryTimer);
+  if (rfb) {
+    rfb.removeEventListener("disconnect", onDisconnect);
+    try { rfb.disconnect(); } catch { /* already closed */ }
+  }
+  showStatus("Tarayıcıya bağlanılıyor…");
+  rfb = new RFB(screen, socketUrl(), { shared: true });
+  rfb.resizeSession = true;   // the remote screen follows this window's size
+  rfb.scaleViewport = false;
+  rfb.qualityLevel = 7;
+  rfb.compressionLevel = 2;
+  rfb.focusOnClick = true;
+  rfb.addEventListener("connect", onConnect);
+  rfb.addEventListener("disconnect", onDisconnect);
+  rfb.addEventListener("clipboard", onRemoteClipboard);
+}
+
+function onConnect() {
+  retryDelay = 1000;
+  statusBox.hidden = true;
+  rfb.focus();
+  pushLocalClipboard();
+}
+
+function onDisconnect() {
+  showStatus(
+    "Bağlantı kesildi, yeniden bağlanılıyor…",
+    "Workspace durdurulduysa AI Factory panosundan yeniden başlatın.",
+  );
+  retryTimer = setTimeout(connect, retryDelay);
+  retryDelay = Math.min(retryDelay * 2, 15000);
+}
+
+// Remote copy -> local clipboard. Without permission the text still lands in
+// the panel, where it can be copied by hand.
+function onRemoteClipboard(event) {
+  const text = event.detail.text;
+  lastRemoteClipboard = text;
+  lastLocalClipboard = text;
+  clipboardBox.value = text;
+  if (navigator.clipboard?.writeText && document.hasFocus()) {
+    navigator.clipboard.writeText(text).catch(() => {});
+  }
+}
+
+// Local clipboard -> remote, whenever this tab gains focus: by the time the
+// user presses Ctrl+V in the remote browser the text is already there.
+async function pushLocalClipboard() {
+  if (!rfb || !navigator.clipboard?.readText || !document.hasFocus()) return;
+  let text;
+  try {
+    text = await navigator.clipboard.readText();
+  } catch {
+    return; // permission denied or unsupported: the panel is the fallback
+  }
+  if (!text || text === lastLocalClipboard) return;
+  lastLocalClipboard = text;
+  try { rfb.clipboardPasteFrom(text); } catch { /* not connected */ }
+}
+
+window.addEventListener("focus", pushLocalClipboard);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) pushLocalClipboard();
+});
+// Covers copying in another window without this tab ever losing focus.
+screen.addEventListener("mouseenter", pushLocalClipboard);
+
+function setPanel(open) {
+  panel.hidden = !open;
+  toggle.setAttribute("aria-expanded", String(open));
+  if (open) {
+    clipboardBox.focus();
+  } else if (rfb) {
+    rfb.focus();
+  }
+}
+toggle.addEventListener("click", () => setPanel(panel.hidden));
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !panel.hidden) setPanel(false);
+});
+
+document.getElementById("send-clipboard").addEventListener("click", () => {
+  const text = clipboardBox.value;
+  lastLocalClipboard = text;
+  try { rfb.clipboardPasteFrom(text); } catch { /* not connected */ }
+  setPanel(false);
+});
+
+// In full screen, Chromium-based browsers can hand over shortcuts such as
+// Ctrl+T and Ctrl+W, which otherwise act on the local browser.
+document.getElementById("fullscreen").addEventListener("click", async () => {
+  setPanel(false);
+  if (document.fullscreenElement) {
+    await document.exitFullscreen();
+    return;
+  }
+  try {
+    await document.documentElement.requestFullscreen();
+    await navigator.keyboard?.lock?.();
+  } catch { /* refused by the browser */ }
+});
+
+document.getElementById("reconnect").addEventListener("click", () => {
+  setPanel(false);
+  retryDelay = 1000;
+  connect();
+});
+
+connect();
+</script>
+</body>
+</html>

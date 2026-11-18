@@ -10,7 +10,7 @@ class WorkspaceImageTemplateCreate(BaseModel):
     description: str = Field(default="", max_length=255)
     category: str = Field(default="Custom", min_length=1, max_length=50)
     default_port: int = Field(default=8080, ge=1, le=65535)
-    ide_type: Literal["vscode", "jupyter", "service", "terminal"] = "vscode"
+    ide_type: Literal["vscode", "jupyter", "service", "terminal", "browser"] = "vscode"
 
     model_config = {"str_strip_whitespace": True}
 

@@ -1,0 +1,67 @@
+# Tarayıcı (Chromium)
+# A Chromium window delivered to the browser, for sites that are reachable from
+# the worker but not from user desktops (Claude, ChatGPT and similar). TigerVNC
+# (Xvnc) is the display, websockify serves the noVNC client and the WebSocket
+# on one port, which is the shape the AI Factory proxy tunnels. AI Factory is
+# the only authenticator, so the VNC server has no password of its own and
+# listens on a Unix socket that only websockify reaches.
+#
+# Debian rather than Rocky: Rocky Linux 10 ships neither an X server nor a VNC
+# server. This is the same family the code-server images are built on.
+ARG BASE_IMAGE=docker.io/library/debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2
+FROM ${BASE_IMAGE}
+
+USER root
+
+# Chromium comes from Debian security updates, so a rebuild is what picks up
+# browser fixes. The fonts cover Latin/Turkish and CJK text, code blocks and emoji.
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        ca-certificates \
+        chromium \
+        chromium-l10n \
+        fonts-dejavu-core \
+        fonts-liberation \
+        fonts-noto-cjk \
+        fonts-noto-color-emoji \
+        fonts-noto-core \
+        libnss3-tools \
+        novnc \
+        openbox \
+        tigervnc-standalone-server \
+        tzdata \
+        websockify \
+        x11-xserver-utils \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
+
+RUN useradd --create-home --uid 1000 --shell /bin/bash browser
+
+# The client page is AI Factory's own; only noVNC's RFB library is reused.
+COPY index.html /opt/aifactory-browser/web/index.html
+RUN ln -s /usr/share/novnc/core /opt/aifactory-browser/web/core \
+    && ln -s /usr/share/novnc/vendor /opt/aifactory-browser/web/vendor \
+    && test -r /opt/aifactory-browser/web/core/rfb.js
+
+# Managed policies are root-owned, so a workspace user cannot change them.
+COPY policies/managed.json /etc/chromium/policies/managed/aifactory.json
+COPY policies/recommended.json /etc/chromium/policies/recommended/aifactory.json
+COPY openbox-rc.xml /etc/xdg/openbox/rc.xml
+COPY entrypoint.sh /usr/local/bin/aifactory-browser-entrypoint
+RUN chmod 0644 /opt/aifactory-browser/web/index.html \
+        /etc/chromium/policies/managed/aifactory.json \
+        /etc/chromium/policies/recommended/aifactory.json \
+        /etc/xdg/openbox/rc.xml \
+    && chmod 0755 /usr/local/bin/aifactory-browser-entrypoint
+
+ENV HOME=/home/browser \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    LANGUAGE=tr \
+    AIFACTORY_BROWSER_PORT=6080
+
+USER browser
+WORKDIR /home/browser
+
+EXPOSE 6080
+
+ENTRYPOINT ["/usr/local/bin/aifactory-browser-entrypoint"]

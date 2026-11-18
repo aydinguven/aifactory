@@ -65,6 +65,11 @@ IMAGES = (
         "localhost/aifactory-terminal-rocky:latest",
         "terminal-rocky",
     ),
+    (
+        "aifactory-browser-chromium",
+        "localhost/aifactory-browser-chromium:latest",
+        "browser-chromium",
+    ),
 )
 CONTROLLER_IMAGE_ARCHIVE = "aifactory-controller"
 WORKER_IMAGE_ARCHIVE = "aifactory-worker"

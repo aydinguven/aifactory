@@ -1,0 +1,22 @@
+{
+  "AutofillAddressEnabled": false,
+  "AutofillCreditCardEnabled": false,
+  "BackgroundModeEnabled": false,
+  "BookmarkBarEnabled": true,
+  "BrowserSignin": 0,
+  "CommandLineFlagSecurityWarningsEnabled": false,
+  "DefaultBrowserSettingEnabled": false,
+  "ExtensionInstallBlocklist": ["*"],
+  "ManagedBookmarks": [
+    {"toplevel_name": "Yapay Zekâ"},
+    {"name": "Claude", "url": "https://claude.ai/"},
+    {"name": "ChatGPT", "url": "https://chatgpt.com/"},
+    {"name": "Gemini", "url": "https://gemini.google.com/"},
+    {"name": "Copilot", "url": "https://copilot.microsoft.com/"}
+  ],
+  "MetricsReportingEnabled": false,
+  "PasswordManagerEnabled": false,
+  "PromotionalTabsEnabled": false,
+  "SafeBrowsingProtectionLevel": 1,
+  "SyncDisabled": true
+}

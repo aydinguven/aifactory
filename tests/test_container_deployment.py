@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -140,6 +141,92 @@ def test_terminal_workspace_image_is_pinned_and_proxy_compatible():
     # The home volume is seeded on first start, since the mount hides the image
     # skeleton.
     assert "/opt/aifactory-home-skel.tar" in entrypoint
+
+
+def test_browser_workspace_image_is_pinned_and_proxy_compatible():
+    """The browser image must stay reproducible, unprivileged and proxy friendly."""
+    context = ROOT / "containers" / "browser-chromium"
+    containerfile = (context / "Containerfile").read_text(encoding="utf-8")
+
+    assert (
+        "ARG BASE_IMAGE=docker.io/library/debian:trixie-slim@"
+        "sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2"
+    ) in containerfile
+    # The proxy publishes template.default_port; they have to agree.
+    assert "EXPOSE 6080" in containerfile
+    assert "USER browser" in containerfile
+    instructions = "\n".join(
+        line
+        for line in containerfile.splitlines()
+        if not line.lstrip().startswith("#")
+    )
+    assert "sudo" not in instructions
+    # Policies must be root-owned files baked into the image.
+    assert "/etc/chromium/policies/managed/aifactory.json" in containerfile
+
+    entrypoint = (context / "entrypoint.sh").read_text(encoding="utf-8")
+    # No VNC TCP listener and no VNC password: AI Factory is the only
+    # authenticator and websockify is the only way to the display.
+    assert "-rfbunixpath" in entrypoint
+    assert "-rfbport -1" in entrypoint
+    assert "--unix-target" in entrypoint
+    # A killed container must not lock the persistent profile or the display.
+    assert 'rm -f "${PROFILE_DIR}"/Singleton{Lock,Socket,Cookie}' in entrypoint
+    assert "/tmp/.X1-lock" in entrypoint
+    # The Admin CA bundle reaches Chromium through the user's NSS database.
+    assert "AIFACTORY_CA_BUNDLE_PEM" in entrypoint
+    assert "certutil" in entrypoint
+
+    # The client is served under /proxy/<workspace-id>/, so it may not use
+    # root-relative URLs.
+    client = (context / "index.html").read_text(encoding="utf-8")
+    assert 'from "./core/rfb.js"' in client
+    assert 'src="/' not in client and 'href="/' not in client
+    assert "location.pathname" in client
+
+    managed = json.loads(
+        (context / "policies" / "managed.json").read_text(encoding="utf-8")
+    )
+    assert managed["ExtensionInstallBlocklist"] == ["*"]
+    assert managed["PasswordManagerEnabled"] is False
+    assert managed["SyncDisabled"] is True
+    bookmarks = {item.get("url") for item in managed["ManagedBookmarks"]}
+    assert {"https://claude.ai/", "https://chatgpt.com/"} <= bookmarks
+    json.loads((context / "policies" / "recommended.json").read_text(encoding="utf-8"))
+
+
+def test_browser_template_matches_its_image_contract():
+    from app.orchestrator.flavors import FLAVORS
+    from app.orchestrator.templates import flavor_mismatch, get_template
+
+    template = get_template("browser-chromium")
+    assert template is not None
+    assert template.ide_type == "browser"
+    assert template.default_port == 6080
+    assert template.container_workdir == "/home/browser"
+    assert template.image_tag == "localhost/aifactory-browser-chromium:latest"
+    assert template.mount_workspace is True
+    assert template.health_path == "/"
+    assert template.startup_command == []
+    # Older workers would not pass the CA bundle to the container.
+    assert template.min_agent_version == "3.55.0"
+    # Chromium is refused on flavors it cannot run in.
+    assert "2 GB" in flavor_mismatch(template, FLAVORS["t1.micro"])
+    assert flavor_mismatch(template, FLAVORS["t1.small"]) == ""
+    assert flavor_mismatch(get_template("terminal-rocky"), FLAVORS["t1.nano"]) == ""
+
+
+def test_browser_workspace_receives_the_ca_bundle_without_ide_wiring():
+    import inspect as inspect_module
+
+    from app.orchestrator.podman_service import PodmanService
+    from app.orchestrator.workspace_provisioning import CA_BUNDLE_IDE_TYPES
+
+    assert "browser" in CA_BUNDLE_IDE_TYPES
+    source = inspect_module.getsource(PodmanService.create_workspace_container)
+    assert "if is_vscode or is_jupyter or is_browser" in source
+    # The image ENTRYPOINT stays in charge: no command branch for browsers.
+    assert "elif is_browser" not in source
 
 
 def test_terminal_template_matches_its_image_contract():

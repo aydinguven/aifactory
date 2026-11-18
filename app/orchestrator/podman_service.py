@@ -416,10 +416,14 @@ class PodmanService:
             )
         is_jupyter = template.ide_type == "jupyter"
         is_service = template.ide_type == "service"
+        is_browser = template.ide_type == "browser"
         # Only images whose startup command AI Factory controls can build the
-        # combined bundle before the IDE starts.
+        # combined bundle before the IDE starts. The browser image imports the
+        # bundle into Chromium's trust store in its own entrypoint.
         ai_ca_bundle = (
-            normalize_ca_bundle(ai_ca_bundle) if is_vscode or is_jupyter else ""
+            normalize_ca_bundle(ai_ca_bundle)
+            if is_vscode or is_jupyter or is_browser
+            else ""
         )
         # Kilo Code reads the skills folder from kilo.jsonc, so without one
         # the library would be unused.
@@ -586,8 +590,11 @@ class PodmanService:
 
         if ai_ca_bundle:
             cmd_args.extend(["-e", f"AIFACTORY_CA_BUNDLE_PEM={ai_ca_bundle}"])
-            for key, value in WORKSPACE_CA_ENVIRONMENT.items():
-                cmd_args.extend(["-e", f"{key}={value}"])
+            # These point at the file WORKSPACE_CA_SETUP writes, which the
+            # browser image never runs.
+            if not is_browser:
+                for key, value in WORKSPACE_CA_ENVIRONMENT.items():
+                    cmd_args.extend(["-e", f"{key}={value}"])
         if ai_skills_bundle:
             cmd_args.extend(["-e", f"AIFACTORY_SKILLS_TGZ={ai_skills_bundle}"])
 
@@ -883,6 +890,7 @@ class PodmanService:
                 "localhost/aifactory-jupyter-python:latest",
                 "localhost/aifactory-vscode-java:latest",
                 "localhost/aifactory-terminal-rocky:latest",
+                "localhost/aifactory-browser-chromium:latest",
             ]
         code, stdout, _ = await self.run_cmd("images", "--format", "{{.Repository}}:{{.Tag}}")
         if code != 0:

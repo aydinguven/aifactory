@@ -467,7 +467,7 @@ async def test_list_images():
     svc._mock_mode = True
 
     images = await svc.list_images()
-    assert len(images) == 7
+    assert len(images) == 8
     assert any("vscode-kilo" in img for img in images)
     assert any("vscode-empty" in img for img in images)
     assert any("vscode-python" in img for img in images)
@@ -475,3 +475,4 @@ async def test_list_images():
     assert any("jupyter-python" in img for img in images)
     assert any("vscode-java" in img for img in images)
     assert any("terminal-rocky" in img for img in images)
+    assert any("browser-chromium" in img for img in images)
