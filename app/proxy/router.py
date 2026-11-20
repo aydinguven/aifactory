@@ -60,7 +60,9 @@ async def get_authorized_workspace(
     if workspace.user_id != current_user.id and current_user.role != UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="Bu çalışma alanı için erişim reddedildi.")
     # Withdrawn template access also closes workspaces that already exist.
-    if not await can_use_template(db, current_user, workspace.template_id):
+    if not await can_use_template(
+        db, current_user, workspace.template_id, owner_id=workspace.user_id
+    ):
         raise HTTPException(status_code=403, detail=DENIED_MESSAGE)
 
     if require_running and workspace.status != WorkspaceStatus.RUNNING:

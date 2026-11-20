@@ -504,7 +504,9 @@ async def start_workspace_endpoint(
     if workspace.user_id != current_user.id and current_user.role != UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="Erişim reddedildi.")
     # Access can be withdrawn after the workspace was created.
-    await require_template_access(db, current_user, workspace.template_id)
+    await require_template_access(
+        db, current_user, workspace.template_id, owner_id=workspace.user_id
+    )
 
     async with admission_transaction(db):
         await db.refresh(workspace)

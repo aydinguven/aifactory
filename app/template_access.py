@@ -12,8 +12,12 @@ login in ``User.directory_groups``):
 
 Names compare case- and spacing-insensitively. Deny wins: a member of any
 denied entry is refused. A non-empty allow list admits only members of at
-least one allowed entry; an empty one admits everyone. Admins are never
-restricted.
+least one allowed entry; an empty one admits everyone.
+
+The rules apply to admins as well, for their own workspaces: an admin in a
+denied team cannot list, create, start or open that type for themselves. Only
+an admin acting on another user's existing workspace (support access) skips
+them; the owner's own access is still checked when the owner uses it.
 """
 
 from __future__ import annotations
@@ -194,7 +198,7 @@ def _matches(entry: Entry, memberships: dict[str, set[str]]) -> bool:
 
 
 def user_allowed(user: User, rule: AccessRule) -> bool:
-    if user.role == UserRole.ADMIN or not rule.restricted:
+    if not rule.restricted:
         return True
     memberships = _memberships(user)
     if any(_matches(entry, memberships) for entry in rule.deny):
@@ -227,24 +231,46 @@ async def load_rules(db: AsyncSession, *, cached: bool = True) -> dict[str, Acce
     return rules
 
 
-async def can_use_template(db: AsyncSession, user: User, template_id: str, *, cached: bool = True) -> bool:
-    if user.role == UserRole.ADMIN:
+def admin_support_access(user: User, owner_id: str | None) -> bool:
+    """An admin working on someone else's workspace, not their own."""
+    return (
+        owner_id is not None
+        and user.role == UserRole.ADMIN
+        and str(owner_id) != str(user.id)
+    )
+
+
+async def can_use_template(
+    db: AsyncSession,
+    user: User,
+    template_id: str,
+    *,
+    owner_id: str | None = None,
+    cached: bool = True,
+) -> bool:
+    """``owner_id``: the workspace's owner, when an existing one is used."""
+    if admin_support_access(user, owner_id):
         return True
     rules = await load_rules(db, cached=cached)
     return user_allowed(user, rules.get(template_id, OPEN_RULE))
 
 
 async def require_template_access(
-    db: AsyncSession, user: User, template_id: str, *, cached: bool = False
+    db: AsyncSession,
+    user: User,
+    template_id: str,
+    *,
+    owner_id: str | None = None,
+    cached: bool = False,
 ) -> None:
     """Raise 403 unless ``user`` may use ``template_id``."""
-    if not await can_use_template(db, user, template_id, cached=cached):
+    if not await can_use_template(db, user, template_id, owner_id=owner_id, cached=cached):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=DENIED_MESSAGE)
 
 
 async def filter_templates(db: AsyncSession, user: User | None, templates: list):
     """Templates ``user`` may use; everything when nobody is signed in."""
-    if user is None or user.role == UserRole.ADMIN:
+    if user is None:
         return templates
     rules = await load_rules(db, cached=False)
     return [

@@ -72,7 +72,10 @@ def test_allow_list_admits_only_members():
     assert user_allowed(person(team="t2-yapayzeka"), browser)
     assert not user_allowed(person(team="t2-arge"), browser)  # grup: only
     assert not user_allowed(person(groups=["t2-security"]), browser)
-    assert user_allowed(person(role=UserRole.ADMIN), browser)
+    # Admins follow the rules for their own use too.
+    assert not user_allowed(person(role=UserRole.ADMIN), browser)
+    assert user_allowed(person(role=UserRole.ADMIN, groups=["t2-arge"]), browser)
+    assert not user_allowed(person(role=UserRole.ADMIN, team="t2-arge"), rule(deny="t2-arge"))
 
 
 def test_deny_list_wins_and_empty_rule_admits_everyone():
@@ -137,8 +140,10 @@ async def test_admin_rules_control_listing_creation_and_start(client, db_session
     assert "browser-chromium" not in security_templates
     assert "terminal-rocky" not in security_templates
     assert "vscode-kilo" in security_templates
-    # Admins see every template.
-    assert {"browser-chromium", "terminal-rocky"} <= await _template_ids(client, admin)
+    # The admin is in neither list's teams: the allow list hides the browser.
+    admin_templates = await _template_ids(client, admin)
+    assert "browser-chromium" not in admin_templates
+    assert "terminal-rocky" in admin_templates
 
     denied = await client.post(
         "/api/workspaces",
@@ -195,9 +200,54 @@ async def test_proxy_refuses_a_workspace_whose_template_access_was_withdrawn(cli
     with pytest.raises(HTTPException) as refused:
         await get_authorized_workspace(workspace_id, db_session, owner_user)
     assert refused.value.status_code == 403
-    # Admins are never restricted.
+    # An admin keeps support access to another user's workspace.
     assert (await get_authorized_workspace(workspace_id, db_session, admin_user)).id == workspace_id
     assert (await db_session.execute(select(Workspace).where(Workspace.id == workspace_id))).scalar_one()
+
+
+@pytest.mark.asyncio
+async def test_admin_in_a_denied_team_cannot_use_the_type_for_themselves(client, db_session):
+    """An admin who is a t2-arge member must not open a type that excludes t2-arge."""
+    from app.proxy.router import get_authorized_workspace
+
+    admin_id, admin = await _register(client, "arge-admin")
+    await _set(db_session, admin_id, role=UserRole.ADMIN, team="T2-ARGE")
+    created = await client.post(
+        "/api/workspaces",
+        headers=admin,
+        json={"name": "Kabuk", "template_id": "terminal-rocky", "flavor_id": "t1.micro"},
+    )
+    assert created.status_code == 201, created.text
+    workspace_id = created.json()["id"]
+    assert (await client.post(f"/api/workspaces/{workspace_id}/stop", headers=admin)).status_code == 200
+
+    saved = await client.patch(
+        "/api/admin/templates/terminal-rocky", headers=admin, json={"access_deny": "t2-arge"}
+    )
+    assert saved.status_code == 200, saved.text
+    invalidate_cache()
+
+    assert "terminal-rocky" not in await _template_ids(client, admin)
+    denied = await client.post(
+        "/api/workspaces",
+        headers=admin,
+        json={"name": "Kabuk 2", "template_id": "terminal-rocky", "flavor_id": "t1.micro"},
+    )
+    assert denied.status_code == 403
+    blocked = await client.post(f"/api/workspaces/{workspace_id}/start", headers=admin)
+    assert blocked.status_code == 403
+    admin_user = await db_session.get(User, admin_id)
+    with pytest.raises(HTTPException) as refused:
+        await get_authorized_workspace(workspace_id, db_session, admin_user, require_running=False)
+    assert refused.value.status_code == 403
+
+    # The admin page still lists and edits the type.
+    reopened = await client.patch(
+        "/api/admin/templates/terminal-rocky", headers=admin, json={"access_deny": ""}
+    )
+    assert reopened.status_code == 200, reopened.text
+    invalidate_cache()
+    assert "terminal-rocky" in await _template_ids(client, admin)
 
 
 # ---- LDAP group names -----------------------------------------------------------
