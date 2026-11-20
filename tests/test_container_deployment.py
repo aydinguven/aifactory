@@ -170,6 +170,11 @@ def test_browser_workspace_image_is_pinned_and_proxy_compatible():
     assert "-rfbunixpath" in entrypoint
     assert "-rfbport -1" in entrypoint
     assert "--unix-target" in entrypoint
+    # server.py owns the public port; websockify is reachable on loopback only.
+    assert '"127.0.0.1:${WEBSOCKIFY_PORT}"' in entrypoint
+    assert "0.0.0.0:${PORT}" not in entrypoint
+    assert "python3 -I /opt/aifactory-browser/server.py" in entrypoint
+    assert "COPY server.py /opt/aifactory-browser/server.py" in containerfile
     # A killed container must not lock the persistent profile or the display.
     assert 'rm -f "${PROFILE_DIR}"/Singleton{Lock,Socket,Cookie}' in entrypoint
     assert "/tmp/.X1-lock" in entrypoint
@@ -194,6 +199,8 @@ def test_browser_workspace_image_is_pinned_and_proxy_compatible():
     assert managed["ExtensionInstallBlocklist"] == ["*"]
     assert managed["PasswordManagerEnabled"] is False
     assert managed["SyncDisabled"] is True
+    # The panel lists the folder Chromium downloads into.
+    assert managed["DownloadDirectory"] == "/home/browser/Downloads"
     bookmarks = {item.get("url") for item in managed["ManagedBookmarks"]}
     assert {"https://claude.ai/", "https://chatgpt.com/"} <= bookmarks
     assert "https://merkezasistan.tcmb.gov.tr/" in bookmarks
@@ -234,6 +241,11 @@ def test_browser_template_matches_its_image_contract():
     assert template.startup_command == []
     # Older workers would not pass the CA bundle to the container.
     assert template.min_agent_version == "3.55.0"
+    # Text can be pasted in, but nothing copied in the workspace leaves it.
+    assert template.env_vars["AIFACTORY_BROWSER_CLIPBOARD"] == "in"
+    assert template.env_vars["AIFACTORY_BROWSER_FILES"] == "both"
+    entrypoint = (ROOT / "containers" / "browser-chromium" / "entrypoint.sh").read_text(encoding="utf-8")
+    assert '"${AIFACTORY_BROWSER_CLIPBOARD:-in}"' in entrypoint
     # Chromium is refused on flavors it cannot run in.
     assert "2 GB" in flavor_mismatch(template, FLAVORS["t1.micro"])
     assert flavor_mismatch(template, FLAVORS["t1.small"]) == ""

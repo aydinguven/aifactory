@@ -19,6 +19,7 @@
       <dt class="text-muted">Takım</dt><dd>{{ user.team or '—' }}</dd>
       <dt class="text-muted">Müdürlük</dt><dd>{{ user.organization_unit or user.directorate or '—' }}</dd>
       {% if user.organization_unit %}<dt class="text-muted">Bağlı Olduğu Birim</dt><dd>{{ user.directorate or '—' }}</dd>{% endif %}
+      {% if user.auth_source == 'active_directory' %}<dt class="text-muted">AD Grupları</dt><dd>{{ directory_groups|join(', ') if directory_groups else '— (bir sonraki girişte okunur)' }}</dd>{% endif %}
     </dl>
     <div class="table-actions" style="margin-top:1.25rem;">
       <button type="button" class="btn btn-secondary btn-sm" data-onboarding-restart data-tour="tour-restart-profile" hidden>Canlı Turu Yeniden Başlat</button>

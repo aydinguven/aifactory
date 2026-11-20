@@ -108,10 +108,12 @@ injecting IDE environment or rewriting the container command.
 
 The `browser-chromium` image gives users a Chromium window in a browser tab, for
 sites reachable from the worker but not from their desktops (Claude, ChatGPT and
-similar). TigerVNC (`Xvnc`) is the display and `websockify` serves AI Factory's
-noVNC-based client page and the WebSocket on port 6080. The VNC server has no
-TCP listener and no password: it listens on a Unix socket only `websockify`
-uses, and the AI Factory proxy is the only authenticator. The base is
+similar). TigerVNC (`Xvnc`) is the display and `websockify` the WebSocket
+bridge. `server.py` (Python standard library only) owns port 6080: it serves AI
+Factory's noVNC-based client page and the file transfers, and pipes every
+WebSocket upgrade to `websockify`, which listens on loopback only. The VNC
+server has no TCP listener and no password: it listens on a Unix socket only
+`websockify` uses, and the AI Factory proxy is the only authenticator. The base is
 digest-pinned Debian 13, because Rocky Linux 10 ships neither an X server nor a
 VNC server; Chromium itself comes from Debian security updates, so **rebuild the
 image regularly** to pick up browser fixes.
@@ -129,7 +131,8 @@ image regularly** to pick up browser fixes.
   to the template's `env_vars` in `app/orchestrator/templates.py`.
 - **Persistence**: the whole home directory (`/home/browser`) is the workspace
   volume, so sign-ins, open tabs, bookmarks and `~/Downloads` survive restarts.
-  Files on the user's own computer are not visible to the remote browser.
+  Files on the user's own computer are not visible to the remote browser; the
+  panel's file section moves them (below).
 - **Policies**: `containers/browser-chromium/policies/managed.json` is baked in
   as a root-owned file. It disables extensions, browser sync and sign-in, the
   password manager and autofill, and sets the bookmarks. Nothing restricts which
@@ -137,9 +140,27 @@ image regularly** to pick up browser fixes.
   `"URLBlocklist": ["*"]` and
   `"URLAllowlist": ["claude.ai", "anthropic.com", "chatgpt.com", "openai.com", "accounts.google.com"]`
   (include every sign-in provider your users need) and rebuild.
-- **Clipboard**: text is copied in both directions. Set
-  `AIFACTORY_BROWSER_CLIPBOARD` in the template's `env_vars` to `in` (paste into
-  the workspace only), `out` or `none` to restrict it.
+- **Clipboard**: text can be pasted into the workspace, but nothing copied
+  inside it reaches the user's machine: `AIFACTORY_BROWSER_CLIPBOARD` defaults
+  to `in` (the template also sets it in its `env_vars`), so Xvnc runs with
+  `SendCutText=0` and the server never sends its clipboard to the client. Change
+  it to `both`, `out` or `none` (and recreate the workspaces) to allow copying
+  out or to block pasting in as well. Screenshots and retyping are not blocked.
+- **Panel**: a red **Pano · Dosyalar** tab on the left edge opens the clipboard
+  and file panel. It is open on first use and stays hidden once the user hides
+  it (remembered per browser). Its sections follow the settings below, which
+  `GET files` reports to the page.
+- **Files**: uploads (the button, or files dropped anywhere on the page) land in
+  `~/Downloads`, where the remote browser's file picker opens; Chromium's
+  `DownloadDirectory` policy pins its downloads to the same folder, and the
+  panel lists them for download to the user's computer. Uploads never
+  overwrite (a second `report.pdf` becomes `report (1).pdf`), are capped by
+  the proxy's `PROXY_MAX_REQUEST_BYTES` (512 MB) and need a same-origin request
+  with the `X-AIFactory-Files` header. Every transfer is logged to the
+  workspace log. `AIFACTORY_BROWSER_FILES` in the template's `env_vars` sets the
+  direction: `both` (default), `in` (upload only), `out` (download only) or
+  `none`. Note that with downloads on, content can leave the workspace as a file
+  even though the clipboard is one-way; use `in` to close that too.
 - **Sandbox**: Chromium runs with `--no-sandbox`, because rootless Podman's
   default seccomp profile does not allow its sandbox namespaces. The container
   (non-root, no `sudo`, one per user) is the isolation boundary.

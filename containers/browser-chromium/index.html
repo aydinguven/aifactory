@@ -8,13 +8,13 @@
   :root { color-scheme: dark; font-family: "Segoe UI", Arial, sans-serif; }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; background: #1b1f27; color: #e6ecf5; overflow: hidden; }
+  [hidden] { display: none !important; }
   #screen { position: fixed; inset: 0; }
   #status {
     position: fixed; inset: 0; display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 14px;
     background: rgba(27, 31, 39, 0.92); text-align: center; padding: 24px; z-index: 5;
   }
-  #status[hidden] { display: none; }
   #status-text { font-size: 17px; }
   #status-detail { font-size: 13px; color: #9aa7ba; max-width: 46ch; }
   /* On the left edge, clear of the remote browser's tabs and scrollbar. */
@@ -22,30 +22,62 @@
     position: fixed; left: 0; top: 50%; transform: translateY(-50%); z-index: 10;
     display: flex; align-items: center;
   }
+  /* Always visible: a labelled tab, not a sliver. */
   #bar-toggle {
-    width: 10px; height: 64px; border: 0; padding: 0; cursor: pointer;
-    border-radius: 0 8px 8px 0; background: #d50032; opacity: 0.55;
+    order: 2; width: 30px; padding: 14px 0; border: 0; cursor: pointer;
+    writing-mode: vertical-rl; transform: rotate(180deg);
+    border-radius: 8px 0 0 8px; background: #d50032; color: #fff;
+    font: 600 12px/1 "Segoe UI", Arial, sans-serif; letter-spacing: 0.04em;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
   }
-  #bar-toggle:hover, #bar-toggle:focus-visible { opacity: 1; }
+  #bar-toggle:hover, #bar-toggle:focus-visible { background: #ef1a4d; }
   #panel {
-    width: min(420px, calc(100vw - 40px)); margin-left: 8px; padding: 14px;
-    background: #262c38; border: 1px solid #3a4354; border-radius: 10px;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    order: 1; width: min(400px, calc(100vw - 48px));
+    max-height: calc(100vh - 24px); overflow-y: auto; padding: 14px;
+    background: #262c38; border: 1px solid #3a4354; border-left: 0;
+    border-radius: 0 10px 10px 0; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
   }
-  #panel[hidden] { display: none; }
-  #panel h1 { font-size: 14px; margin: 0 0 4px; }
+  #panel section + section { margin-top: 14px; padding-top: 14px; border-top: 1px solid #3a4354; }
+  #panel h2 { font-size: 14px; margin: 0 0 4px; }
   #panel p { font-size: 12px; color: #9aa7ba; margin: 0 0 10px; line-height: 1.45; }
   #clipboard {
-    width: 100%; height: 96px; resize: vertical; padding: 8px; font: inherit; font-size: 13px;
+    width: 100%; height: 88px; resize: vertical; padding: 8px; font: inherit; font-size: 13px;
     color: #e6ecf5; background: #1b1f27; border: 1px solid #3a4354; border-radius: 6px;
   }
   .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-  button.action {
-    font: inherit; font-size: 13px; padding: 7px 12px; cursor: pointer;
+  .action {
+    font: inherit; font-size: 13px; padding: 7px 12px; cursor: pointer; text-decoration: none;
     color: #e6ecf5; background: #343c4c; border: 1px solid #47526a; border-radius: 6px;
   }
-  button.action:hover { background: #3e4860; }
-  button.action.primary { background: #d50032; border-color: #d50032; }
+  .action:hover { background: #3e4860; }
+  .action.primary { background: #d50032; border-color: #d50032; color: #fff; }
+  .action.primary:hover { background: #ef1a4d; }
+  .action.small { font-size: 12px; padding: 4px 10px; }
+  #drop {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    padding: 14px; border: 1px dashed #5a6782; border-radius: 8px; text-align: center;
+    font-size: 12px; color: #9aa7ba;
+  }
+  #drop.over { border-color: #d50032; background: rgba(213, 0, 50, 0.08); }
+  #upload-progress { margin-top: 10px; font-size: 12px; color: #9aa7ba; }
+  #upload-progress progress { width: 100%; height: 6px; accent-color: #d50032; }
+  #files-note { margin-top: 8px; font-size: 12px; min-height: 1em; }
+  #files-note.error { color: #ff8da6; }
+  #files-note.ok { color: #8fd6a6; }
+  #download-head { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
+  #download-head h3 { font-size: 12px; margin: 0; color: #c7d0de; }
+  #file-list { list-style: none; margin: 8px 0 0; padding: 0; max-height: 220px; overflow-y: auto; }
+  #file-list li {
+    display: flex; align-items: center; gap: 8px; padding: 6px 0;
+    border-bottom: 1px solid #323a49; font-size: 12px;
+  }
+  #file-list .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #file-list .size { color: #9aa7ba; white-space: nowrap; }
+  #file-empty { font-size: 12px; color: #9aa7ba; margin: 8px 0 0; }
+  #drop-overlay {
+    position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center;
+    background: rgba(27, 31, 39, 0.82); border: 3px dashed #d50032; font-size: 18px; pointer-events: none;
+  }
 </style>
 </head>
 <body>
@@ -57,37 +89,77 @@
 </div>
 
 <div id="bar">
-  <button id="bar-toggle" type="button" title="Pano ve görünüm" aria-label="Pano ve görünüm" aria-expanded="false"></button>
+  <button id="bar-toggle" type="button" aria-controls="panel" aria-expanded="false" title="Pano ve dosyalar">
+    Pano · Dosyalar
+  </button>
   <div id="panel" hidden>
-    <h1>Pano</h1>
-    <p id="clipboard-hint">
-      Kopyala ve yapıştır normalde kendiliğinden çalışır. Çalışmazsa metni buraya
-      yapıştırıp <b>Tarayıcıya gönder</b>'e basın; tarayıcıda kopyaladığınız metin de burada görünür.
-    </p>
-    <textarea id="clipboard" spellcheck="false" aria-label="Pano metni"></textarea>
-    <div class="row">
-      <button id="send-clipboard" class="action primary" type="button">Tarayıcıya gönder</button>
-      <button id="fullscreen" class="action" type="button">Tam ekran</button>
-      <button id="reconnect" class="action" type="button">Yeniden bağlan</button>
-    </div>
+    <section id="clipboard-section">
+      <h2>Pano</h2>
+      <p id="clipboard-hint">
+        Bilgisayarınızda kopyaladığınız metin tarayıcıya kendiliğinden aktarılır. Çalışmazsa metni buraya
+        yapıştırıp <b>Tarayıcıya gönder</b>'e basın. Tarayıcıda kopyalanan metin dışarı aktarılmaz.
+      </p>
+      <textarea id="clipboard" spellcheck="false" aria-label="Pano metni"></textarea>
+      <div class="row">
+        <button id="send-clipboard" class="action primary" type="button">Tarayıcıya gönder</button>
+      </div>
+    </section>
+
+    <section id="files-section">
+      <h2>Dosyalar</h2>
+      <p id="files-hint"></p>
+      <div id="upload-area">
+        <div id="drop">
+          <button id="pick-files" class="action primary" type="button">Dosya yükle</button>
+          <span>veya dosyaları bu sayfaya sürükleyip bırakın</span>
+        </div>
+        <input id="file-input" type="file" multiple hidden>
+        <div id="upload-progress" hidden>
+          <div id="upload-label"></div>
+          <progress id="upload-bar" max="1" value="0"></progress>
+        </div>
+      </div>
+      <div id="files-note" role="status"></div>
+      <div id="download-area">
+        <div id="download-head">
+          <h3>İndirilenler klasörü</h3>
+          <button id="refresh-files" class="action small" type="button">Yenile</button>
+        </div>
+        <ul id="file-list"></ul>
+        <p id="file-empty" hidden>Henüz dosya yok. Tarayıcıda indirdiğiniz dosyalar burada görünür.</p>
+      </div>
+    </section>
+
+    <section>
+      <div class="row">
+        <button id="fullscreen" class="action" type="button">Tam ekran</button>
+        <button id="reconnect" class="action" type="button">Yeniden bağlan</button>
+        <button id="hide-panel" class="action" type="button">Gizle</button>
+      </div>
+    </section>
   </div>
 </div>
+
+<div id="drop-overlay" hidden>Bırakın: dosyalar tarayıcının İndirilenler klasörüne yüklenir</div>
 
 <script type="module">
 import RFB from "./core/rfb.js";
 
-const screen = document.getElementById("screen");
-const statusBox = document.getElementById("status");
-const statusText = document.getElementById("status-text");
-const statusDetail = document.getElementById("status-detail");
-const panel = document.getElementById("panel");
-const toggle = document.getElementById("bar-toggle");
-const clipboardBox = document.getElementById("clipboard");
+const $ = (id) => document.getElementById(id);
+const screen = $("screen");
+const statusBox = $("status");
+const statusText = $("status-text");
+const statusDetail = $("status-detail");
+const panel = $("panel");
+const toggle = $("bar-toggle");
+const clipboardBox = $("clipboard");
 
 // The page is served under /proxy/<workspace-id>/, so every URL is derived
 // from where the page itself was loaded.
+const directory = location.pathname.replace(/[^/]*$/, "");
+const filesUrl = `${directory}files`;
+
 function socketUrl() {
-  const directory = location.pathname.replace(/[^/]*$/, "");
   const scheme = location.protocol === "https:" ? "wss:" : "ws:";
   return `${scheme}//${location.host}${directory}websockify`;
 }
@@ -108,7 +180,9 @@ let rfb = null;
 let retryDelay = 1000;
 let retryTimer = null;
 let lastLocalClipboard = null;
-let lastRemoteClipboard = null;
+// What this workspace allows; GET files reports it. Until then assume the
+// defaults (paste in only, files both ways).
+let settings = { clipboard: "in", upload: true, download: true };
 
 function showStatus(text, detail = "") {
   statusText.textContent = text;
@@ -150,11 +224,14 @@ function onDisconnect() {
   retryDelay = Math.min(retryDelay * 2, 15000);
 }
 
-// Remote copy -> local clipboard. Without permission the text still lands in
-// the panel, where it can be copied by hand.
+// ---- Clipboard -------------------------------------------------------------
+
+const pasteAllowed = () => settings.clipboard === "in" || settings.clipboard === "both";
+
+// Remote copy -> local clipboard. Only arrives when the workspace allows
+// copying out; without permission the text still lands in the panel.
 function onRemoteClipboard(event) {
   const text = event.detail.text;
-  lastRemoteClipboard = text;
   lastLocalClipboard = text;
   clipboardBox.value = text;
   if (navigator.clipboard?.writeText && document.hasFocus()) {
@@ -165,7 +242,7 @@ function onRemoteClipboard(event) {
 // Local clipboard -> remote, whenever this tab gains focus: by the time the
 // user presses Ctrl+V in the remote browser the text is already there.
 async function pushLocalClipboard() {
-  if (!rfb || !navigator.clipboard?.readText || !document.hasFocus()) return;
+  if (!rfb || !pasteAllowed() || !navigator.clipboard?.readText || !document.hasFocus()) return;
   let text;
   try {
     text = await navigator.clipboard.readText();
@@ -179,36 +256,255 @@ async function pushLocalClipboard() {
 
 window.addEventListener("focus", pushLocalClipboard);
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) pushLocalClipboard();
+  if (!document.hidden) {
+    pushLocalClipboard();
+    if (!panel.hidden) refreshFiles();
+  }
 });
 // Covers copying in another window without this tab ever losing focus.
 screen.addEventListener("mouseenter", pushLocalClipboard);
 
-function setPanel(open) {
-  panel.hidden = !open;
-  toggle.setAttribute("aria-expanded", String(open));
-  if (open) {
-    clipboardBox.focus();
-  } else if (rfb) {
-    rfb.focus();
-  }
-}
-toggle.addEventListener("click", () => setPanel(panel.hidden));
-document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && !panel.hidden) setPanel(false);
-});
-
-document.getElementById("send-clipboard").addEventListener("click", () => {
+$("send-clipboard").addEventListener("click", () => {
   const text = clipboardBox.value;
   lastLocalClipboard = text;
   try { rfb.clipboardPasteFrom(text); } catch { /* not connected */ }
-  setPanel(false);
+  rfb?.focus();
+});
+
+const CLIPBOARD_HINTS = {
+  in: "Bilgisayarınızda kopyaladığınız metin tarayıcıya kendiliğinden aktarılır. Çalışmazsa metni " +
+      "buraya yapıştırıp Tarayıcıya gönder'e basın. Tarayıcıda kopyalanan metin dışarı aktarılmaz.",
+  both: "Kopyala ve yapıştır iki yönde de kendiliğinden çalışır. Çalışmazsa metni buraya yapıştırıp " +
+        "Tarayıcıya gönder'e basın; tarayıcıda kopyaladığınız metin de burada görünür.",
+  out: "Tarayıcıda kopyaladığınız metin burada görünür ve bilgisayarınıza aktarılır. " +
+       "Bilgisayarınızdan tarayıcıya yapıştırma kapalı.",
+};
+
+// ---- Files -----------------------------------------------------------------
+
+const fileList = $("file-list");
+const fileInput = $("file-input");
+const note = $("files-note");
+const uploadQueue = [];
+let uploading = false;
+
+function showNote(text, kind = "") {
+  note.textContent = text;
+  note.className = kind;
+}
+
+function formatSize(bytes) {
+  const units = ["B", "KB", "MB", "GB"];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  const digits = unit === 0 || value >= 10 ? 0 : 1;
+  return `${value.toLocaleString("tr-TR", { maximumFractionDigits: digits })} ${units[unit]}`;
+}
+
+function fileUrl(name) {
+  return `${filesUrl}/${encodeURIComponent(name)}`;
+}
+
+function applySettings(next) {
+  settings = next;
+  const clipboardMode = settings.clipboard;
+  $("clipboard-section").hidden = clipboardMode === "none";
+  $("clipboard-hint").textContent = CLIPBOARD_HINTS[clipboardMode] || CLIPBOARD_HINTS.in;
+  $("send-clipboard").hidden = !pasteAllowed();
+  clipboardBox.readOnly = !pasteAllowed();
+
+  $("files-section").hidden = !settings.upload && !settings.download;
+  $("upload-area").hidden = !settings.upload;
+  $("download-area").hidden = !settings.download;
+  const hints = [];
+  if (settings.upload) {
+    hints.push("Yüklediğiniz dosyalar uzak tarayıcının İndirilenler klasörüne kaydedilir; " +
+               "bir siteye dosya eklerken oradan seçin.");
+  }
+  if (settings.download) {
+    hints.push("Tarayıcıda indirdiğiniz dosyaları buradan bilgisayarınıza alabilirsiniz.");
+  }
+  $("files-hint").textContent = hints.join(" ");
+}
+
+function renderFiles(files) {
+  fileList.replaceChildren(...files.map((file) => {
+    const item = document.createElement("li");
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = file.name;
+    name.title = file.name;
+    const size = document.createElement("span");
+    size.className = "size";
+    size.textContent = formatSize(file.size);
+    const link = document.createElement("a");
+    link.className = "action small";
+    link.href = fileUrl(file.name);
+    link.download = file.name;
+    link.textContent = "İndir";
+    item.append(name, size, link);
+    return item;
+  }));
+  $("file-empty").hidden = files.length > 0;
+}
+
+let refreshing = false;
+async function refreshFiles() {
+  if (refreshing || document.hidden) return;
+  refreshing = true;
+  try {
+    const response = await fetch(filesUrl, { cache: "no-store", credentials: "same-origin" });
+    if (!response.ok) throw new Error(String(response.status));
+    const data = await response.json();
+    applySettings(data);
+    renderFiles(data.files || []);
+  } catch {
+    if (!uploading) showNote("Dosya listesi alınamadı. Workspace hazır olunca yeniden denenir.", "error");
+  } finally {
+    refreshing = false;
+  }
+}
+
+function uploadError(xhr, name) {
+  if (xhr.status === 413) return `${name} çok büyük; daha küçük bir dosya deneyin.`;
+  try {
+    const message = JSON.parse(xhr.responseText).error;
+    if (message) return `${name}: ${message}`;
+  } catch { /* not JSON */ }
+  return `${name} yüklenemedi (${xhr.status || "bağlantı hatası"}).`;
+}
+
+function uploadFiles(files) {
+  if (!settings.upload || !files.length) return;
+  uploadQueue.push(...files);
+  setPanel(true);
+  if (!uploading) nextUpload();
+}
+
+function nextUpload() {
+  const file = uploadQueue.shift();
+  const progress = $("upload-progress");
+  if (!file) {
+    uploading = false;
+    progress.hidden = true;
+    refreshFiles();
+    return;
+  }
+  uploading = true;
+  progress.hidden = false;
+  const label = $("upload-label");
+  const bar = $("upload-bar");
+  const waiting = uploadQueue.length ? ` (+${uploadQueue.length} bekliyor)` : "";
+  label.textContent = `${file.name} yükleniyor…${waiting}`;
+  bar.value = 0;
+
+  const xhr = new XMLHttpRequest();
+  xhr.open("PUT", fileUrl(file.name));
+  xhr.setRequestHeader("X-AIFactory-Files", "1");
+  xhr.upload.addEventListener("progress", (event) => {
+    if (event.lengthComputable) bar.value = event.loaded / event.total;
+  });
+  xhr.addEventListener("load", () => {
+    if (xhr.status === 201) {
+      let saved = file.name;
+      try { saved = JSON.parse(xhr.responseText).name || saved; } catch { /* keep */ }
+      showNote(`${saved} İndirilenler klasörüne yüklendi.`, "ok");
+    } else {
+      showNote(uploadError(xhr, file.name), "error");
+    }
+    nextUpload();
+  });
+  xhr.addEventListener("error", () => {
+    showNote(uploadError(xhr, file.name), "error");
+    nextUpload();
+  });
+  xhr.send(file);
+}
+
+$("pick-files").addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", () => {
+  uploadFiles([...fileInput.files]);
+  fileInput.value = "";
+});
+$("refresh-files").addEventListener("click", refreshFiles);
+
+// Dropping files anywhere on the page uploads them.
+const overlay = $("drop-overlay");
+const drop = $("drop");
+let dragDepth = 0;
+const carriesFiles = (event) => event.dataTransfer?.types?.includes("Files");
+document.addEventListener("dragenter", (event) => {
+  if (!carriesFiles(event) || !settings.upload) return;
+  event.preventDefault();
+  dragDepth += 1;
+  overlay.hidden = false;
+  drop.classList.add("over");
+}, true);
+document.addEventListener("dragover", (event) => {
+  if (!carriesFiles(event) || !settings.upload) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "copy";
+}, true);
+document.addEventListener("dragleave", (event) => {
+  if (!carriesFiles(event)) return;
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (dragDepth === 0) {
+    overlay.hidden = true;
+    drop.classList.remove("over");
+  }
+}, true);
+document.addEventListener("drop", (event) => {
+  if (!carriesFiles(event)) return;
+  event.preventDefault();
+  dragDepth = 0;
+  overlay.hidden = true;
+  drop.classList.remove("over");
+  uploadFiles([...event.dataTransfer.files]);
+}, true);
+
+// While the panel is open the list follows what the remote browser downloads.
+setInterval(() => { if (!panel.hidden) refreshFiles(); }, 5000);
+
+// ---- Panel -----------------------------------------------------------------
+
+const PANEL_KEY = "aifactory-browser-panel";
+
+function rememberPanel(open) {
+  try { localStorage.setItem(PANEL_KEY, open ? "open" : "closed"); } catch { /* storage blocked */ }
+}
+
+function panelWasClosed() {
+  try { return localStorage.getItem(PANEL_KEY) === "closed"; } catch { return false; }
+}
+
+function setPanel(open, { remember = false, focus = false } = {}) {
+  const wasOpen = !panel.hidden;
+  panel.hidden = !open;
+  toggle.setAttribute("aria-expanded", String(open));
+  toggle.title = open ? "Paneli gizle" : "Pano ve dosyalar";
+  if (remember) rememberPanel(open);
+  if (open && !wasOpen) refreshFiles();
+  if (open && focus) {
+    (pasteAllowed() && settings.clipboard !== "none" ? clipboardBox : $("hide-panel")).focus();
+  } else if (!open && rfb) {
+    rfb.focus();
+  }
+}
+
+toggle.addEventListener("click", () => setPanel(panel.hidden, { remember: true, focus: true }));
+$("hide-panel").addEventListener("click", () => setPanel(false, { remember: true }));
+// Escape only from inside the panel: in the remote browser it belongs to the page.
+panel.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") setPanel(false, { remember: true });
 });
 
 // In full screen, Chromium-based browsers can hand over shortcuts such as
 // Ctrl+T and Ctrl+W, which otherwise act on the local browser.
-document.getElementById("fullscreen").addEventListener("click", async () => {
-  setPanel(false);
+$("fullscreen").addEventListener("click", async () => {
   if (document.fullscreenElement) {
     await document.exitFullscreen();
     return;
@@ -219,12 +515,15 @@ document.getElementById("fullscreen").addEventListener("click", async () => {
   } catch { /* refused by the browser */ }
 });
 
-document.getElementById("reconnect").addEventListener("click", () => {
-  setPanel(false);
+$("reconnect").addEventListener("click", () => {
   retryDelay = 1000;
   connect();
 });
 
+applySettings(settings);
+// Open by default, until the user hides it once.
+setPanel(!panelWasClosed());
+refreshFiles();
 connect();
 </script>
 </body>

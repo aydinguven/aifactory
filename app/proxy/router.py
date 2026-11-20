@@ -28,6 +28,7 @@ from app.share_pages import render_share_error, render_share_page
 from app.database import get_db, release_read_only_connection
 from app.models.user import User, UserRole
 from app.models.workspace import Workspace, WorkspaceStatus
+from app.template_access import DENIED_MESSAGE, can_use_template
 from app.models.mlflow_deployment import MlflowDeployment, MlflowDeploymentStatus
 from app.orchestrator.runtime_backend import runtime_for_node
 from app.agents.manager import AgentCommandError, AgentUnavailable, agent_manager
@@ -58,6 +59,9 @@ async def get_authorized_workspace(
 
     if workspace.user_id != current_user.id and current_user.role != UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="Bu çalışma alanı için erişim reddedildi.")
+    # Withdrawn template access also closes workspaces that already exist.
+    if not await can_use_template(db, current_user, workspace.template_id):
+        raise HTTPException(status_code=403, detail=DENIED_MESSAGE)
 
     if require_running and workspace.status != WorkspaceStatus.RUNNING:
         raise HTTPException(

@@ -6,6 +6,7 @@
   "BrowserSignin": 0,
   "CommandLineFlagSecurityWarningsEnabled": false,
   "DefaultBrowserSettingEnabled": false,
+  "DownloadDirectory": "/home/browser/Downloads",
   "ExtensionInstallBlocklist": ["*"],
   "ManagedBookmarks": [
     {"toplevel_name": "Yapay Zekâ"},

@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import re
 import secrets
@@ -224,6 +225,9 @@ class DirectoryIdentity:
     is_admin: bool
     organization_unit: str = ""
     managed_unit: str = ""
+    # Security group CNs for workspace access rules; nested groups included
+    # when nested group search is on.
+    group_names: tuple[str, ...] = ()
 
 
 def encrypt_directory_secret(secret: str) -> str:
@@ -502,6 +506,48 @@ def _is_group_member(
         return False
 
 
+def _domain_root(dn: str) -> str:
+    """``CN=a,OU=b,DC=tcmb,DC=gov`` -> ``DC=tcmb,DC=gov``."""
+    parts = [part.strip() for part in re.split(r"(?<!\\),", dn or "")]
+    return ",".join(part for part in parts if part.casefold().startswith("dc="))
+
+
+def _group_names(
+    connection,
+    config: DirectoryConfig,
+    user_dn: str,
+    direct_groups: list[str],
+) -> tuple[str, ...]:
+    """CNs of the user's groups, for workspace access rules.
+
+    Direct groups come from the membership attribute. With nested group search
+    on, Active Directory's matching-rule-in-chain adds every group the user is
+    in through other groups; if that search fails the direct groups still count.
+    """
+    from app.template_access import group_name
+
+    names = {group_name(dn): None for dn in direct_groups if dn.strip()}
+    if config.nested_group_search:
+        ldap3, LDAPException, escape_filter_chars = _ldap3()
+        base = _domain_root(user_dn) or _domain_root(config.user_base_dn) or config.user_base_dn
+        try:
+            connection.search(
+                search_base=base,
+                search_filter=(
+                    "(&(objectClass=group)(member:1.2.840.113556.1.4.1941:="
+                    f"{escape_filter_chars(user_dn)}))"
+                ),
+                search_scope=ldap3.SUBTREE,
+                attributes=["cn"],
+                size_limit=2000,
+            )
+            for entry in connection.entries:
+                names.setdefault(group_name(entry.entry_dn), None)
+        except LDAPException as exc:
+            logger.info("Nested group listing for %s failed: %s", user_dn, exc)
+    return tuple(name for name in names if name)
+
+
 def authenticate_directory_user(
     config: DirectoryConfig, username: str, password: str
 ) -> DirectoryIdentity | None:
@@ -595,6 +641,7 @@ def authenticate_directory_user(
             groups,
             config.admin_group_dn,
         )
+        group_names = _group_names(service_connection, config, user_dn, groups)
     except (LDAPException, OSError) as exc:
         logger.error("LDAP user lookup failed: %s", exc)
         raise DirectoryUnavailableError(str(exc)) from exc
@@ -624,6 +671,7 @@ def authenticate_directory_user(
         user_dn=user_dn,
         groups=tuple(groups),
         is_admin=is_admin,
+        group_names=group_names,
     )
 
 
@@ -739,6 +787,7 @@ class HybridAuthProvider(AuthProvider):
             existing.directorate = identity.directorate
             existing.organization_unit = identity.organization_unit
             existing.managed_unit = identity.managed_unit
+            existing.directory_groups = json.dumps(list(identity.group_names), ensure_ascii=False)
             existing.role = role
             existing.is_active = True
             user = existing
@@ -760,6 +809,7 @@ class HybridAuthProvider(AuthProvider):
                 directorate=identity.directorate,
                 organization_unit=identity.organization_unit,
                 managed_unit=identity.managed_unit,
+                directory_groups=json.dumps(list(identity.group_names), ensure_ascii=False),
                 role=role,
                 auth_source="active_directory",
                 is_active=True,

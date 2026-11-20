@@ -452,7 +452,12 @@ function initAdminFlavorSettings() {
       } else {
         const payload = {};
         row.querySelectorAll("[data-template-field]:not(:disabled)").forEach(input => { payload[input.dataset.templateField] = input.type === "number" ? Number(input.value) : input.value.trim(); });
-        await request(`/api/admin/templates/${encodeURIComponent(templateId)}`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)});
+        const saved = await request(`/api/admin/templates/${encodeURIComponent(templateId)}`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)});
+        // The server normalises access entries (spacing, duplicates, DNs).
+        ["access_allow", "access_deny"].forEach((field) => {
+          const input = row.querySelector(`[data-template-field="${field}"]`);
+          if (input && saved && typeof saved[field] === "string") input.value = saved[field];
+        });
         closeInlineEditControls(row);
         templateStatus.textContent = `${templateId} kaydedildi.`;
       }

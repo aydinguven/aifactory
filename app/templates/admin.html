@@ -1461,10 +1461,10 @@ cd aifactory
 </section>
 
 <section class="card admin-management-card" id="workspace-types" style="margin-bottom:2rem">
-  <div class="card-header"><div><h2 class="card-title">Workspace Tipleri</h2><p class="admin-section-description">Yerleşik ve özel şablonların görünen adını ve açıklamasını düzenleyin. Özel şablonlarda port da değiştirilebilir; kullanımda olanlar silinemez.</p></div></div>
+  <div class="card-header"><div><h2 class="card-title">Workspace Tipleri</h2><p class="admin-section-description">Yerleşik ve özel şablonların görünen adını ve açıklamasını düzenleyin. Özel şablonlarda port da değiştirilebilir; kullanımda olanlar silinemez.</p><p class="admin-section-description"><strong>Erişim:</strong> <em>Yalnızca</em> doluysa şablonu yalnızca listelenenler kullanır; <em>Hariç</em> listesindekiler her zaman engellenir. Virgülle ayırın: <code>t2-arge</code> aynı adlı takım, müdürlük veya AD grubuyla eşleşir; <code>grup:</code>, <code>takım:</code> ve <code>müdürlük:</code> önekleri türü sabitler. AD grupları kullanıcının son girişinde okunur. Yöneticiler kısıtlanmaz; erişimi kaldırılan kullanıcı mevcut workspace'ini de açamaz.</p></div></div>
   <div class="data-table-shell responsive-card-table-shell">
     <table id="admin-custom-template-table" class="table responsive-card-table" data-inline-edit-catalog>
-      <thead><tr><th scope="col">Şablon</th><th scope="col">Ad</th><th scope="col">Açıklama</th><th scope="col">Port</th><th scope="col">İşlemler</th></tr></thead>
+      <thead><tr><th scope="col">Şablon</th><th scope="col">Ad</th><th scope="col">Açıklama</th><th scope="col">Port</th><th scope="col">Erişim</th><th scope="col">İşlemler</th></tr></thead>
       <tbody>
       {% for template in admin_templates %}
         <tr data-template-id="{{ template.id }}">
@@ -1480,6 +1480,13 @@ cd aifactory
           <td data-label="Port">
             <label class="sr-only" for="template-{{ loop.index0 }}-port">{{ template.id }} varsayılan portu</label>
             <input id="template-{{ loop.index0 }}-port" class="form-input" type="number" min="1" max="65535" data-template-field="default_port" value="{{ template.default_port }}" {% if template.id in builtin_template_ids %}disabled title="Yerleşik runtime portu değiştirilemez"{% else %}data-inline-edit-input data-inline-edit-label="{{ template.id }} varsayılan portunu"{% endif %}>
+          </td>
+          {% set access = template_access.get(template.id, {}) %}
+          <td data-label="Erişim" class="template-access-cell">
+            <label class="form-label" for="template-{{ loop.index0 }}-allow">Yalnızca</label>
+            <input id="template-{{ loop.index0 }}-allow" class="form-input" data-template-field="access_allow" data-inline-edit-input data-inline-edit-label="{{ template.id }} izin listesini" placeholder="Herkes" value="{{ access.get('allow', '') }}">
+            <label class="form-label" for="template-{{ loop.index0 }}-deny">Hariç</label>
+            <input id="template-{{ loop.index0 }}-deny" class="form-input" data-template-field="access_deny" data-inline-edit-input data-inline-edit-label="{{ template.id }} engel listesini" placeholder="Kimse" value="{{ access.get('deny', '') }}">
           </td>
           <td data-label="İşlemler"><div class="table-actions"><button class="btn btn-secondary btn-sm" type="button" data-template-save aria-label="{{ template.id }} workspace tipini kaydet">Kaydet</button>{% if template.id not in builtin_template_ids %}<button class="btn btn-danger btn-sm" type="button" data-template-delete aria-label="{{ template.id }} workspace tipini sil">Sil</button>{% endif %}</div></td>
         </tr>

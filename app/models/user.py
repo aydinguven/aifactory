@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime, timezone
 from typing import List, TYPE_CHECKING
-from sqlalchemy import String, Boolean, DateTime, Enum, Float, Integer
+from sqlalchemy import String, Boolean, DateTime, Enum, Float, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.config import settings
@@ -38,6 +38,11 @@ class User(Base):
     # from the directory. Managers see their müdürlük's teams in GenAI stats.
     managed_unit: Mapped[str] = mapped_column(
         String(255), default="", server_default="", nullable=False
+    )
+    # AD security groups (CN, nested included when enabled), JSON list,
+    # refreshed at every directory login. Used by workspace access rules.
+    directory_groups: Mapped[str] = mapped_column(
+        Text, default="", server_default="", nullable=False
     )
     role: Mapped[UserRole] = mapped_column(Enum(UserRole), default=UserRole.USER, nullable=False)
     auth_source: Mapped[str] = mapped_column(String(32), default="internal", nullable=False)

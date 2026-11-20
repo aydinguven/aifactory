@@ -3498,3 +3498,8 @@ body.has-sidebar .admin-section-content {
   .workspace-create-modal { padding: 1rem; }
   .workspace-create-modal .selected-flavor-summary { flex-basis: 100%; white-space: normal; }
 }
+
+/* Workspace type access lists (admin > Workspace Tipleri). */
+.template-access-cell { min-width: 15rem; }
+.template-access-cell .form-label { margin: 0.35rem 0 0.2rem; font-size: 0.75rem; }
+.template-access-cell .form-label:first-child { margin-top: 0; }

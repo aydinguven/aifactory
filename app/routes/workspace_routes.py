@@ -9,7 +9,13 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, get_current_user_optional
+from app.template_access import (
+    DENIED_MESSAGE,
+    can_use_template,
+    filter_templates,
+    require_template_access,
+)
 from app.config import settings
 from app.database import get_db
 from app.models.user import User, UserRole
@@ -103,9 +109,12 @@ def _snapshot_ide_type(template_id: str) -> str:
 
 
 @workspace_router.get("/templates", response_model=list[TemplateInfo])
-async def get_templates(db: Annotated[AsyncSession, Depends(get_db)]):
-    """List available project environment templates."""
-    return await list_enabled_templates(db)
+async def get_templates(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(get_current_user_optional)] = None,
+):
+    """List the templates the caller may use (all of them when signed out)."""
+    return await filter_templates(db, current_user, await list_enabled_templates(db))
 
 
 @workspace_router.get("/placement-options", response_model=PlacementOptions)
@@ -215,6 +224,7 @@ async def create_workspace(
             else f"Şablon devre dışı: {data.template_id}"
         )
         raise HTTPException(status_code=400, detail=detail)
+    await require_template_access(db, current_user, template.id)
 
     flavor = await resolve_flavor(db, data.flavor_id)
     if not flavor or not await flavor_enabled(db, data.flavor_id):
@@ -327,6 +337,9 @@ async def deploy_workspace_stream(
                     if is_retired(data.template_id)
                     else f"Şablon devre dışı: {data.template_id}"
                 )
+                return
+            if not await can_use_template(db, current_user, template.id, cached=False):
+                await emit_error(DENIED_MESSAGE)
                 return
 
             flavor = await resolve_flavor(db, data.flavor_id)
@@ -489,6 +502,8 @@ async def start_workspace_endpoint(
         raise HTTPException(status_code=404, detail="Çalışma alanı bulunamadı.")
     if workspace.user_id != current_user.id and current_user.role != UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="Erişim reddedildi.")
+    # Access can be withdrawn after the workspace was created.
+    await require_template_access(db, current_user, workspace.template_id)
 
     async with admission_transaction(db):
         await db.refresh(workspace)

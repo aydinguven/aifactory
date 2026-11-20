@@ -33,6 +33,14 @@ from app.orchestrator.templates import (
     register_custom_template,
 )
 from app.orchestrator.flavors import FLAVORS, get_flavor
+from app.template_access import (
+    AccessRuleError,
+    dump_entries,
+    format_entries,
+    invalidate_cache,
+    parse_entries,
+    rule_from_record,
+)
 from app.workspace_catalog import configured_flavors, resolve_flavor
 from app.workspace_image_service import (
     image_archive_path,
@@ -197,8 +205,12 @@ async def delete_custom_template(
     archive_paths = [image_archive_path(item.filename) for item in images]
     for image in images:
         await db.delete(image)
+    access = await db.get(TemplateSettings, template_id)
+    if access is not None:
+        await db.delete(access)
     await db.delete(tpl)
     await db.commit()
+    invalidate_cache()
     for archive_path in archive_paths:
         archive_path.unlink(missing_ok=True)
     TEMPLATES.pop(template_id, None)
@@ -214,11 +226,35 @@ async def update_custom_template(
 ):
     template = await db.get(CustomTemplate, template_id)
     values = payload.model_dump(exclude_unset=True)
+    access = {
+        name: values.pop(name)
+        for name in ("access_allow", "access_deny")
+        if values.get(name) is not None
+    }
+    try:
+        parsed_access = {name: parse_entries(value) for name, value in access.items()}
+    except AccessRuleError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if not template and template_id not in BUILTIN_TEMPLATE_IDS:
+        raise HTTPException(status_code=404, detail="Workspace tipi bulunamadı.")
+    record = await db.get(TemplateSettings, template_id)
+    if parsed_access:
+        if record is None:
+            record = TemplateSettings(template_id=template_id)
+        for name, entries in parsed_access.items():
+            setattr(record, name, dump_entries(entries))
+        db.add(record)
+    rule = rule_from_record(record)
+    access_view = {
+        "access_allow": format_entries(rule.allow),
+        "access_deny": format_entries(rule.deny),
+    }
     if template:
         for field_name, value in values.items():
             setattr(template, field_name, value)
         db.add(template)
         await db.commit()
+        invalidate_cache()
         await db.refresh(template)
         register_custom_template(
             template_id=template.id,
@@ -230,12 +266,13 @@ async def update_custom_template(
             ide_type=template.ide_type,
             icon=template.icon,
         )
-        return template
-    if template_id not in BUILTIN_TEMPLATE_IDS:
-        raise HTTPException(status_code=404, detail="Workspace tipi bulunamadı.")
+        columns = CustomTemplate.__table__.columns.keys()
+        return {
+            **{column: getattr(template, column) for column in columns},
+            **access_view,
+        }
     if "default_port" in values:
         raise HTTPException(status_code=422, detail="Yerleşik workspace tipinin runtime portu değiştirilemez.")
-    record = await db.get(TemplateSettings, template_id)
     if record is None:
         record = TemplateSettings(template_id=template_id)
     for field_name in ("name", "description", "category"):
@@ -243,12 +280,14 @@ async def update_custom_template(
             setattr(record, field_name, values[field_name])
     db.add(record)
     await db.commit()
+    invalidate_cache()
     base = TEMPLATES[template_id]
     return {
         **base.to_schema().model_dump(),
         "name": record.name or base.name,
         "description": record.description or base.description,
         "category": record.category or base.category,
+        **access_view,
     }
 
 

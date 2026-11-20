@@ -5,6 +5,9 @@ set -euo pipefail
 HOME_DIR="${HOME:-/home/browser}"
 PORT="${AIFACTORY_BROWSER_PORT:-6080}"
 WEB_ROOT="/opt/aifactory-browser/web"
+# websockify listens on loopback only; server.py owns the public port and
+# hands it every WebSocket upgrade.
+WEBSOCKIFY_PORT="6081"
 RUNTIME_DIR="/tmp/aifactory-browser"
 VNC_SOCKET="${RUNTIME_DIR}/vnc.sock"
 PROFILE_DIR="${HOME_DIR}/.config/chromium"
@@ -61,10 +64,11 @@ sync_ca_bundle
 unset AIFACTORY_CA_BUNDLE_PEM
 
 # Clipboard direction between the user's machine and the workspace:
-# both (default), in (paste into the workspace only), out (copy out only), none.
+# in (default: paste into the workspace only, nothing is copied out), both,
+# out (copy out only), none.
 accept_clipboard=1
 send_clipboard=1
-case "${AIFACTORY_BROWSER_CLIPBOARD:-both}" in
+case "${AIFACTORY_BROWSER_CLIPBOARD:-in}" in
     in) send_clipboard=0 ;;
     out) accept_clipboard=0 ;;
     none) accept_clipboard=0; send_clipboard=0 ;;
@@ -115,10 +119,21 @@ done
 openbox &
 children+=("$!")
 
-websockify --web "${WEB_ROOT}" --heartbeat 30 \
-    --unix-target "${VNC_SOCKET}" "0.0.0.0:${PORT}" &
+websockify --heartbeat 30 \
+    --unix-target "${VNC_SOCKET}" "127.0.0.1:${WEBSOCKIFY_PORT}" &
 children+=("$!")
 websockify_pid="$!"
+
+# The client page, the Downloads folder (upload / download) and the
+# WebSocket, on the one port the proxy tunnels. AIFACTORY_BROWSER_FILES:
+# both (default), in (upload only), out (download only), none.
+AIFACTORY_BROWSER_WEB_ROOT="${WEB_ROOT}" \
+AIFACTORY_BROWSER_FILES_DIR="${HOME_DIR}/Downloads" \
+AIFACTORY_BROWSER_WEBSOCKIFY_PORT="${WEBSOCKIFY_PORT}" \
+AIFACTORY_BROWSER_PORT="${PORT}" \
+    python3 -I /opt/aifactory-browser/server.py &
+children+=("$!")
+server_pid="$!"
 
 # Chromium opens the start page by policy (policies/recommended.json).
 # AIFACTORY_BROWSER_START_URLS adds tabs on the very first start only.
@@ -164,7 +179,8 @@ run_chromium "${first_run_urls[@]}"
 # Closing the last window ends Chromium; open it again rather than leaving the
 # user with an empty screen. The container stops when the display or the
 # bridge dies, and Podman's restart policy brings it back.
-while kill -0 "${xvnc_pid}" 2>/dev/null && kill -0 "${websockify_pid}" 2>/dev/null; do
+while kill -0 "${xvnc_pid}" 2>/dev/null && kill -0 "${websockify_pid}" 2>/dev/null \
+    && kill -0 "${server_pid}" 2>/dev/null; do
     if ! kill -0 "${chromium_pid}" 2>/dev/null; then
         wait "${chromium_pid}" 2>/dev/null || true
         sleep 1
@@ -173,6 +189,6 @@ while kill -0 "${xvnc_pid}" 2>/dev/null && kill -0 "${websockify_pid}" 2>/dev/nu
     fi
     sleep 1
 done
-echo "aifactory-browser: display or WebSocket bridge exited" >&2
+echo "aifactory-browser: display, WebSocket bridge or web server exited" >&2
 kill "${children[@]}" "${chromium_pid}" 2>/dev/null || true
 exit 1

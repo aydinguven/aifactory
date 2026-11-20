@@ -19,7 +19,7 @@ from app.config import settings
 from app.database import engine, init_db
 
 
-CURRENT_SCHEMA_VERSION = 41
+CURRENT_SCHEMA_VERSION = 42
 # ai_config_digest of the workspaces migration 33 moved off TCMB Code.
 TCMB_CODE_MIGRATED_DIGEST = "tcmb-code-migrated"
 
@@ -756,6 +756,24 @@ async def _add_genai_auto_provision(conn) -> None:
         )
 
 
+async def _add_template_access(conn) -> None:
+    """Per-template allow/deny lists and each user's AD security groups."""
+    for table, columns in (
+        ("template_settings", ("access_allow", "access_deny")),
+        ("users", ("directory_groups",)),
+    ):
+        existing = await conn.run_sync(
+            lambda sync_conn, table=table: {
+                column["name"] for column in inspect(sync_conn).get_columns(table)
+            }
+        )
+        for column in columns:
+            if column not in existing:
+                await conn.execute(
+                    text(f"ALTER TABLE {table} ADD COLUMN {column} TEXT NOT NULL DEFAULT ''")
+                )
+
+
 async def _remove_datacenters(conn) -> None:
     """Drop the datacenter placement (IDM/ODM); custom tags stay."""
     await conn.execute(text("DELETE FROM placement_tags WHERE kind = 'datacenter'"))
@@ -1263,6 +1281,9 @@ async def upgrade() -> None:
         if 41 not in applied:
             # init_db creates the portable assistant_settings and api_tokens tables.
             await _record_version(conn, 41, "in-app assistant settings and MCP access tokens")
+        if 42 not in applied:
+            await _add_template_access(conn)
+            await _record_version(conn, 42, "workspace template access rules and AD groups")
 
 
 async def current_version() -> int:

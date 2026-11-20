@@ -1,8 +1,9 @@
 # Tarayıcı (Chromium)
 # A Chromium window delivered to the browser, for sites that are reachable from
 # the worker but not from user desktops (Claude, ChatGPT and similar). TigerVNC
-# (Xvnc) is the display, websockify serves the noVNC client and the WebSocket
-# on one port, which is the shape the AI Factory proxy tunnels. AI Factory is
+# (Xvnc) is the display and websockify the WebSocket bridge; server.py serves
+# the noVNC client, the Downloads folder and that WebSocket on one port, which
+# is the shape the AI Factory proxy tunnels. AI Factory is
 # the only authenticator, so the VNC server has no password of its own and
 # listens on a Unix socket that only websockify reaches.
 #
@@ -38,6 +39,7 @@ RUN useradd --create-home --uid 1000 --shell /bin/bash browser
 
 # The client page is AI Factory's own; only noVNC's RFB library is reused.
 COPY index.html /opt/aifactory-browser/web/index.html
+COPY server.py /opt/aifactory-browser/server.py
 RUN ln -s /usr/share/novnc/core /opt/aifactory-browser/web/core \
     && ln -s /usr/share/novnc/vendor /opt/aifactory-browser/web/vendor \
     && test -r /opt/aifactory-browser/web/core/rfb.js
@@ -51,6 +53,7 @@ COPY policies/recommended.json /etc/chromium/policies/recommended/aifactory.json
 COPY openbox-rc.xml /etc/xdg/openbox/rc.xml
 COPY entrypoint.sh /usr/local/bin/aifactory-browser-entrypoint
 RUN chmod 0644 /opt/aifactory-browser/web/index.html \
+        /opt/aifactory-browser/server.py \
         /opt/aifactory-browser/start/index.html \
         /etc/chromium/policies/managed/aifactory.json \
         /etc/chromium/policies/recommended/aifactory.json \

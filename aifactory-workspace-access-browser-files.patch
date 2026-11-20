@@ -1,0 +1,2364 @@
+diff --git a/CONTAINERS.md b/CONTAINERS.md
+index a031e90..a4fdf74 100644
+--- a/CONTAINERS.md
++++ b/CONTAINERS.md
+@@ -108,10 +108,12 @@ injecting IDE environment or rewriting the container command.
+ 
+ The `browser-chromium` image gives users a Chromium window in a browser tab, for
+ sites reachable from the worker but not from their desktops (Claude, ChatGPT and
+-similar). TigerVNC (`Xvnc`) is the display and `websockify` serves AI Factory's
+-noVNC-based client page and the WebSocket on port 6080. The VNC server has no
+-TCP listener and no password: it listens on a Unix socket only `websockify`
+-uses, and the AI Factory proxy is the only authenticator. The base is
++similar). TigerVNC (`Xvnc`) is the display and `websockify` the WebSocket
++bridge. `server.py` (Python standard library only) owns port 6080: it serves AI
++Factory's noVNC-based client page and the file transfers, and pipes every
++WebSocket upgrade to `websockify`, which listens on loopback only. The VNC
++server has no TCP listener and no password: it listens on a Unix socket only
++`websockify` uses, and the AI Factory proxy is the only authenticator. The base is
+ digest-pinned Debian 13, because Rocky Linux 10 ships neither an X server nor a
+ VNC server; Chromium itself comes from Debian security updates, so **rebuild the
+ image regularly** to pick up browser fixes.
+@@ -129,7 +131,8 @@ image regularly** to pick up browser fixes.
+   to the template's `env_vars` in `app/orchestrator/templates.py`.
+ - **Persistence**: the whole home directory (`/home/browser`) is the workspace
+   volume, so sign-ins, open tabs, bookmarks and `~/Downloads` survive restarts.
+-  Files on the user's own computer are not visible to the remote browser.
++  Files on the user's own computer are not visible to the remote browser; the
++  panel's file section moves them (below).
+ - **Policies**: `containers/browser-chromium/policies/managed.json` is baked in
+   as a root-owned file. It disables extensions, browser sync and sign-in, the
+   password manager and autofill, and sets the bookmarks. Nothing restricts which
+@@ -137,9 +140,27 @@ image regularly** to pick up browser fixes.
+   `"URLBlocklist": ["*"]` and
+   `"URLAllowlist": ["claude.ai", "anthropic.com", "chatgpt.com", "openai.com", "accounts.google.com"]`
+   (include every sign-in provider your users need) and rebuild.
+-- **Clipboard**: text is copied in both directions. Set
+-  `AIFACTORY_BROWSER_CLIPBOARD` in the template's `env_vars` to `in` (paste into
+-  the workspace only), `out` or `none` to restrict it.
++- **Clipboard**: text can be pasted into the workspace, but nothing copied
++  inside it reaches the user's machine: `AIFACTORY_BROWSER_CLIPBOARD` defaults
++  to `in` (the template also sets it in its `env_vars`), so Xvnc runs with
++  `SendCutText=0` and the server never sends its clipboard to the client. Change
++  it to `both`, `out` or `none` (and recreate the workspaces) to allow copying
++  out or to block pasting in as well. Screenshots and retyping are not blocked.
++- **Panel**: a red **Pano · Dosyalar** tab on the left edge opens the clipboard
++  and file panel. It is open on first use and stays hidden once the user hides
++  it (remembered per browser). Its sections follow the settings below, which
++  `GET files` reports to the page.
++- **Files**: uploads (the button, or files dropped anywhere on the page) land in
++  `~/Downloads`, where the remote browser's file picker opens; Chromium's
++  `DownloadDirectory` policy pins its downloads to the same folder, and the
++  panel lists them for download to the user's computer. Uploads never
++  overwrite (a second `report.pdf` becomes `report (1).pdf`), are capped by
++  the proxy's `PROXY_MAX_REQUEST_BYTES` (512 MB) and need a same-origin request
++  with the `X-AIFactory-Files` header. Every transfer is logged to the
++  workspace log. `AIFACTORY_BROWSER_FILES` in the template's `env_vars` sets the
++  direction: `both` (default), `in` (upload only), `out` (download only) or
++  `none`. Note that with downloads on, content can leave the workspace as a file
++  even though the clipboard is one-way; use `in` to close that too.
+ - **Sandbox**: Chromium runs with `--no-sandbox`, because rootless Podman's
+   default seccomp profile does not allow its sandbox namespaces. The container
+   (non-root, no `sudo`, one per user) is the isolation boundary.
+diff --git a/README.md b/README.md
+index 6320867..d7b6205 100644
+--- a/README.md
++++ b/README.md
+@@ -37,6 +37,7 @@ AI Factory is a lightweight, high-performance cloud development platform built w
+ - **Self-Service Registration**: New users can sign up from the login screen with a default allowance of 1 CPU core, 1 GB RAM, and 10 GB disk; admins can adjust individual quotas.
+ - **Per-User Quotas**: Admin-managed CPU, RAM, persistent-disk, and GPU-slot limits with workspace deployment enforcement. GPU quota defaults to zero.
+ - **Hierarchical Quotas**: **Admin > Kullanıcılar** lists müdürlüks, their teams and the members. Quotas are per member and resolve user override → team → müdürlük → default; a blank field inherits the next level, and each value shows where it comes from.
++- **Workspace Type Access**: **Admin > Çalışma Alanları > Workspace Tipleri** gives each template an allow list (*Yalnızca*) and a deny list (*Hariç*). Entries are comma separated; a bare name such as `t2-arge` matches a team, müdürlük or AD security group of that name, and `grup:`, `takım:` or `müdürlük:` pins the kind (a pasted group DN counts as its CN). An empty allow list admits everyone, a non-empty one only its members; the deny list always wins, and admins are never restricted. Users only see templates they may use; creating, starting and opening (proxy) a workspace are refused otherwise, so withdrawn access also closes existing workspaces within ~10 seconds. AD groups are read at each login (nested groups too when *Nested group search* is on) and shown on the user's profile, so a membership change applies at the user's next login.
+ - **Pause to Reclaim Quota**: CPU and RAM are charged only while a workspace holds compute, so pausing one frees its allowance for another. Disk keeps counting paused workspaces because their data stays on the worker, and GPU slots keep counting because a paused workspace holds its accelerator slot. Resuming re-checks the owner's quota and is refused when it would exceed the limit.
+ - **Outbound-Only CPU and NVIDIA GPU Workers**: Register workers without inbound management ports, validate an existing NVIDIA driver/Container Toolkit/CDI stack, display physical GPU and MIG inventory, and schedule GPU workspaces onto exact CDI devices.
+ - **GPU Sharing Policy**: RTX 4090 workers default to two workspace slots per physical GPU and RTX 5090 workers to three; admins can override physical GPUs to one, two, or three slots. Every MIG CDI slice is an exclusive single slot.
+@@ -676,6 +677,7 @@ intelligent-nobel/
+ | `DELETE` | `/api/workspaces/{id}` | Delete workspace container | Yes |
+ | `GET` | `/api/workspaces/{id}/logs` | Fetch container logs | Yes |
+ | `GET` | `/proxy/{id}/{path}` | Reverse proxy to container IDE | Yes (Owner/Admin) |
++| `PATCH` | `/api/admin/templates/{id}` | Edit a template's name, description, port (custom) and `access_allow` / `access_deny` lists | Yes (Admin) |
+ | `GET` | `/api/admin/users` | List all users | Yes (Admin) |
+ | `PUT` | `/api/admin/users/{id}/quota` | Update a user's CPU/RAM/disk/GPU-slot quota | Yes (Admin) |
+ | `GET` | `/api/admin/workspaces` | List all workspaces | Yes (Admin) |
+diff --git a/app/assistant/tools.py b/app/assistant/tools.py
+index 68c8a0c..06d2028 100644
+--- a/app/assistant/tools.py
++++ b/app/assistant/tools.py
+@@ -244,7 +244,7 @@ async def _list_templates(db: AsyncSession, user: User, _args: NoArgs) -> dict:
+ 
+     return _capped([
+         _pick(item, "id", "name", "description", "category", "requires_accelerator")
+-        for item in await get_templates(db)
++        for item in await get_templates(db, user)
+     ])
+ 
+ 
+diff --git a/app/auth/ldap.py b/app/auth/ldap.py
+index 3f03c97..a078f44 100644
+--- a/app/auth/ldap.py
++++ b/app/auth/ldap.py
+@@ -1,4 +1,5 @@
+ import asyncio
++import json
+ import logging
+ import re
+ import secrets
+@@ -224,6 +225,9 @@ class DirectoryIdentity:
+     is_admin: bool
+     organization_unit: str = ""
+     managed_unit: str = ""
++    # Security group CNs for workspace access rules; nested groups included
++    # when nested group search is on.
++    group_names: tuple[str, ...] = ()
+ 
+ 
+ def encrypt_directory_secret(secret: str) -> str:
+@@ -502,6 +506,48 @@ def _is_group_member(
+         return False
+ 
+ 
++def _domain_root(dn: str) -> str:
++    """``CN=a,OU=b,DC=tcmb,DC=gov`` -> ``DC=tcmb,DC=gov``."""
++    parts = [part.strip() for part in re.split(r"(?<!\\),", dn or "")]
++    return ",".join(part for part in parts if part.casefold().startswith("dc="))
++
++
++def _group_names(
++    connection,
++    config: DirectoryConfig,
++    user_dn: str,
++    direct_groups: list[str],
++) -> tuple[str, ...]:
++    """CNs of the user's groups, for workspace access rules.
++
++    Direct groups come from the membership attribute. With nested group search
++    on, Active Directory's matching-rule-in-chain adds every group the user is
++    in through other groups; if that search fails the direct groups still count.
++    """
++    from app.template_access import group_name
++
++    names = {group_name(dn): None for dn in direct_groups if dn.strip()}
++    if config.nested_group_search:
++        ldap3, LDAPException, escape_filter_chars = _ldap3()
++        base = _domain_root(user_dn) or _domain_root(config.user_base_dn) or config.user_base_dn
++        try:
++            connection.search(
++                search_base=base,
++                search_filter=(
++                    "(&(objectClass=group)(member:1.2.840.113556.1.4.1941:="
++                    f"{escape_filter_chars(user_dn)}))"
++                ),
++                search_scope=ldap3.SUBTREE,
++                attributes=["cn"],
++                size_limit=2000,
++            )
++            for entry in connection.entries:
++                names.setdefault(group_name(entry.entry_dn), None)
++        except LDAPException as exc:
++            logger.info("Nested group listing for %s failed: %s", user_dn, exc)
++    return tuple(name for name in names if name)
++
++
+ def authenticate_directory_user(
+     config: DirectoryConfig, username: str, password: str
+ ) -> DirectoryIdentity | None:
+@@ -595,6 +641,7 @@ def authenticate_directory_user(
+             groups,
+             config.admin_group_dn,
+         )
++        group_names = _group_names(service_connection, config, user_dn, groups)
+     except (LDAPException, OSError) as exc:
+         logger.error("LDAP user lookup failed: %s", exc)
+         raise DirectoryUnavailableError(str(exc)) from exc
+@@ -624,6 +671,7 @@ def authenticate_directory_user(
+         user_dn=user_dn,
+         groups=tuple(groups),
+         is_admin=is_admin,
++        group_names=group_names,
+     )
+ 
+ 
+@@ -739,6 +787,7 @@ class HybridAuthProvider(AuthProvider):
+             existing.directorate = identity.directorate
+             existing.organization_unit = identity.organization_unit
+             existing.managed_unit = identity.managed_unit
++            existing.directory_groups = json.dumps(list(identity.group_names), ensure_ascii=False)
+             existing.role = role
+             existing.is_active = True
+             user = existing
+@@ -760,6 +809,7 @@ class HybridAuthProvider(AuthProvider):
+                 directorate=identity.directorate,
+                 organization_unit=identity.organization_unit,
+                 managed_unit=identity.managed_unit,
++                directory_groups=json.dumps(list(identity.group_names), ensure_ascii=False),
+                 role=role,
+                 auth_source="active_directory",
+                 is_active=True,
+diff --git a/app/migrations.py b/app/migrations.py
+index ec6803e..e1c0ae4 100644
+--- a/app/migrations.py
++++ b/app/migrations.py
+@@ -19,7 +19,7 @@ from app.config import settings
+ from app.database import engine, init_db
+ 
+ 
+-CURRENT_SCHEMA_VERSION = 41
++CURRENT_SCHEMA_VERSION = 42
+ # ai_config_digest of the workspaces migration 33 moved off TCMB Code.
+ TCMB_CODE_MIGRATED_DIGEST = "tcmb-code-migrated"
+ 
+@@ -756,6 +756,24 @@ async def _add_genai_auto_provision(conn) -> None:
+         )
+ 
+ 
++async def _add_template_access(conn) -> None:
++    """Per-template allow/deny lists and each user's AD security groups."""
++    for table, columns in (
++        ("template_settings", ("access_allow", "access_deny")),
++        ("users", ("directory_groups",)),
++    ):
++        existing = await conn.run_sync(
++            lambda sync_conn, table=table: {
++                column["name"] for column in inspect(sync_conn).get_columns(table)
++            }
++        )
++        for column in columns:
++            if column not in existing:
++                await conn.execute(
++                    text(f"ALTER TABLE {table} ADD COLUMN {column} TEXT NOT NULL DEFAULT ''")
++                )
++
++
+ async def _remove_datacenters(conn) -> None:
+     """Drop the datacenter placement (IDM/ODM); custom tags stay."""
+     await conn.execute(text("DELETE FROM placement_tags WHERE kind = 'datacenter'"))
+@@ -1263,6 +1281,9 @@ async def upgrade() -> None:
+         if 41 not in applied:
+             # init_db creates the portable assistant_settings and api_tokens tables.
+             await _record_version(conn, 41, "in-app assistant settings and MCP access tokens")
++        if 42 not in applied:
++            await _add_template_access(conn)
++            await _record_version(conn, 42, "workspace template access rules and AD groups")
+ 
+ 
+ async def current_version() -> int:
+diff --git a/app/models/template_settings.py b/app/models/template_settings.py
+index e413db8..51fcff4 100644
+--- a/app/models/template_settings.py
++++ b/app/models/template_settings.py
+@@ -1,13 +1,17 @@
+ from datetime import datetime, timezone
+ 
+-from sqlalchemy import DateTime, String
++from sqlalchemy import DateTime, String, Text
+ from sqlalchemy.orm import Mapped, mapped_column
+ 
+ from app.database import Base
+ 
+ 
+ class TemplateSettings(Base):
+-    """Admin-controlled display metadata for built-in workspace templates."""
++    """Admin-controlled metadata for workspace templates.
++
++    Display fields apply to built-in templates (custom templates keep theirs
++    in ``custom_templates``); access rules apply to both.
++    """
+ 
+     __tablename__ = "template_settings"
+ 
+@@ -15,6 +19,10 @@ class TemplateSettings(Base):
+     name: Mapped[str] = mapped_column(String(100), default="", nullable=False)
+     description: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+     category: Mapped[str] = mapped_column(String(50), default="", nullable=False)
++    # Who may use the template (app/template_access.py): JSON lists of
++    # entries such as "t2-arge" or "grup:t2-arge". Empty allow = everyone.
++    access_allow: Mapped[str] = mapped_column(Text, default="", server_default="", nullable=False)
++    access_deny: Mapped[str] = mapped_column(Text, default="", server_default="", nullable=False)
+     updated_at: Mapped[datetime] = mapped_column(
+         DateTime(timezone=True),
+         default=lambda: datetime.now(timezone.utc),
+diff --git a/app/models/user.py b/app/models/user.py
+index 8435145..0d5b1cf 100644
+--- a/app/models/user.py
++++ b/app/models/user.py
+@@ -1,7 +1,7 @@
+ import enum
+ from datetime import datetime, timezone
+ from typing import List, TYPE_CHECKING
+-from sqlalchemy import String, Boolean, DateTime, Enum, Float, Integer
++from sqlalchemy import String, Boolean, DateTime, Enum, Float, Integer, Text
+ from sqlalchemy.orm import Mapped, mapped_column, relationship
+ 
+ from app.config import settings
+@@ -39,6 +39,11 @@ class User(Base):
+     managed_unit: Mapped[str] = mapped_column(
+         String(255), default="", server_default="", nullable=False
+     )
++    # AD security groups (CN, nested included when enabled), JSON list,
++    # refreshed at every directory login. Used by workspace access rules.
++    directory_groups: Mapped[str] = mapped_column(
++        Text, default="", server_default="", nullable=False
++    )
+     role: Mapped[UserRole] = mapped_column(Enum(UserRole), default=UserRole.USER, nullable=False)
+     auth_source: Mapped[str] = mapped_column(String(32), default="internal", nullable=False)
+     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+diff --git a/app/orchestrator/templates.py b/app/orchestrator/templates.py
+index f6670de..0d6cc80 100644
+--- a/app/orchestrator/templates.py
++++ b/app/orchestrator/templates.py
+@@ -189,13 +189,23 @@ TEMPLATES: dict[str, WorkspaceTemplate] = {
+         features=[
+             "Chromium (Türkçe arayüz)",
+             "Merkez Asistan, Claude ve ChatGPT başlangıç sayfası",
+-            "Kopyala / yapıştır",
++            "Yapıştır (dışarıya kopyalama kapalı)",
++            "Dosya yükleme ve indirme",
+             "Kalıcı oturum ve indirilenler",
+         ],
+         # Like the terminal, its own ide_type keeps the image ENTRYPOINT in
+         # charge; the worker only adds the Admin CA bundle to the environment.
+         ide_type="browser",
+-        env_vars={"TZ": "Europe/Istanbul"},
++        # Clipboard is one-way: text can be pasted into the workspace, but
++        # nothing copied inside it reaches the user's machine (Xvnc
++        # SendCutText=0). See containers/browser-chromium/entrypoint.sh.
++        # Files move both ways through the panel (~/Downloads); "in" allows
++        # uploads only, "out" downloads only, "none" neither.
++        env_vars={
++            "TZ": "Europe/Istanbul",
++            "AIFACTORY_BROWSER_CLIPBOARD": "in",
++            "AIFACTORY_BROWSER_FILES": "both",
++        },
+         health_path="/",
+         # The worker passes the CA bundle to "browser" containers from 3.55.0.
+         min_agent_version="3.55.0",
+diff --git a/app/proxy/router.py b/app/proxy/router.py
+index a89dcf4..6d587f6 100644
+--- a/app/proxy/router.py
++++ b/app/proxy/router.py
+@@ -28,6 +28,7 @@ from app.share_pages import render_share_error, render_share_page
+ from app.database import get_db, release_read_only_connection
+ from app.models.user import User, UserRole
+ from app.models.workspace import Workspace, WorkspaceStatus
++from app.template_access import DENIED_MESSAGE, can_use_template
+ from app.models.mlflow_deployment import MlflowDeployment, MlflowDeploymentStatus
+ from app.orchestrator.runtime_backend import runtime_for_node
+ from app.agents.manager import AgentCommandError, AgentUnavailable, agent_manager
+@@ -58,6 +59,9 @@ async def get_authorized_workspace(
+ 
+     if workspace.user_id != current_user.id and current_user.role != UserRole.ADMIN:
+         raise HTTPException(status_code=403, detail="Bu çalışma alanı için erişim reddedildi.")
++    # Withdrawn template access also closes workspaces that already exist.
++    if not await can_use_template(db, current_user, workspace.template_id):
++        raise HTTPException(status_code=403, detail=DENIED_MESSAGE)
+ 
+     if require_running and workspace.status != WorkspaceStatus.RUNNING:
+         raise HTTPException(
+diff --git a/app/routes/admin/catalog.py b/app/routes/admin/catalog.py
+index c8db731..2522850 100644
+--- a/app/routes/admin/catalog.py
++++ b/app/routes/admin/catalog.py
+@@ -33,6 +33,14 @@ from app.orchestrator.templates import (
+     register_custom_template,
+ )
+ from app.orchestrator.flavors import FLAVORS, get_flavor
++from app.template_access import (
++    AccessRuleError,
++    dump_entries,
++    format_entries,
++    invalidate_cache,
++    parse_entries,
++    rule_from_record,
++)
+ from app.workspace_catalog import configured_flavors, resolve_flavor
+ from app.workspace_image_service import (
+     image_archive_path,
+@@ -197,8 +205,12 @@ async def delete_custom_template(
+     archive_paths = [image_archive_path(item.filename) for item in images]
+     for image in images:
+         await db.delete(image)
++    access = await db.get(TemplateSettings, template_id)
++    if access is not None:
++        await db.delete(access)
+     await db.delete(tpl)
+     await db.commit()
++    invalidate_cache()
+     for archive_path in archive_paths:
+         archive_path.unlink(missing_ok=True)
+     TEMPLATES.pop(template_id, None)
+@@ -214,11 +226,35 @@ async def update_custom_template(
+ ):
+     template = await db.get(CustomTemplate, template_id)
+     values = payload.model_dump(exclude_unset=True)
++    access = {
++        name: values.pop(name)
++        for name in ("access_allow", "access_deny")
++        if values.get(name) is not None
++    }
++    try:
++        parsed_access = {name: parse_entries(value) for name, value in access.items()}
++    except AccessRuleError as exc:
++        raise HTTPException(status_code=422, detail=str(exc)) from exc
++    if not template and template_id not in BUILTIN_TEMPLATE_IDS:
++        raise HTTPException(status_code=404, detail="Workspace tipi bulunamadı.")
++    record = await db.get(TemplateSettings, template_id)
++    if parsed_access:
++        if record is None:
++            record = TemplateSettings(template_id=template_id)
++        for name, entries in parsed_access.items():
++            setattr(record, name, dump_entries(entries))
++        db.add(record)
++    rule = rule_from_record(record)
++    access_view = {
++        "access_allow": format_entries(rule.allow),
++        "access_deny": format_entries(rule.deny),
++    }
+     if template:
+         for field_name, value in values.items():
+             setattr(template, field_name, value)
+         db.add(template)
+         await db.commit()
++        invalidate_cache()
+         await db.refresh(template)
+         register_custom_template(
+             template_id=template.id,
+@@ -230,12 +266,13 @@ async def update_custom_template(
+             ide_type=template.ide_type,
+             icon=template.icon,
+         )
+-        return template
+-    if template_id not in BUILTIN_TEMPLATE_IDS:
+-        raise HTTPException(status_code=404, detail="Workspace tipi bulunamadı.")
++        columns = CustomTemplate.__table__.columns.keys()
++        return {
++            **{column: getattr(template, column) for column in columns},
++            **access_view,
++        }
+     if "default_port" in values:
+         raise HTTPException(status_code=422, detail="Yerleşik workspace tipinin runtime portu değiştirilemez.")
+-    record = await db.get(TemplateSettings, template_id)
+     if record is None:
+         record = TemplateSettings(template_id=template_id)
+     for field_name in ("name", "description", "category"):
+@@ -243,12 +280,14 @@ async def update_custom_template(
+             setattr(record, field_name, values[field_name])
+     db.add(record)
+     await db.commit()
++    invalidate_cache()
+     base = TEMPLATES[template_id]
+     return {
+         **base.to_schema().model_dump(),
+         "name": record.name or base.name,
+         "description": record.description or base.description,
+         "category": record.category or base.category,
++        **access_view,
+     }
+ 
+ 
+diff --git a/app/routes/view_routes.py b/app/routes/view_routes.py
+index b096bb9..9d949b7 100644
+--- a/app/routes/view_routes.py
++++ b/app/routes/view_routes.py
+@@ -64,6 +64,7 @@ from app.directory_sync import directory_teams_by_key, parse_summary
+ from app.quotas import build_group_views, build_hierarchy, effective_quota, load_quota_groups
+ from app.orchestrator.metrics_service import get_workspace_disk_usage_by_user
+ from app.schemas.workspace import WorkspaceOut
++from app.template_access import filter_templates, format_entries, load_rules, user_groups
+ from app.workspace_catalog import configured_flavors, configured_templates, list_enabled_flavors, list_enabled_templates
+ from app.static_assets import STATIC_ASSET_VERSION
+ 
+@@ -217,7 +218,7 @@ async def dashboard_page(
+             **details,
+         }))
+ 
+-    all_tpls = await list_enabled_templates(db)
++    all_tpls = await filter_templates(db, current_user, await list_enabled_templates(db))
+     default_flavor_id = (
+         "t1.micro"
+         if any(item.id == "t1.micro" for item in flavor_catalog)
+@@ -302,6 +303,7 @@ async def profile_page(
+         context={
+             "app_name": settings.APP_NAME,
+             "user": current_user,
++            "directory_groups": user_groups(current_user),
+         },
+     )
+ 
+@@ -660,6 +662,13 @@ async def admin_page(
+         context["admin_flavors"] = await configured_flavors(db)
+         context["admin_templates"] = await configured_templates(db)
+         context["builtin_template_ids"] = set(list_builtin_templates_item.id for list_builtin_templates_item in list_builtin_templates())
++        context["template_access"] = {
++            template_id: {
++                "allow": format_entries(rule.allow),
++                "deny": format_entries(rule.deny),
++            }
++            for template_id, rule in (await load_rules(db, cached=False)).items()
++        }
+     elif section == "images":
+         image_templates = list_builtin_templates()
+         custom_templates = (
+diff --git a/app/routes/workspace_routes.py b/app/routes/workspace_routes.py
+index 7c7c783..c2840c6 100644
+--- a/app/routes/workspace_routes.py
++++ b/app/routes/workspace_routes.py
+@@ -9,7 +9,13 @@ from fastapi.responses import StreamingResponse
+ from sqlalchemy import select
+ from sqlalchemy.ext.asyncio import AsyncSession
+ 
+-from app.auth.dependencies import get_current_user
++from app.auth.dependencies import get_current_user, get_current_user_optional
++from app.template_access import (
++    DENIED_MESSAGE,
++    can_use_template,
++    filter_templates,
++    require_template_access,
++)
+ from app.config import settings
+ from app.database import get_db
+ from app.models.user import User, UserRole
+@@ -103,9 +109,12 @@ def _snapshot_ide_type(template_id: str) -> str:
+ 
+ 
+ @workspace_router.get("/templates", response_model=list[TemplateInfo])
+-async def get_templates(db: Annotated[AsyncSession, Depends(get_db)]):
+-    """List available project environment templates."""
+-    return await list_enabled_templates(db)
++async def get_templates(
++    db: Annotated[AsyncSession, Depends(get_db)],
++    current_user: Annotated[User | None, Depends(get_current_user_optional)] = None,
++):
++    """List the templates the caller may use (all of them when signed out)."""
++    return await filter_templates(db, current_user, await list_enabled_templates(db))
+ 
+ 
+ @workspace_router.get("/placement-options", response_model=PlacementOptions)
+@@ -215,6 +224,7 @@ async def create_workspace(
+             else f"Şablon devre dışı: {data.template_id}"
+         )
+         raise HTTPException(status_code=400, detail=detail)
++    await require_template_access(db, current_user, template.id)
+ 
+     flavor = await resolve_flavor(db, data.flavor_id)
+     if not flavor or not await flavor_enabled(db, data.flavor_id):
+@@ -328,6 +338,9 @@ async def deploy_workspace_stream(
+                     else f"Şablon devre dışı: {data.template_id}"
+                 )
+                 return
++            if not await can_use_template(db, current_user, template.id, cached=False):
++                await emit_error(DENIED_MESSAGE)
++                return
+ 
+             flavor = await resolve_flavor(db, data.flavor_id)
+             if not flavor or not await flavor_enabled(db, data.flavor_id):
+@@ -489,6 +502,8 @@ async def start_workspace_endpoint(
+         raise HTTPException(status_code=404, detail="Çalışma alanı bulunamadı.")
+     if workspace.user_id != current_user.id and current_user.role != UserRole.ADMIN:
+         raise HTTPException(status_code=403, detail="Erişim reddedildi.")
++    # Access can be withdrawn after the workspace was created.
++    await require_template_access(db, current_user, workspace.template_id)
+ 
+     async with admission_transaction(db):
+         await db.refresh(workspace)
+diff --git a/app/schemas/custom_template.py b/app/schemas/custom_template.py
+index 9bdfffa..83b9f5d 100644
+--- a/app/schemas/custom_template.py
++++ b/app/schemas/custom_template.py
+@@ -6,3 +6,7 @@ class CustomTemplateUpdate(BaseModel):
+     description: str | None = Field(default=None, max_length=255)
+     category: str | None = Field(default=None, min_length=1, max_length=50)
+     default_port: int | None = Field(default=None, ge=1, le=65535)
++    # Comma/newline separated entries such as "t2-arge, grup:t2-yapayzeka";
++    # see app/template_access.py. Empty allow = everyone.
++    access_allow: str | None = Field(default=None, max_length=20000)
++    access_deny: str | None = Field(default=None, max_length=20000)
+diff --git a/app/static/css/kurumsal.css b/app/static/css/kurumsal.css
+index 73676b6..7cca770 100644
+--- a/app/static/css/kurumsal.css
++++ b/app/static/css/kurumsal.css
+@@ -3498,3 +3498,8 @@ body.has-sidebar .admin-section-content {
+   .workspace-create-modal { padding: 1rem; }
+   .workspace-create-modal .selected-flavor-summary { flex-basis: 100%; white-space: normal; }
+ }
++
++/* Workspace type access lists (admin > Workspace Tipleri). */
++.template-access-cell { min-width: 15rem; }
++.template-access-cell .form-label { margin: 0.35rem 0 0.2rem; font-size: 0.75rem; }
++.template-access-cell .form-label:first-child { margin-top: 0; }
+diff --git a/app/static/js/app.js b/app/static/js/app.js
+index 014e02d..909972d 100644
+--- a/app/static/js/app.js
++++ b/app/static/js/app.js
+@@ -452,7 +452,12 @@ function initAdminFlavorSettings() {
+       } else {
+         const payload = {};
+         row.querySelectorAll("[data-template-field]:not(:disabled)").forEach(input => { payload[input.dataset.templateField] = input.type === "number" ? Number(input.value) : input.value.trim(); });
+-        await request(`/api/admin/templates/${encodeURIComponent(templateId)}`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)});
++        const saved = await request(`/api/admin/templates/${encodeURIComponent(templateId)}`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)});
++        // The server normalises access entries (spacing, duplicates, DNs).
++        ["access_allow", "access_deny"].forEach((field) => {
++          const input = row.querySelector(`[data-template-field="${field}"]`);
++          if (input && saved && typeof saved[field] === "string") input.value = saved[field];
++        });
+         closeInlineEditControls(row);
+         templateStatus.textContent = `${templateId} kaydedildi.`;
+       }
+diff --git a/app/template_access.py b/app/template_access.py
+new file mode 100644
+index 0000000..3172283
+--- /dev/null
++++ b/app/template_access.py
+@@ -0,0 +1,254 @@
++"""Who may use a workspace template: allow and deny lists per template.
++
++A rule entry names a directory team (AD ``department``, ``User.team``), a
++müdürlük (``User.organization_unit``) or an AD security group (recorded at
++login in ``User.directory_groups``):
++
++- ``t2-arge``            a team, müdürlük or AD group with that name
++- ``grup:t2-arge``       only the AD group (``group:`` works too); a full
++                         group DN is reduced to its CN
++- ``takım:Yapay Zeka``   only the team (``team:``)
++- ``müdürlük:BTGM``      only the müdürlük (``unit:``)
++
++Names compare case- and spacing-insensitively. Deny wins: a member of any
++denied entry is refused. A non-empty allow list admits only members of at
++least one allowed entry; an empty one admits everyone. Admins are never
++restricted.
++"""
++
++from __future__ import annotations
++
++import json
++import re
++import time
++from dataclasses import dataclass
++
++from fastapi import HTTPException, status
++from sqlalchemy import select
++from sqlalchemy.ext.asyncio import AsyncSession
++
++from app.models.template_settings import TemplateSettings
++from app.models.user import User, UserRole
++from app.quotas import team_key
++
++KIND_TEAM = "team"
++KIND_UNIT = "unit"
++KIND_GROUP = "group"
++KINDS = (KIND_TEAM, KIND_UNIT, KIND_GROUP)
++KIND_PREFIXES = {
++    "team": KIND_TEAM,
++    "takım": KIND_TEAM,
++    "takim": KIND_TEAM,
++    "unit": KIND_UNIT,
++    "müdürlük": KIND_UNIT,
++    "mudurluk": KIND_UNIT,
++    "group": KIND_GROUP,
++    "grup": KIND_GROUP,
++}
++DISPLAY_PREFIX = {KIND_TEAM: "takım", KIND_UNIT: "müdürlük", KIND_GROUP: "grup"}
++MAX_ENTRIES = 100
++DENIED_MESSAGE = "Bu workspace tipini kullanma yetkiniz yok. Erişim için yöneticinize başvurun."
++# Rules are read on every proxied request; admin edits take effect within this.
++CACHE_SECONDS = 10.0
++
++
++class AccessRuleError(ValueError):
++    pass
++
++
++@dataclass(frozen=True)
++class Entry:
++    kind: str | None  # None: any kind
++    name: str  # display form, spacing cleaned
++
++    @property
++    def key(self) -> str:
++        return team_key(self.name)
++
++    def display(self) -> str:
++        return f"{DISPLAY_PREFIX[self.kind]}:{self.name}" if self.kind else self.name
++
++
++@dataclass(frozen=True)
++class AccessRule:
++    allow: tuple[Entry, ...] = ()
++    deny: tuple[Entry, ...] = ()
++
++    @property
++    def restricted(self) -> bool:
++        return bool(self.allow or self.deny)
++
++
++OPEN_RULE = AccessRule()
++
++
++def group_name(value: str) -> str:
++    """``CN=t2-arge,OU=Groups,DC=x`` -> ``t2-arge``; plain names unchanged."""
++    value = value.strip()
++    match = re.match(r"\s*cn\s*=\s*((?:\\.|[^,])+)", value, flags=re.IGNORECASE)
++    if match and "," in value:
++        return re.sub(r"\\(.)", r"\1", match.group(1)).strip()
++    return value
++
++
++def parse_entry(raw: str) -> Entry | None:
++    text = " ".join(raw.split())
++    if not text:
++        return None
++    kind = None
++    prefix, colon, rest = text.partition(":")
++    if colon and prefix.strip().casefold() in KIND_PREFIXES:
++        kind = KIND_PREFIXES[prefix.strip().casefold()]
++        text = rest.strip()
++    if "=" in text and "," in text:
++        # A pasted DN is always an AD group.
++        kind = kind or KIND_GROUP
++        text = group_name(text)
++    text = " ".join(text.split())
++    if not text:
++        raise AccessRuleError(f"'{raw.strip()}' kuralında ad eksik.")
++    if len(text) > 255:
++        raise AccessRuleError(f"'{text[:40]}…' çok uzun.")
++    return Entry(kind=kind, name=text)
++
++
++def parse_entries(value: str | list[str] | None) -> tuple[Entry, ...]:
++    """Entries from a comma/newline separated string (or a list of them)."""
++    if value is None:
++        return ()
++    if isinstance(value, str):
++        # A DN contains commas, so DNs go on their own line.
++        lines = value.splitlines()
++        parts: list[str] = []
++        for line in lines:
++            if "=" in line and "," in line:
++                parts.append(line)
++            else:
++                parts.extend(line.split(","))
++    else:
++        parts = list(value)
++    entries: list[Entry] = []
++    seen: set[tuple[str | None, str]] = set()
++    for part in parts:
++        entry = parse_entry(part)
++        if entry is None or (entry.kind, entry.key) in seen:
++            continue
++        seen.add((entry.kind, entry.key))
++        entries.append(entry)
++    if len(entries) > MAX_ENTRIES:
++        raise AccessRuleError(f"En fazla {MAX_ENTRIES} kural girilebilir.")
++    return tuple(entries)
++
++
++def dump_entries(entries: tuple[Entry, ...]) -> str:
++    return json.dumps([entry.display() for entry in entries], ensure_ascii=False)
++
++
++def load_entries(stored: str | None) -> tuple[Entry, ...]:
++    if not stored:
++        return ()
++    try:
++        values = json.loads(stored)
++    except ValueError:
++        values = stored.splitlines()
++    try:
++        return parse_entries([str(value) for value in values])
++    except AccessRuleError:
++        return ()
++
++
++def format_entries(entries: tuple[Entry, ...]) -> str:
++    """The admin form's text: one entry per comma."""
++    return ", ".join(entry.display() for entry in entries)
++
++
++def rule_from_record(record: TemplateSettings | None) -> AccessRule:
++    if record is None:
++        return OPEN_RULE
++    return AccessRule(
++        allow=load_entries(record.access_allow),
++        deny=load_entries(record.access_deny),
++    )
++
++
++def user_groups(user: User) -> list[str]:
++    stored = getattr(user, "directory_groups", "") or ""
++    try:
++        values = json.loads(stored)
++    except ValueError:
++        values = stored.splitlines()
++    return [str(value) for value in values if str(value).strip()]
++
++
++def _memberships(user: User) -> dict[str, set[str]]:
++    return {
++        KIND_TEAM: {key for key in [team_key(user.team)] if key},
++        KIND_UNIT: {key for key in [team_key(user.organization_unit)] if key},
++        KIND_GROUP: {team_key(name) for name in user_groups(user) if team_key(name)},
++    }
++
++
++def _matches(entry: Entry, memberships: dict[str, set[str]]) -> bool:
++    kinds = (entry.kind,) if entry.kind else KINDS
++    return any(entry.key in memberships[kind] for kind in kinds)
++
++
++def user_allowed(user: User, rule: AccessRule) -> bool:
++    if user.role == UserRole.ADMIN or not rule.restricted:
++        return True
++    memberships = _memberships(user)
++    if any(_matches(entry, memberships) for entry in rule.deny):
++        return False
++    return not rule.allow or any(_matches(entry, memberships) for entry in rule.allow)
++
++
++# ---- loading ------------------------------------------------------------
++
++_cache: tuple[float, dict[str, AccessRule]] | None = None
++
++
++def invalidate_cache() -> None:
++    global _cache
++    _cache = None
++
++
++async def load_rules(db: AsyncSession, *, cached: bool = True) -> dict[str, AccessRule]:
++    global _cache
++    now = time.monotonic()
++    if cached and _cache and _cache[0] > now:
++        return _cache[1]
++    records = (await db.execute(select(TemplateSettings))).scalars().all()
++    rules = {
++        record.template_id: rule
++        for record in records
++        if (rule := rule_from_record(record)).restricted
++    }
++    _cache = (now + CACHE_SECONDS, rules)
++    return rules
++
++
++async def can_use_template(db: AsyncSession, user: User, template_id: str, *, cached: bool = True) -> bool:
++    if user.role == UserRole.ADMIN:
++        return True
++    rules = await load_rules(db, cached=cached)
++    return user_allowed(user, rules.get(template_id, OPEN_RULE))
++
++
++async def require_template_access(
++    db: AsyncSession, user: User, template_id: str, *, cached: bool = False
++) -> None:
++    """Raise 403 unless ``user`` may use ``template_id``."""
++    if not await can_use_template(db, user, template_id, cached=cached):
++        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=DENIED_MESSAGE)
++
++
++async def filter_templates(db: AsyncSession, user: User | None, templates: list):
++    """Templates ``user`` may use; everything when nobody is signed in."""
++    if user is None or user.role == UserRole.ADMIN:
++        return templates
++    rules = await load_rules(db, cached=False)
++    return [
++        template
++        for template in templates
++        if user_allowed(user, rules.get(template.id, OPEN_RULE))
++    ]
+diff --git a/app/templates/admin.html b/app/templates/admin.html
+index 39defe2..f7590fe 100644
+--- a/app/templates/admin.html
++++ b/app/templates/admin.html
+@@ -1461,10 +1461,10 @@ cd aifactory
+ </section>
+ 
+ <section class="card admin-management-card" id="workspace-types" style="margin-bottom:2rem">
+-  <div class="card-header"><div><h2 class="card-title">Workspace Tipleri</h2><p class="admin-section-description">Yerleşik ve özel şablonların görünen adını ve açıklamasını düzenleyin. Özel şablonlarda port da değiştirilebilir; kullanımda olanlar silinemez.</p></div></div>
++  <div class="card-header"><div><h2 class="card-title">Workspace Tipleri</h2><p class="admin-section-description">Yerleşik ve özel şablonların görünen adını ve açıklamasını düzenleyin. Özel şablonlarda port da değiştirilebilir; kullanımda olanlar silinemez.</p><p class="admin-section-description"><strong>Erişim:</strong> <em>Yalnızca</em> doluysa şablonu yalnızca listelenenler kullanır; <em>Hariç</em> listesindekiler her zaman engellenir. Virgülle ayırın: <code>t2-arge</code> aynı adlı takım, müdürlük veya AD grubuyla eşleşir; <code>grup:</code>, <code>takım:</code> ve <code>müdürlük:</code> önekleri türü sabitler. AD grupları kullanıcının son girişinde okunur. Yöneticiler kısıtlanmaz; erişimi kaldırılan kullanıcı mevcut workspace'ini de açamaz.</p></div></div>
+   <div class="data-table-shell responsive-card-table-shell">
+     <table id="admin-custom-template-table" class="table responsive-card-table" data-inline-edit-catalog>
+-      <thead><tr><th scope="col">Şablon</th><th scope="col">Ad</th><th scope="col">Açıklama</th><th scope="col">Port</th><th scope="col">İşlemler</th></tr></thead>
++      <thead><tr><th scope="col">Şablon</th><th scope="col">Ad</th><th scope="col">Açıklama</th><th scope="col">Port</th><th scope="col">Erişim</th><th scope="col">İşlemler</th></tr></thead>
+       <tbody>
+       {% for template in admin_templates %}
+         <tr data-template-id="{{ template.id }}">
+@@ -1481,6 +1481,13 @@ cd aifactory
+             <label class="sr-only" for="template-{{ loop.index0 }}-port">{{ template.id }} varsayılan portu</label>
+             <input id="template-{{ loop.index0 }}-port" class="form-input" type="number" min="1" max="65535" data-template-field="default_port" value="{{ template.default_port }}" {% if template.id in builtin_template_ids %}disabled title="Yerleşik runtime portu değiştirilemez"{% else %}data-inline-edit-input data-inline-edit-label="{{ template.id }} varsayılan portunu"{% endif %}>
+           </td>
++          {% set access = template_access.get(template.id, {}) %}
++          <td data-label="Erişim" class="template-access-cell">
++            <label class="form-label" for="template-{{ loop.index0 }}-allow">Yalnızca</label>
++            <input id="template-{{ loop.index0 }}-allow" class="form-input" data-template-field="access_allow" data-inline-edit-input data-inline-edit-label="{{ template.id }} izin listesini" placeholder="Herkes" value="{{ access.get('allow', '') }}">
++            <label class="form-label" for="template-{{ loop.index0 }}-deny">Hariç</label>
++            <input id="template-{{ loop.index0 }}-deny" class="form-input" data-template-field="access_deny" data-inline-edit-input data-inline-edit-label="{{ template.id }} engel listesini" placeholder="Kimse" value="{{ access.get('deny', '') }}">
++          </td>
+           <td data-label="İşlemler"><div class="table-actions"><button class="btn btn-secondary btn-sm" type="button" data-template-save aria-label="{{ template.id }} workspace tipini kaydet">Kaydet</button>{% if template.id not in builtin_template_ids %}<button class="btn btn-danger btn-sm" type="button" data-template-delete aria-label="{{ template.id }} workspace tipini sil">Sil</button>{% endif %}</div></td>
+         </tr>
+       {% endfor %}
+diff --git a/app/templates/profile.html b/app/templates/profile.html
+index 2cf3cfc..748ae50 100644
+--- a/app/templates/profile.html
++++ b/app/templates/profile.html
+@@ -19,6 +19,7 @@
+       <dt class="text-muted">Takım</dt><dd>{{ user.team or '—' }}</dd>
+       <dt class="text-muted">Müdürlük</dt><dd>{{ user.organization_unit or user.directorate or '—' }}</dd>
+       {% if user.organization_unit %}<dt class="text-muted">Bağlı Olduğu Birim</dt><dd>{{ user.directorate or '—' }}</dd>{% endif %}
++      {% if user.auth_source == 'active_directory' %}<dt class="text-muted">AD Grupları</dt><dd>{{ directory_groups|join(', ') if directory_groups else '— (bir sonraki girişte okunur)' }}</dd>{% endif %}
+     </dl>
+     <div class="table-actions" style="margin-top:1.25rem;">
+       <button type="button" class="btn btn-secondary btn-sm" data-onboarding-restart data-tour="tour-restart-profile" hidden>Canlı Turu Yeniden Başlat</button>
+diff --git a/containers/browser-chromium/Containerfile b/containers/browser-chromium/Containerfile
+index c52d047..0cbca52 100644
+--- a/containers/browser-chromium/Containerfile
++++ b/containers/browser-chromium/Containerfile
+@@ -1,8 +1,9 @@
+ # Tarayıcı (Chromium)
+ # A Chromium window delivered to the browser, for sites that are reachable from
+ # the worker but not from user desktops (Claude, ChatGPT and similar). TigerVNC
+-# (Xvnc) is the display, websockify serves the noVNC client and the WebSocket
+-# on one port, which is the shape the AI Factory proxy tunnels. AI Factory is
++# (Xvnc) is the display and websockify the WebSocket bridge; server.py serves
++# the noVNC client, the Downloads folder and that WebSocket on one port, which
++# is the shape the AI Factory proxy tunnels. AI Factory is
+ # the only authenticator, so the VNC server has no password of its own and
+ # listens on a Unix socket that only websockify reaches.
+ #
+@@ -38,6 +39,7 @@ RUN useradd --create-home --uid 1000 --shell /bin/bash browser
+ 
+ # The client page is AI Factory's own; only noVNC's RFB library is reused.
+ COPY index.html /opt/aifactory-browser/web/index.html
++COPY server.py /opt/aifactory-browser/server.py
+ RUN ln -s /usr/share/novnc/core /opt/aifactory-browser/web/core \
+     && ln -s /usr/share/novnc/vendor /opt/aifactory-browser/web/vendor \
+     && test -r /opt/aifactory-browser/web/core/rfb.js
+@@ -51,6 +53,7 @@ COPY policies/recommended.json /etc/chromium/policies/recommended/aifactory.json
+ COPY openbox-rc.xml /etc/xdg/openbox/rc.xml
+ COPY entrypoint.sh /usr/local/bin/aifactory-browser-entrypoint
+ RUN chmod 0644 /opt/aifactory-browser/web/index.html \
++        /opt/aifactory-browser/server.py \
+         /opt/aifactory-browser/start/index.html \
+         /etc/chromium/policies/managed/aifactory.json \
+         /etc/chromium/policies/recommended/aifactory.json \
+diff --git a/containers/browser-chromium/entrypoint.sh b/containers/browser-chromium/entrypoint.sh
+index fd59784..487963e 100644
+--- a/containers/browser-chromium/entrypoint.sh
++++ b/containers/browser-chromium/entrypoint.sh
+@@ -5,6 +5,9 @@ set -euo pipefail
+ HOME_DIR="${HOME:-/home/browser}"
+ PORT="${AIFACTORY_BROWSER_PORT:-6080}"
+ WEB_ROOT="/opt/aifactory-browser/web"
++# websockify listens on loopback only; server.py owns the public port and
++# hands it every WebSocket upgrade.
++WEBSOCKIFY_PORT="6081"
+ RUNTIME_DIR="/tmp/aifactory-browser"
+ VNC_SOCKET="${RUNTIME_DIR}/vnc.sock"
+ PROFILE_DIR="${HOME_DIR}/.config/chromium"
+@@ -61,10 +64,11 @@ sync_ca_bundle
+ unset AIFACTORY_CA_BUNDLE_PEM
+ 
+ # Clipboard direction between the user's machine and the workspace:
+-# both (default), in (paste into the workspace only), out (copy out only), none.
++# in (default: paste into the workspace only, nothing is copied out), both,
++# out (copy out only), none.
+ accept_clipboard=1
+ send_clipboard=1
+-case "${AIFACTORY_BROWSER_CLIPBOARD:-both}" in
++case "${AIFACTORY_BROWSER_CLIPBOARD:-in}" in
+     in) send_clipboard=0 ;;
+     out) accept_clipboard=0 ;;
+     none) accept_clipboard=0; send_clipboard=0 ;;
+@@ -115,11 +119,22 @@ done
+ openbox &
+ children+=("$!")
+ 
+-websockify --web "${WEB_ROOT}" --heartbeat 30 \
+-    --unix-target "${VNC_SOCKET}" "0.0.0.0:${PORT}" &
++websockify --heartbeat 30 \
++    --unix-target "${VNC_SOCKET}" "127.0.0.1:${WEBSOCKIFY_PORT}" &
+ children+=("$!")
+ websockify_pid="$!"
+ 
++# The client page, the Downloads folder (upload / download) and the
++# WebSocket, on the one port the proxy tunnels. AIFACTORY_BROWSER_FILES:
++# both (default), in (upload only), out (download only), none.
++AIFACTORY_BROWSER_WEB_ROOT="${WEB_ROOT}" \
++AIFACTORY_BROWSER_FILES_DIR="${HOME_DIR}/Downloads" \
++AIFACTORY_BROWSER_WEBSOCKIFY_PORT="${WEBSOCKIFY_PORT}" \
++AIFACTORY_BROWSER_PORT="${PORT}" \
++    python3 -I /opt/aifactory-browser/server.py &
++children+=("$!")
++server_pid="$!"
++
+ # Chromium opens the start page by policy (policies/recommended.json).
+ # AIFACTORY_BROWSER_START_URLS adds tabs on the very first start only.
+ first_run_urls=()
+@@ -164,7 +179,8 @@ run_chromium "${first_run_urls[@]}"
+ # Closing the last window ends Chromium; open it again rather than leaving the
+ # user with an empty screen. The container stops when the display or the
+ # bridge dies, and Podman's restart policy brings it back.
+-while kill -0 "${xvnc_pid}" 2>/dev/null && kill -0 "${websockify_pid}" 2>/dev/null; do
++while kill -0 "${xvnc_pid}" 2>/dev/null && kill -0 "${websockify_pid}" 2>/dev/null \
++    && kill -0 "${server_pid}" 2>/dev/null; do
+     if ! kill -0 "${chromium_pid}" 2>/dev/null; then
+         wait "${chromium_pid}" 2>/dev/null || true
+         sleep 1
+@@ -173,6 +189,6 @@ while kill -0 "${xvnc_pid}" 2>/dev/null && kill -0 "${websockify_pid}" 2>/dev/nu
+     fi
+     sleep 1
+ done
+-echo "aifactory-browser: display or WebSocket bridge exited" >&2
++echo "aifactory-browser: display, WebSocket bridge or web server exited" >&2
+ kill "${children[@]}" "${chromium_pid}" 2>/dev/null || true
+ exit 1
+diff --git a/containers/browser-chromium/index.html b/containers/browser-chromium/index.html
+index f92a4cc..08e8588 100644
+--- a/containers/browser-chromium/index.html
++++ b/containers/browser-chromium/index.html
+@@ -8,13 +8,13 @@
+   :root { color-scheme: dark; font-family: "Segoe UI", Arial, sans-serif; }
+   * { box-sizing: border-box; }
+   html, body { height: 100%; margin: 0; background: #1b1f27; color: #e6ecf5; overflow: hidden; }
++  [hidden] { display: none !important; }
+   #screen { position: fixed; inset: 0; }
+   #status {
+     position: fixed; inset: 0; display: flex; flex-direction: column;
+     align-items: center; justify-content: center; gap: 14px;
+     background: rgba(27, 31, 39, 0.92); text-align: center; padding: 24px; z-index: 5;
+   }
+-  #status[hidden] { display: none; }
+   #status-text { font-size: 17px; }
+   #status-detail { font-size: 13px; color: #9aa7ba; max-width: 46ch; }
+   /* On the left edge, clear of the remote browser's tabs and scrollbar. */
+@@ -22,30 +22,62 @@
+     position: fixed; left: 0; top: 50%; transform: translateY(-50%); z-index: 10;
+     display: flex; align-items: center;
+   }
++  /* Always visible: a labelled tab, not a sliver. */
+   #bar-toggle {
+-    width: 10px; height: 64px; border: 0; padding: 0; cursor: pointer;
+-    border-radius: 0 8px 8px 0; background: #d50032; opacity: 0.55;
++    order: 2; width: 30px; padding: 14px 0; border: 0; cursor: pointer;
++    writing-mode: vertical-rl; transform: rotate(180deg);
++    border-radius: 8px 0 0 8px; background: #d50032; color: #fff;
++    font: 600 12px/1 "Segoe UI", Arial, sans-serif; letter-spacing: 0.04em;
++    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+   }
+-  #bar-toggle:hover, #bar-toggle:focus-visible { opacity: 1; }
++  #bar-toggle:hover, #bar-toggle:focus-visible { background: #ef1a4d; }
+   #panel {
+-    width: min(420px, calc(100vw - 40px)); margin-left: 8px; padding: 14px;
+-    background: #262c38; border: 1px solid #3a4354; border-radius: 10px;
+-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
++    order: 1; width: min(400px, calc(100vw - 48px));
++    max-height: calc(100vh - 24px); overflow-y: auto; padding: 14px;
++    background: #262c38; border: 1px solid #3a4354; border-left: 0;
++    border-radius: 0 10px 10px 0; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+   }
+-  #panel[hidden] { display: none; }
+-  #panel h1 { font-size: 14px; margin: 0 0 4px; }
++  #panel section + section { margin-top: 14px; padding-top: 14px; border-top: 1px solid #3a4354; }
++  #panel h2 { font-size: 14px; margin: 0 0 4px; }
+   #panel p { font-size: 12px; color: #9aa7ba; margin: 0 0 10px; line-height: 1.45; }
+   #clipboard {
+-    width: 100%; height: 96px; resize: vertical; padding: 8px; font: inherit; font-size: 13px;
++    width: 100%; height: 88px; resize: vertical; padding: 8px; font: inherit; font-size: 13px;
+     color: #e6ecf5; background: #1b1f27; border: 1px solid #3a4354; border-radius: 6px;
+   }
+   .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+-  button.action {
+-    font: inherit; font-size: 13px; padding: 7px 12px; cursor: pointer;
++  .action {
++    font: inherit; font-size: 13px; padding: 7px 12px; cursor: pointer; text-decoration: none;
+     color: #e6ecf5; background: #343c4c; border: 1px solid #47526a; border-radius: 6px;
+   }
+-  button.action:hover { background: #3e4860; }
+-  button.action.primary { background: #d50032; border-color: #d50032; }
++  .action:hover { background: #3e4860; }
++  .action.primary { background: #d50032; border-color: #d50032; color: #fff; }
++  .action.primary:hover { background: #ef1a4d; }
++  .action.small { font-size: 12px; padding: 4px 10px; }
++  #drop {
++    display: flex; flex-direction: column; align-items: center; gap: 8px;
++    padding: 14px; border: 1px dashed #5a6782; border-radius: 8px; text-align: center;
++    font-size: 12px; color: #9aa7ba;
++  }
++  #drop.over { border-color: #d50032; background: rgba(213, 0, 50, 0.08); }
++  #upload-progress { margin-top: 10px; font-size: 12px; color: #9aa7ba; }
++  #upload-progress progress { width: 100%; height: 6px; accent-color: #d50032; }
++  #files-note { margin-top: 8px; font-size: 12px; min-height: 1em; }
++  #files-note.error { color: #ff8da6; }
++  #files-note.ok { color: #8fd6a6; }
++  #download-head { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
++  #download-head h3 { font-size: 12px; margin: 0; color: #c7d0de; }
++  #file-list { list-style: none; margin: 8px 0 0; padding: 0; max-height: 220px; overflow-y: auto; }
++  #file-list li {
++    display: flex; align-items: center; gap: 8px; padding: 6px 0;
++    border-bottom: 1px solid #323a49; font-size: 12px;
++  }
++  #file-list .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
++  #file-list .size { color: #9aa7ba; white-space: nowrap; }
++  #file-empty { font-size: 12px; color: #9aa7ba; margin: 8px 0 0; }
++  #drop-overlay {
++    position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center;
++    background: rgba(27, 31, 39, 0.82); border: 3px dashed #d50032; font-size: 18px; pointer-events: none;
++  }
+ </style>
+ </head>
+ <body>
+@@ -57,37 +89,77 @@
+ </div>
+ 
+ <div id="bar">
+-  <button id="bar-toggle" type="button" title="Pano ve görünüm" aria-label="Pano ve görünüm" aria-expanded="false"></button>
++  <button id="bar-toggle" type="button" aria-controls="panel" aria-expanded="false" title="Pano ve dosyalar">
++    Pano · Dosyalar
++  </button>
+   <div id="panel" hidden>
+-    <h1>Pano</h1>
+-    <p id="clipboard-hint">
+-      Kopyala ve yapıştır normalde kendiliğinden çalışır. Çalışmazsa metni buraya
+-      yapıştırıp <b>Tarayıcıya gönder</b>'e basın; tarayıcıda kopyaladığınız metin de burada görünür.
+-    </p>
+-    <textarea id="clipboard" spellcheck="false" aria-label="Pano metni"></textarea>
+-    <div class="row">
+-      <button id="send-clipboard" class="action primary" type="button">Tarayıcıya gönder</button>
+-      <button id="fullscreen" class="action" type="button">Tam ekran</button>
+-      <button id="reconnect" class="action" type="button">Yeniden bağlan</button>
+-    </div>
++    <section id="clipboard-section">
++      <h2>Pano</h2>
++      <p id="clipboard-hint">
++        Bilgisayarınızda kopyaladığınız metin tarayıcıya kendiliğinden aktarılır. Çalışmazsa metni buraya
++        yapıştırıp <b>Tarayıcıya gönder</b>'e basın. Tarayıcıda kopyalanan metin dışarı aktarılmaz.
++      </p>
++      <textarea id="clipboard" spellcheck="false" aria-label="Pano metni"></textarea>
++      <div class="row">
++        <button id="send-clipboard" class="action primary" type="button">Tarayıcıya gönder</button>
++      </div>
++    </section>
++
++    <section id="files-section">
++      <h2>Dosyalar</h2>
++      <p id="files-hint"></p>
++      <div id="upload-area">
++        <div id="drop">
++          <button id="pick-files" class="action primary" type="button">Dosya yükle</button>
++          <span>veya dosyaları bu sayfaya sürükleyip bırakın</span>
++        </div>
++        <input id="file-input" type="file" multiple hidden>
++        <div id="upload-progress" hidden>
++          <div id="upload-label"></div>
++          <progress id="upload-bar" max="1" value="0"></progress>
++        </div>
++      </div>
++      <div id="files-note" role="status"></div>
++      <div id="download-area">
++        <div id="download-head">
++          <h3>İndirilenler klasörü</h3>
++          <button id="refresh-files" class="action small" type="button">Yenile</button>
++        </div>
++        <ul id="file-list"></ul>
++        <p id="file-empty" hidden>Henüz dosya yok. Tarayıcıda indirdiğiniz dosyalar burada görünür.</p>
++      </div>
++    </section>
++
++    <section>
++      <div class="row">
++        <button id="fullscreen" class="action" type="button">Tam ekran</button>
++        <button id="reconnect" class="action" type="button">Yeniden bağlan</button>
++        <button id="hide-panel" class="action" type="button">Gizle</button>
++      </div>
++    </section>
+   </div>
+ </div>
+ 
++<div id="drop-overlay" hidden>Bırakın: dosyalar tarayıcının İndirilenler klasörüne yüklenir</div>
++
+ <script type="module">
+ import RFB from "./core/rfb.js";
+ 
+-const screen = document.getElementById("screen");
+-const statusBox = document.getElementById("status");
+-const statusText = document.getElementById("status-text");
+-const statusDetail = document.getElementById("status-detail");
+-const panel = document.getElementById("panel");
+-const toggle = document.getElementById("bar-toggle");
+-const clipboardBox = document.getElementById("clipboard");
++const $ = (id) => document.getElementById(id);
++const screen = $("screen");
++const statusBox = $("status");
++const statusText = $("status-text");
++const statusDetail = $("status-detail");
++const panel = $("panel");
++const toggle = $("bar-toggle");
++const clipboardBox = $("clipboard");
+ 
+ // The page is served under /proxy/<workspace-id>/, so every URL is derived
+ // from where the page itself was loaded.
++const directory = location.pathname.replace(/[^/]*$/, "");
++const filesUrl = `${directory}files`;
++
+ function socketUrl() {
+-  const directory = location.pathname.replace(/[^/]*$/, "");
+   const scheme = location.protocol === "https:" ? "wss:" : "ws:";
+   return `${scheme}//${location.host}${directory}websockify`;
+ }
+@@ -108,7 +180,9 @@ let rfb = null;
+ let retryDelay = 1000;
+ let retryTimer = null;
+ let lastLocalClipboard = null;
+-let lastRemoteClipboard = null;
++// What this workspace allows; GET files reports it. Until then assume the
++// defaults (paste in only, files both ways).
++let settings = { clipboard: "in", upload: true, download: true };
+ 
+ function showStatus(text, detail = "") {
+   statusText.textContent = text;
+@@ -150,11 +224,14 @@ function onDisconnect() {
+   retryDelay = Math.min(retryDelay * 2, 15000);
+ }
+ 
+-// Remote copy -> local clipboard. Without permission the text still lands in
+-// the panel, where it can be copied by hand.
++// ---- Clipboard -------------------------------------------------------------
++
++const pasteAllowed = () => settings.clipboard === "in" || settings.clipboard === "both";
++
++// Remote copy -> local clipboard. Only arrives when the workspace allows
++// copying out; without permission the text still lands in the panel.
+ function onRemoteClipboard(event) {
+   const text = event.detail.text;
+-  lastRemoteClipboard = text;
+   lastLocalClipboard = text;
+   clipboardBox.value = text;
+   if (navigator.clipboard?.writeText && document.hasFocus()) {
+@@ -165,7 +242,7 @@ function onRemoteClipboard(event) {
+ // Local clipboard -> remote, whenever this tab gains focus: by the time the
+ // user presses Ctrl+V in the remote browser the text is already there.
+ async function pushLocalClipboard() {
+-  if (!rfb || !navigator.clipboard?.readText || !document.hasFocus()) return;
++  if (!rfb || !pasteAllowed() || !navigator.clipboard?.readText || !document.hasFocus()) return;
+   let text;
+   try {
+     text = await navigator.clipboard.readText();
+@@ -179,36 +256,255 @@ async function pushLocalClipboard() {
+ 
+ window.addEventListener("focus", pushLocalClipboard);
+ document.addEventListener("visibilitychange", () => {
+-  if (!document.hidden) pushLocalClipboard();
++  if (!document.hidden) {
++    pushLocalClipboard();
++    if (!panel.hidden) refreshFiles();
++  }
+ });
+ // Covers copying in another window without this tab ever losing focus.
+ screen.addEventListener("mouseenter", pushLocalClipboard);
+ 
+-function setPanel(open) {
++$("send-clipboard").addEventListener("click", () => {
++  const text = clipboardBox.value;
++  lastLocalClipboard = text;
++  try { rfb.clipboardPasteFrom(text); } catch { /* not connected */ }
++  rfb?.focus();
++});
++
++const CLIPBOARD_HINTS = {
++  in: "Bilgisayarınızda kopyaladığınız metin tarayıcıya kendiliğinden aktarılır. Çalışmazsa metni " +
++      "buraya yapıştırıp Tarayıcıya gönder'e basın. Tarayıcıda kopyalanan metin dışarı aktarılmaz.",
++  both: "Kopyala ve yapıştır iki yönde de kendiliğinden çalışır. Çalışmazsa metni buraya yapıştırıp " +
++        "Tarayıcıya gönder'e basın; tarayıcıda kopyaladığınız metin de burada görünür.",
++  out: "Tarayıcıda kopyaladığınız metin burada görünür ve bilgisayarınıza aktarılır. " +
++       "Bilgisayarınızdan tarayıcıya yapıştırma kapalı.",
++};
++
++// ---- Files -----------------------------------------------------------------
++
++const fileList = $("file-list");
++const fileInput = $("file-input");
++const note = $("files-note");
++const uploadQueue = [];
++let uploading = false;
++
++function showNote(text, kind = "") {
++  note.textContent = text;
++  note.className = kind;
++}
++
++function formatSize(bytes) {
++  const units = ["B", "KB", "MB", "GB"];
++  let value = bytes;
++  let unit = 0;
++  while (value >= 1024 && unit < units.length - 1) {
++    value /= 1024;
++    unit += 1;
++  }
++  const digits = unit === 0 || value >= 10 ? 0 : 1;
++  return `${value.toLocaleString("tr-TR", { maximumFractionDigits: digits })} ${units[unit]}`;
++}
++
++function fileUrl(name) {
++  return `${filesUrl}/${encodeURIComponent(name)}`;
++}
++
++function applySettings(next) {
++  settings = next;
++  const clipboardMode = settings.clipboard;
++  $("clipboard-section").hidden = clipboardMode === "none";
++  $("clipboard-hint").textContent = CLIPBOARD_HINTS[clipboardMode] || CLIPBOARD_HINTS.in;
++  $("send-clipboard").hidden = !pasteAllowed();
++  clipboardBox.readOnly = !pasteAllowed();
++
++  $("files-section").hidden = !settings.upload && !settings.download;
++  $("upload-area").hidden = !settings.upload;
++  $("download-area").hidden = !settings.download;
++  const hints = [];
++  if (settings.upload) {
++    hints.push("Yüklediğiniz dosyalar uzak tarayıcının İndirilenler klasörüne kaydedilir; " +
++               "bir siteye dosya eklerken oradan seçin.");
++  }
++  if (settings.download) {
++    hints.push("Tarayıcıda indirdiğiniz dosyaları buradan bilgisayarınıza alabilirsiniz.");
++  }
++  $("files-hint").textContent = hints.join(" ");
++}
++
++function renderFiles(files) {
++  fileList.replaceChildren(...files.map((file) => {
++    const item = document.createElement("li");
++    const name = document.createElement("span");
++    name.className = "name";
++    name.textContent = file.name;
++    name.title = file.name;
++    const size = document.createElement("span");
++    size.className = "size";
++    size.textContent = formatSize(file.size);
++    const link = document.createElement("a");
++    link.className = "action small";
++    link.href = fileUrl(file.name);
++    link.download = file.name;
++    link.textContent = "İndir";
++    item.append(name, size, link);
++    return item;
++  }));
++  $("file-empty").hidden = files.length > 0;
++}
++
++let refreshing = false;
++async function refreshFiles() {
++  if (refreshing || document.hidden) return;
++  refreshing = true;
++  try {
++    const response = await fetch(filesUrl, { cache: "no-store", credentials: "same-origin" });
++    if (!response.ok) throw new Error(String(response.status));
++    const data = await response.json();
++    applySettings(data);
++    renderFiles(data.files || []);
++  } catch {
++    if (!uploading) showNote("Dosya listesi alınamadı. Workspace hazır olunca yeniden denenir.", "error");
++  } finally {
++    refreshing = false;
++  }
++}
++
++function uploadError(xhr, name) {
++  if (xhr.status === 413) return `${name} çok büyük; daha küçük bir dosya deneyin.`;
++  try {
++    const message = JSON.parse(xhr.responseText).error;
++    if (message) return `${name}: ${message}`;
++  } catch { /* not JSON */ }
++  return `${name} yüklenemedi (${xhr.status || "bağlantı hatası"}).`;
++}
++
++function uploadFiles(files) {
++  if (!settings.upload || !files.length) return;
++  uploadQueue.push(...files);
++  setPanel(true);
++  if (!uploading) nextUpload();
++}
++
++function nextUpload() {
++  const file = uploadQueue.shift();
++  const progress = $("upload-progress");
++  if (!file) {
++    uploading = false;
++    progress.hidden = true;
++    refreshFiles();
++    return;
++  }
++  uploading = true;
++  progress.hidden = false;
++  const label = $("upload-label");
++  const bar = $("upload-bar");
++  const waiting = uploadQueue.length ? ` (+${uploadQueue.length} bekliyor)` : "";
++  label.textContent = `${file.name} yükleniyor…${waiting}`;
++  bar.value = 0;
++
++  const xhr = new XMLHttpRequest();
++  xhr.open("PUT", fileUrl(file.name));
++  xhr.setRequestHeader("X-AIFactory-Files", "1");
++  xhr.upload.addEventListener("progress", (event) => {
++    if (event.lengthComputable) bar.value = event.loaded / event.total;
++  });
++  xhr.addEventListener("load", () => {
++    if (xhr.status === 201) {
++      let saved = file.name;
++      try { saved = JSON.parse(xhr.responseText).name || saved; } catch { /* keep */ }
++      showNote(`${saved} İndirilenler klasörüne yüklendi.`, "ok");
++    } else {
++      showNote(uploadError(xhr, file.name), "error");
++    }
++    nextUpload();
++  });
++  xhr.addEventListener("error", () => {
++    showNote(uploadError(xhr, file.name), "error");
++    nextUpload();
++  });
++  xhr.send(file);
++}
++
++$("pick-files").addEventListener("click", () => fileInput.click());
++fileInput.addEventListener("change", () => {
++  uploadFiles([...fileInput.files]);
++  fileInput.value = "";
++});
++$("refresh-files").addEventListener("click", refreshFiles);
++
++// Dropping files anywhere on the page uploads them.
++const overlay = $("drop-overlay");
++const drop = $("drop");
++let dragDepth = 0;
++const carriesFiles = (event) => event.dataTransfer?.types?.includes("Files");
++document.addEventListener("dragenter", (event) => {
++  if (!carriesFiles(event) || !settings.upload) return;
++  event.preventDefault();
++  dragDepth += 1;
++  overlay.hidden = false;
++  drop.classList.add("over");
++}, true);
++document.addEventListener("dragover", (event) => {
++  if (!carriesFiles(event) || !settings.upload) return;
++  event.preventDefault();
++  event.dataTransfer.dropEffect = "copy";
++}, true);
++document.addEventListener("dragleave", (event) => {
++  if (!carriesFiles(event)) return;
++  dragDepth = Math.max(0, dragDepth - 1);
++  if (dragDepth === 0) {
++    overlay.hidden = true;
++    drop.classList.remove("over");
++  }
++}, true);
++document.addEventListener("drop", (event) => {
++  if (!carriesFiles(event)) return;
++  event.preventDefault();
++  dragDepth = 0;
++  overlay.hidden = true;
++  drop.classList.remove("over");
++  uploadFiles([...event.dataTransfer.files]);
++}, true);
++
++// While the panel is open the list follows what the remote browser downloads.
++setInterval(() => { if (!panel.hidden) refreshFiles(); }, 5000);
++
++// ---- Panel -----------------------------------------------------------------
++
++const PANEL_KEY = "aifactory-browser-panel";
++
++function rememberPanel(open) {
++  try { localStorage.setItem(PANEL_KEY, open ? "open" : "closed"); } catch { /* storage blocked */ }
++}
++
++function panelWasClosed() {
++  try { return localStorage.getItem(PANEL_KEY) === "closed"; } catch { return false; }
++}
++
++function setPanel(open, { remember = false, focus = false } = {}) {
++  const wasOpen = !panel.hidden;
+   panel.hidden = !open;
+   toggle.setAttribute("aria-expanded", String(open));
+-  if (open) {
+-    clipboardBox.focus();
+-  } else if (rfb) {
++  toggle.title = open ? "Paneli gizle" : "Pano ve dosyalar";
++  if (remember) rememberPanel(open);
++  if (open && !wasOpen) refreshFiles();
++  if (open && focus) {
++    (pasteAllowed() && settings.clipboard !== "none" ? clipboardBox : $("hide-panel")).focus();
++  } else if (!open && rfb) {
+     rfb.focus();
+   }
+ }
+-toggle.addEventListener("click", () => setPanel(panel.hidden));
+-document.addEventListener("keydown", (event) => {
+-  if (event.key === "Escape" && !panel.hidden) setPanel(false);
+-});
+ 
+-document.getElementById("send-clipboard").addEventListener("click", () => {
+-  const text = clipboardBox.value;
+-  lastLocalClipboard = text;
+-  try { rfb.clipboardPasteFrom(text); } catch { /* not connected */ }
+-  setPanel(false);
++toggle.addEventListener("click", () => setPanel(panel.hidden, { remember: true, focus: true }));
++$("hide-panel").addEventListener("click", () => setPanel(false, { remember: true }));
++// Escape only from inside the panel: in the remote browser it belongs to the page.
++panel.addEventListener("keydown", (event) => {
++  if (event.key === "Escape") setPanel(false, { remember: true });
+ });
+ 
+ // In full screen, Chromium-based browsers can hand over shortcuts such as
+ // Ctrl+T and Ctrl+W, which otherwise act on the local browser.
+-document.getElementById("fullscreen").addEventListener("click", async () => {
+-  setPanel(false);
++$("fullscreen").addEventListener("click", async () => {
+   if (document.fullscreenElement) {
+     await document.exitFullscreen();
+     return;
+@@ -219,12 +515,15 @@ document.getElementById("fullscreen").addEventListener("click", async () => {
+   } catch { /* refused by the browser */ }
+ });
+ 
+-document.getElementById("reconnect").addEventListener("click", () => {
+-  setPanel(false);
++$("reconnect").addEventListener("click", () => {
+   retryDelay = 1000;
+   connect();
+ });
+ 
++applySettings(settings);
++// Open by default, until the user hides it once.
++setPanel(!panelWasClosed());
++refreshFiles();
+ connect();
+ </script>
+ </body>
+diff --git a/containers/browser-chromium/policies/managed.json b/containers/browser-chromium/policies/managed.json
+index 522b6e3..5df751f 100644
+--- a/containers/browser-chromium/policies/managed.json
++++ b/containers/browser-chromium/policies/managed.json
+@@ -6,6 +6,7 @@
+   "BrowserSignin": 0,
+   "CommandLineFlagSecurityWarningsEnabled": false,
+   "DefaultBrowserSettingEnabled": false,
++  "DownloadDirectory": "/home/browser/Downloads",
+   "ExtensionInstallBlocklist": ["*"],
+   "ManagedBookmarks": [
+     {"toplevel_name": "Yapay Zekâ"},
+diff --git a/containers/browser-chromium/server.py b/containers/browser-chromium/server.py
+new file mode 100644
+index 0000000..0a65950
+--- /dev/null
++++ b/containers/browser-chromium/server.py
+@@ -0,0 +1,352 @@
++#!/usr/bin/env python3
++"""Front door of the browser workspace, on the one port the proxy tunnels.
++
++- ``/`` and the noVNC library: the client page (static files).
++- ``/files``: the Downloads folder, so files can be uploaded into the remote
++  browser and downloaded from it. ``GET /files`` lists it together with what
++  the workspace allows, ``GET /files/<name>`` downloads one file and
++  ``PUT /files/<name>`` uploads one (the raw body is the file).
++- Any WebSocket upgrade: piped byte for byte to websockify, which listens on
++  loopback only and bridges to the VNC socket.
++
++Standard library only: the image's python3 comes with websockify.
++"""
++
++from __future__ import annotations
++
++import http.server
++import json
++import os
++import select
++import socket
++import stat
++import sys
++import tempfile
++import urllib.parse
++from dataclasses import dataclass
++from pathlib import Path
++
++CHUNK = 1024 * 1024
++# Chromium's partial downloads; they are not files yet.
++PARTIAL_SUFFIXES = (".crdownload",)
++UPLOAD_PREFIX = ".aifactory-upload-"
++# A cross-site page cannot send a custom header without a CORS preflight.
++WRITE_HEADER = "X-AIFactory-Files"
++
++
++def _direction(value: str | None, default: str) -> str:
++    """Normalise a both/in/out/none switch; anything else means both."""
++    value = (value or default).strip().lower()
++    return value if value in {"both", "in", "out", "none"} else "both"
++
++
++@dataclass(frozen=True)
++class Config:
++    web_root: Path
++    files_dir: Path
++    websocket_port: int
++    clipboard: str = "in"
++    files: str = "both"
++
++    @property
++    def can_upload(self) -> bool:
++        return self.files in {"both", "in"}
++
++    @property
++    def can_download(self) -> bool:
++        return self.files in {"both", "out"}
++
++    @classmethod
++    def from_env(cls) -> "Config":
++        home = Path(os.environ.get("HOME", "/home/browser"))
++        return cls(
++            web_root=Path(os.environ.get("AIFACTORY_BROWSER_WEB_ROOT", "/opt/aifactory-browser/web")),
++            files_dir=Path(os.environ.get("AIFACTORY_BROWSER_FILES_DIR", str(home / "Downloads"))),
++            websocket_port=int(os.environ.get("AIFACTORY_BROWSER_WEBSOCKIFY_PORT", "6081")),
++            # Defaults match entrypoint.sh.
++            clipboard=_direction(os.environ.get("AIFACTORY_BROWSER_CLIPBOARD"), "in"),
++            files=_direction(os.environ.get("AIFACTORY_BROWSER_FILES"), "both"),
++        )
++
++
++def log(message: str) -> None:
++    print(f"aifactory-browser: {message}", file=sys.stderr, flush=True)
++
++
++def clean_name(raw: str) -> str | None:
++    """A plain file name inside the Downloads folder, or None."""
++    name = urllib.parse.unquote(raw)
++    if not name or name.startswith(".") or "/" in name or "\\" in name:
++        return None
++    if any(ord(char) < 32 or ord(char) == 127 for char in name):
++        return None
++    if len(name.encode("utf-8", "surrogateescape")) > 255:
++        return None
++    return name
++
++
++def content_disposition(name: str) -> str:
++    fallback = "".join(
++        char if 32 <= ord(char) < 127 and char not in '"\\;' else "_" for char in name
++    )
++    return f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{urllib.parse.quote(name, safe='')}"
++
++
++def numbered(name: str, index: int) -> str:
++    """report.pdf -> report (1).pdf, the way browsers name a second copy."""
++    stem, dot, suffix = name.rpartition(".")
++    if not dot or not stem:
++        return f"{name} ({index})"
++    return f"{stem} ({index}).{suffix}"
++
++
++def make_handler(config: Config):
++    class Handler(http.server.SimpleHTTPRequestHandler):
++        server_version = "aifactory-browser"
++        sys_version = ""
++        protocol_version = "HTTP/1.1"
++        # Unbuffered: after a WebSocket upgrade no client bytes may be left
++        # behind in a read buffer the pipe does not see.
++        rbufsize = 0
++
++        def __init__(self, *args, **kwargs):
++            super().__init__(*args, directory=str(config.web_root), **kwargs)
++
++        def log_message(self, format, *args):  # noqa: A002 - stdlib signature
++            pass  # file transfers are logged explicitly; the rest is noise
++
++        # ---- routing -------------------------------------------------
++        def _route(self) -> str | None:
++            """The file name part of /files/<name>, "" for /files, else None."""
++            path = urllib.parse.urlsplit(self.path).path
++            if path == "/files":
++                return ""
++            if path.startswith("/files/"):
++                return path[len("/files/"):]
++            return None
++
++        def _is_upgrade(self) -> bool:
++            return "websocket" in self.headers.get("Upgrade", "").lower()
++
++        def do_GET(self):
++            if self._is_upgrade():
++                self._proxy_websocket()
++                return
++            route = self._route()
++            if route is None:
++                super().do_GET()
++            elif route == "":
++                self._list_files()
++            else:
++                self._download(route)
++
++        def do_HEAD(self):
++            if self._route() is None:
++                super().do_HEAD()
++            else:
++                self.send_error(405)
++
++        def do_PUT(self):
++            # A refused upload leaves its body unread on the connection.
++            self.close_connection = True
++            route = self._route()
++            if not route:
++                self.send_error(405)
++                return
++            self._upload(route)
++
++        def list_directory(self, path):
++            self.send_error(404)
++            return None
++
++        # ---- helpers -------------------------------------------------
++        def _send_json(self, status: int, payload: dict) -> None:
++            body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
++            self.send_response(status)
++            self.send_header("Content-Type", "application/json; charset=utf-8")
++            self.send_header("Content-Length", str(len(body)))
++            self.send_header("Cache-Control", "no-store")
++            self.end_headers()
++            self.wfile.write(body)
++
++        def _fail(self, status: int, message: str) -> None:
++            self._send_json(status, {"error": message})
++
++        def _write_allowed(self) -> bool:
++            if self.headers.get(WRITE_HEADER) != "1":
++                return False
++            site = self.headers.get("Sec-Fetch-Site")
++            return site in (None, "same-origin")
++
++        # ---- files ---------------------------------------------------
++        def _list_files(self) -> None:
++            files = []
++            if config.can_download:
++                try:
++                    entries = list(os.scandir(config.files_dir))
++                except OSError:
++                    entries = []
++                for entry in entries:
++                    if entry.name.startswith(".") or entry.name.endswith(PARTIAL_SUFFIXES):
++                        continue
++                    try:
++                        if not entry.is_file(follow_symlinks=False):
++                            continue
++                        info = entry.stat(follow_symlinks=False)
++                    except OSError:
++                        continue
++                    files.append({"name": entry.name, "size": info.st_size, "modified": int(info.st_mtime)})
++                files.sort(key=lambda item: item["modified"], reverse=True)
++            self._send_json(200, {
++                "clipboard": config.clipboard,
++                "upload": config.can_upload,
++                "download": config.can_download,
++                "files": files,
++            })
++
++        def _download(self, raw: str) -> None:
++            if not config.can_download:
++                self._fail(403, "Dosya indirme bu workspace'te kapalı.")
++                return
++            name = clean_name(raw)
++            if name is None:
++                self._fail(400, "Geçersiz dosya adı.")
++                return
++            flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
++            try:
++                fd = os.open(config.files_dir / name, flags)
++            except OSError:
++                self._fail(404, "Dosya bulunamadı.")
++                return
++            with os.fdopen(fd, "rb") as source:
++                info = os.fstat(source.fileno())
++                if not stat.S_ISREG(info.st_mode):
++                    self._fail(404, "Dosya bulunamadı.")
++                    return
++                self.send_response(200)
++                self.send_header("Content-Type", "application/octet-stream")
++                self.send_header("Content-Length", str(info.st_size))
++                self.send_header("Content-Disposition", content_disposition(name))
++                self.send_header("X-Content-Type-Options", "nosniff")
++                self.send_header("Cache-Control", "no-store")
++                self.end_headers()
++                remaining = info.st_size
++                while remaining > 0:
++                    chunk = source.read(min(CHUNK, remaining))
++                    if not chunk:
++                        break
++                    self.wfile.write(chunk)
++                    remaining -= len(chunk)
++            log(f"file downloaded: {name} ({info.st_size} bytes)")
++
++        def _upload(self, raw: str) -> None:
++            if not config.can_upload:
++                self._fail(403, "Dosya yükleme bu workspace'te kapalı.")
++                return
++            if not self._write_allowed():
++                self._fail(403, "İstek reddedildi.")
++                return
++            name = clean_name(raw)
++            if name is None:
++                self._fail(400, "Geçersiz dosya adı.")
++                return
++            try:
++                length = int(self.headers.get("Content-Length", ""))
++            except ValueError:
++                self._fail(411, "Dosya boyutu bilinmiyor.")
++                return
++            if length < 0:
++                self._fail(400, "Geçersiz dosya boyutu.")
++                return
++
++            config.files_dir.mkdir(parents=True, exist_ok=True)
++            received = 0
++            try:
++                fd, temporary_name = tempfile.mkstemp(prefix=UPLOAD_PREFIX, dir=config.files_dir)
++            except OSError:
++                self._fail(500, "Dosya kaydedilemedi.")
++                return
++            temporary = Path(temporary_name)
++            try:
++                with os.fdopen(fd, "wb") as target:
++                    while received < length:
++                        chunk = self.rfile.read(min(CHUNK, length - received))
++                        if not chunk:
++                            break
++                        target.write(chunk)
++                        received += len(chunk)
++                if received != length:
++                    self._fail(400, "Dosya eksik geldi.")
++                    return
++                final = self._claim_name(temporary, name)
++            except OSError as exc:
++                self._fail(507 if exc.errno == 28 else 500, "Dosya kaydedilemedi.")
++                return
++            finally:
++                temporary.unlink(missing_ok=True)
++            log(f"file uploaded: {final} ({received} bytes)")
++            self._send_json(201, {"name": final, "size": received})
++
++        @staticmethod
++        def _claim_name(temporary: Path, name: str) -> str:
++            """Hard-link the upload under a free name; never overwrite a file."""
++            for index in range(0, 1000):
++                candidate = name if index == 0 else numbered(name, index)
++                try:
++                    os.link(temporary, config.files_dir / candidate)
++                    return candidate
++                except FileExistsError:
++                    continue
++            raise OSError("no free file name")
++
++        # ---- VNC WebSocket -------------------------------------------
++        def _proxy_websocket(self) -> None:
++            try:
++                upstream = socket.create_connection(("127.0.0.1", config.websocket_port), timeout=10)
++            except OSError:
++                self.send_error(502)
++                return
++            upstream.settimeout(None)
++            self.close_connection = True
++            head = [self.requestline]
++            head += [f"{key}: {value}" for key, value in self.headers.items()]
++            client = self.connection
++            try:
++                upstream.sendall(("\r\n".join(head) + "\r\n\r\n").encode("latin-1"))
++                sockets = [client, upstream]
++                while True:
++                    readable, _, _ = select.select(sockets, [], [])
++                    for source in readable:
++                        data = source.recv(65536)
++                        if not data:
++                            return
++                        (upstream if source is client else client).sendall(data)
++            except OSError:
++                pass
++            finally:
++                upstream.close()
++
++    return Handler
++
++
++class Server(http.server.ThreadingHTTPServer):
++    daemon_threads = True
++    allow_reuse_address = True
++
++
++def make_server(config: Config, host: str, port: int) -> Server:
++    return Server((host, port), make_handler(config))
++
++
++def main() -> None:
++    config = Config.from_env()
++    port = int(os.environ.get("AIFACTORY_BROWSER_PORT", "6080"))
++    server = make_server(config, "0.0.0.0", port)
++    log(
++        f"listening on {port} (clipboard: {config.clipboard}, files: {config.files})"
++    )
++    server.serve_forever()
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/tests/test_browser_files.py b/tests/test_browser_files.py
+new file mode 100644
+index 0000000..b1f359c
+--- /dev/null
++++ b/tests/test_browser_files.py
+@@ -0,0 +1,174 @@
++"""The browser workspace's front door: page, file transfers, WebSocket pipe."""
++
++import importlib.util
++import json
++import socket
++import sys
++import threading
++import urllib.error
++import urllib.request
++from pathlib import Path
++
++import pytest
++
++ROOT = Path(__file__).resolve().parents[1]
++SERVER = ROOT / "containers" / "browser-chromium" / "server.py"
++
++spec = importlib.util.spec_from_file_location("aifactory_browser_server", SERVER)
++server_module = importlib.util.module_from_spec(spec)
++# dataclasses look the module up while it is still executing.
++sys.modules[spec.name] = server_module
++spec.loader.exec_module(server_module)
++
++
++def start(tmp_path: Path, files: str = "both", websocket_port: int = 1):
++    web = tmp_path / "web"
++    web.mkdir(exist_ok=True)
++    (web / "index.html").write_text("<!DOCTYPE html><title>t</title>", encoding="utf-8")
++    downloads = tmp_path / "Downloads"
++    downloads.mkdir(exist_ok=True)
++    config = server_module.Config(
++        web_root=web, files_dir=downloads, websocket_port=websocket_port, files=files
++    )
++    server = server_module.make_server(config, "127.0.0.1", 0)
++    threading.Thread(target=server.serve_forever, daemon=True).start()
++    return server, f"http://127.0.0.1:{server.server_address[1]}", downloads
++
++
++def request(url, method="GET", data=None, headers=None):
++    req = urllib.request.Request(url, data=data, method=method, headers=headers or {})
++    try:
++        with urllib.request.urlopen(req, timeout=5) as response:
++            return response.status, dict(response.headers), response.read()
++    except urllib.error.HTTPError as error:
++        return error.code, dict(error.headers), error.read()
++
++
++def upload(base, name, data, headers=None):
++    return request(
++        f"{base}/files/{urllib.request.quote(name, safe='')}",
++        method="PUT",
++        data=data,
++        headers={"X-AIFactory-Files": "1", **(headers or {})},
++    )
++
++
++@pytest.fixture
++def running(tmp_path):
++    server, base, downloads = start(tmp_path)
++    yield base, downloads
++    server.shutdown()
++    server.server_close()
++
++
++def test_serves_the_page_but_no_directory_listing(running):
++    base, _ = running
++    assert request(f"{base}/")[0] == 200
++    assert request(f"{base}/core/")[0] == 404
++
++
++def test_lists_downloads_without_hidden_or_partial_files(running):
++    base, downloads = running
++    (downloads / "rapor.txt").write_bytes(b"abc")
++    (downloads / ".bashrc").write_bytes(b"x")
++    (downloads / "yarim.crdownload").write_bytes(b"x")
++    status, _, body = request(f"{base}/files")
++    payload = json.loads(body)
++    assert status == 200
++    assert [item["name"] for item in payload["files"]] == ["rapor.txt"]
++    assert payload["clipboard"] == "in" and payload["upload"] and payload["download"]
++
++
++def test_upload_never_overwrites_and_download_round_trips(running):
++    base, downloads = running
++    status, _, body = upload(base, "özet.pdf", b"one")
++    assert status == 201 and json.loads(body)["name"] == "özet.pdf"
++    status, _, body = upload(base, "özet.pdf", b"two")
++    assert json.loads(body)["name"] == "özet (1).pdf"
++    assert (downloads / "özet.pdf").read_bytes() == b"one"
++    # No temporary upload files are left behind.
++    assert sorted(path.name for path in downloads.iterdir()) == ["özet (1).pdf", "özet.pdf"]
++
++    status, headers, body = request(f"{base}/files/{urllib.request.quote('özet (1).pdf')}")
++    assert status == 200 and body == b"two"
++    assert headers["Content-Disposition"].startswith("attachment;")
++    assert headers["Content-Type"] == "application/octet-stream"
++
++
++def test_upload_needs_a_same_origin_request(running):
++    base, downloads = running
++    status, _, _ = request(f"{base}/files/a.txt", method="PUT", data=b"x")
++    assert status == 403
++    status, _, _ = upload(base, "a.txt", b"x", {"Sec-Fetch-Site": "cross-site"})
++    assert status == 403
++    assert not (downloads / "a.txt").exists()
++
++
++@pytest.mark.parametrize("name", ["../kacak.txt", "..", ".bashrc", "a/b.txt", "a\nb.txt"])
++def test_names_stay_inside_downloads(running, name):
++    base, downloads = running
++    assert upload(base, name, b"x")[0] == 400
++    assert request(f"{base}/files/{urllib.request.quote(name, safe='')}")[0] == 400
++    assert not (downloads.parent / "kacak.txt").exists()
++
++
++def test_direction_switch_blocks_downloads(tmp_path):
++    server, base, downloads = start(tmp_path, files="in")
++    try:
++        (downloads / "rapor.txt").write_bytes(b"abc")
++        payload = json.loads(request(f"{base}/files")[2])
++        assert payload["download"] is False and payload["files"] == []
++        assert request(f"{base}/files/rapor.txt")[0] == 403
++        assert upload(base, "yeni.txt", b"x")[0] == 201
++    finally:
++        server.shutdown()
++        server.server_close()
++
++
++def test_upload_switch_blocks_uploads(tmp_path):
++    server, base, downloads = start(tmp_path, files="out")
++    try:
++        assert upload(base, "yeni.txt", b"x")[0] == 403
++        assert not (downloads / "yeni.txt").exists()
++    finally:
++        server.shutdown()
++        server.server_close()
++
++
++def test_websocket_upgrade_is_piped_to_websockify(tmp_path):
++    backend = socket.create_server(("127.0.0.1", 0))
++    seen = {}
++
++    def websockify():
++        connection, _ = backend.accept()
++        with connection:
++            head = b""
++            while b"\r\n\r\n" not in head:
++                head += connection.recv(4096)
++            seen["head"] = head
++            connection.sendall(b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n\r\n")
++            seen["frame"] = connection.recv(4096)
++            connection.sendall(b"pong")
++
++    threading.Thread(target=websockify, daemon=True).start()
++    server, base, _ = start(tmp_path, websocket_port=backend.getsockname()[1])
++    try:
++        client = socket.create_connection(("127.0.0.1", server.server_address[1]), timeout=5)
++        with client:
++            client.sendall(
++                b"GET /websockify HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\n"
++                b"Connection: Upgrade\r\nSec-WebSocket-Key: abc\r\n\r\n"
++            )
++            response = b""
++            while b"\r\n\r\n" not in response:
++                response += client.recv(4096)
++            assert response.startswith(b"HTTP/1.1 101")
++            client.sendall(b"ping")
++            assert client.recv(4096) == b"pong"
++        assert seen["head"].startswith(b"GET /websockify HTTP/1.1\r\n")
++        assert b"Sec-WebSocket-Key: abc" in seen["head"]
++        assert seen["frame"] == b"ping"
++    finally:
++        server.shutdown()
++        server.server_close()
++        backend.close()
+diff --git a/tests/test_container_deployment.py b/tests/test_container_deployment.py
+index 951131d..830e2d6 100644
+--- a/tests/test_container_deployment.py
++++ b/tests/test_container_deployment.py
+@@ -170,6 +170,11 @@ def test_browser_workspace_image_is_pinned_and_proxy_compatible():
+     assert "-rfbunixpath" in entrypoint
+     assert "-rfbport -1" in entrypoint
+     assert "--unix-target" in entrypoint
++    # server.py owns the public port; websockify is reachable on loopback only.
++    assert '"127.0.0.1:${WEBSOCKIFY_PORT}"' in entrypoint
++    assert "0.0.0.0:${PORT}" not in entrypoint
++    assert "python3 -I /opt/aifactory-browser/server.py" in entrypoint
++    assert "COPY server.py /opt/aifactory-browser/server.py" in containerfile
+     # A killed container must not lock the persistent profile or the display.
+     assert 'rm -f "${PROFILE_DIR}"/Singleton{Lock,Socket,Cookie}' in entrypoint
+     assert "/tmp/.X1-lock" in entrypoint
+@@ -194,6 +199,8 @@ def test_browser_workspace_image_is_pinned_and_proxy_compatible():
+     assert managed["ExtensionInstallBlocklist"] == ["*"]
+     assert managed["PasswordManagerEnabled"] is False
+     assert managed["SyncDisabled"] is True
++    # The panel lists the folder Chromium downloads into.
++    assert managed["DownloadDirectory"] == "/home/browser/Downloads"
+     bookmarks = {item.get("url") for item in managed["ManagedBookmarks"]}
+     assert {"https://claude.ai/", "https://chatgpt.com/"} <= bookmarks
+     assert "https://merkezasistan.tcmb.gov.tr/" in bookmarks
+@@ -234,6 +241,11 @@ def test_browser_template_matches_its_image_contract():
+     assert template.startup_command == []
+     # Older workers would not pass the CA bundle to the container.
+     assert template.min_agent_version == "3.55.0"
++    # Text can be pasted in, but nothing copied in the workspace leaves it.
++    assert template.env_vars["AIFACTORY_BROWSER_CLIPBOARD"] == "in"
++    assert template.env_vars["AIFACTORY_BROWSER_FILES"] == "both"
++    entrypoint = (ROOT / "containers" / "browser-chromium" / "entrypoint.sh").read_text(encoding="utf-8")
++    assert '"${AIFACTORY_BROWSER_CLIPBOARD:-in}"' in entrypoint
+     # Chromium is refused on flavors it cannot run in.
+     assert "2 GB" in flavor_mismatch(template, FLAVORS["t1.micro"])
+     assert flavor_mismatch(template, FLAVORS["t1.small"]) == ""
+diff --git a/tests/test_template_access.py b/tests/test_template_access.py
+new file mode 100644
+index 0000000..2c3076f
+--- /dev/null
++++ b/tests/test_template_access.py
+@@ -0,0 +1,239 @@
++"""Workspace template access rules (app/template_access.py)."""
++
++import json
++from types import SimpleNamespace
++
++import pytest
++from fastapi import HTTPException
++from sqlalchemy import select, update
++
++from app.auth import ldap as ldap_module
++from app.models.user import User, UserRole
++from app.models.workspace import Workspace
++from app.template_access import (
++    AccessRule,
++    AccessRuleError,
++    format_entries,
++    group_name,
++    invalidate_cache,
++    parse_entries,
++    user_allowed,
++)
++
++
++@pytest.fixture(autouse=True)
++def fresh_rule_cache():
++    # Rules are cached per process; every test starts with an empty database.
++    invalidate_cache()
++    yield
++    invalidate_cache()
++
++
++def person(team="", unit="", groups=(), role=UserRole.USER):
++    return SimpleNamespace(
++        team=team,
++        organization_unit=unit,
++        directory_groups=json.dumps(list(groups)),
++        role=role,
++    )
++
++
++def rule(allow="", deny=""):
++    return AccessRule(allow=parse_entries(allow), deny=parse_entries(deny))
++
++
++# ---- parsing and matching ---------------------------------------------------
++
++def test_entries_parse_prefixes_dns_and_duplicates():
++    entries = parse_entries(
++        "t2-arge,  grup:T2-YapayZeka , takım:Yapay  Zeka\n"
++        "müdürlük:BTGM, T2-ARGE\n"
++        "CN=t2-security,OU=Gruplar,DC=tcmb,DC=gov,DC=tr"
++    )
++    assert [(entry.kind, entry.name) for entry in entries] == [
++        (None, "t2-arge"),
++        ("group", "T2-YapayZeka"),
++        ("team", "Yapay Zeka"),
++        ("unit", "BTGM"),
++        ("group", "t2-security"),
++    ]
++    assert format_entries(entries) == (
++        "t2-arge, grup:T2-YapayZeka, takım:Yapay Zeka, müdürlük:BTGM, grup:t2-security"
++    )
++    assert group_name("CN=a\\,b,OU=x,DC=y") == "a,b"
++    with pytest.raises(AccessRuleError):
++        parse_entries("grup:")
++
++
++def test_allow_list_admits_only_members():
++    browser = rule(allow="grup:t2-arge, t2-yapayzeka")
++    assert user_allowed(person(groups=["T2-ARGE"]), browser)
++    # A bare name matches a team as well as a group.
++    assert user_allowed(person(team="t2-yapayzeka"), browser)
++    assert not user_allowed(person(team="t2-arge"), browser)  # grup: only
++    assert not user_allowed(person(groups=["t2-security"]), browser)
++    assert user_allowed(person(role=UserRole.ADMIN), browser)
++
++
++def test_deny_list_wins_and_empty_rule_admits_everyone():
++    terminal = rule(deny="t2-security")
++    assert user_allowed(person(team="t2-arge"), terminal)
++    assert not user_allowed(person(groups=["t2-security"]), terminal)
++    assert not user_allowed(person(unit="T2-Security"), terminal)
++    both = rule(allow="t2-arge", deny="t2-security")
++    assert not user_allowed(person(team="t2-arge", groups=["t2-security"]), both)
++    assert user_allowed(person(), rule())
++
++
++# ---- API --------------------------------------------------------------------
++
++async def _register(client, username):
++    response = await client.post(
++        "/api/auth/register",
++        json={"username": username, "email": f"{username}@example.com", "password": "Password123!"},
++    )
++    body = response.json()
++    return body["user"]["id"], {"Authorization": f"Bearer {body['access_token']}"}
++
++
++async def _set(db_session, user_id, **values):
++    await db_session.execute(update(User).where(User.id == user_id).values(**values))
++    await db_session.commit()
++
++
++async def _template_ids(client, headers):
++    response = await client.get("/api/workspaces/templates", headers=headers)
++    assert response.status_code == 200
++    return {item["id"] for item in response.json()}
++
++
++@pytest.mark.asyncio
++async def test_admin_rules_control_listing_creation_and_start(client, db_session):
++    admin_id, admin = await _register(client, "access-admin")
++    await _set(db_session, admin_id, role=UserRole.ADMIN)
++    arge_id, arge = await _register(client, "arge-user")
++    await _set(db_session, arge_id, directory_groups=json.dumps(["t2-arge"]))
++    security_id, security = await _register(client, "security-user")
++    await _set(db_session, security_id, team="T2-Security")
++
++    saved = await client.patch(
++        "/api/admin/templates/browser-chromium",
++        headers=admin,
++        json={"access_allow": "grup:t2-arge, t2-yapayzeka"},
++    )
++    assert saved.status_code == 200, saved.text
++    assert saved.json()["access_allow"] == "grup:t2-arge, t2-yapayzeka"
++    saved = await client.patch(
++        "/api/admin/templates/terminal-rocky", headers=admin, json={"access_deny": "t2-security"}
++    )
++    assert saved.status_code == 200, saved.text
++    rejected = await client.patch(
++        "/api/admin/templates/terminal-rocky", headers=admin, json={"access_deny": "grup:"}
++    )
++    assert rejected.status_code == 422
++
++    assert {"browser-chromium", "terminal-rocky"} <= await _template_ids(client, arge)
++    security_templates = await _template_ids(client, security)
++    assert "browser-chromium" not in security_templates
++    assert "terminal-rocky" not in security_templates
++    assert "vscode-kilo" in security_templates
++    # Admins see every template.
++    assert {"browser-chromium", "terminal-rocky"} <= await _template_ids(client, admin)
++
++    denied = await client.post(
++        "/api/workspaces",
++        headers=security,
++        json={"name": "Kabuk", "template_id": "terminal-rocky", "flavor_id": "t1.micro"},
++    )
++    assert denied.status_code == 403
++    created = await client.post(
++        "/api/workspaces",
++        headers=arge,
++        json={"name": "Kabuk", "template_id": "terminal-rocky", "flavor_id": "t1.micro"},
++    )
++    assert created.status_code == 201, created.text
++    workspace_id = created.json()["id"]
++    assert (await client.post(f"/api/workspaces/{workspace_id}/stop", headers=arge)).status_code == 200
++
++    # Withdrawing access blocks starting the workspace that already exists.
++    await client.patch(
++        "/api/admin/templates/terminal-rocky", headers=admin, json={"access_deny": "t2-security, t2-arge"}
++    )
++    blocked = await client.post(f"/api/workspaces/{workspace_id}/start", headers=arge)
++    assert blocked.status_code == 403
++    # Clearing the list opens the template again.
++    await client.patch("/api/admin/templates/terminal-rocky", headers=admin, json={"access_deny": ""})
++    started = await client.post(f"/api/workspaces/{workspace_id}/start", headers=arge)
++    assert started.status_code == 200, started.text
++
++
++@pytest.mark.asyncio
++async def test_proxy_refuses_a_workspace_whose_template_access_was_withdrawn(client, db_session):
++    from app.proxy.router import get_authorized_workspace
++
++    admin_id, admin = await _register(client, "proxy-admin")
++    await _set(db_session, admin_id, role=UserRole.ADMIN)
++    owner_id, owner = await _register(client, "proxy-owner")
++    created = await client.post(
++        "/api/workspaces",
++        headers=owner,
++        json={"name": "Kabuk", "template_id": "terminal-rocky", "flavor_id": "t1.micro"},
++    )
++    assert created.status_code == 201, created.text
++    workspace_id = created.json()["id"]
++    owner_user = await db_session.get(User, owner_id)
++    admin_user = await db_session.get(User, admin_id)
++
++    assert (await get_authorized_workspace(workspace_id, db_session, owner_user)).id == workspace_id
++
++    await _set(db_session, owner_id, team="t2-security")
++    await client.patch(
++        "/api/admin/templates/terminal-rocky", headers=admin, json={"access_deny": "t2-security"}
++    )
++    invalidate_cache()
++    await db_session.refresh(owner_user)
++    with pytest.raises(HTTPException) as refused:
++        await get_authorized_workspace(workspace_id, db_session, owner_user)
++    assert refused.value.status_code == 403
++    # Admins are never restricted.
++    assert (await get_authorized_workspace(workspace_id, db_session, admin_user)).id == workspace_id
++    assert (await db_session.execute(select(Workspace).where(Workspace.id == workspace_id))).scalar_one()
++
++
++# ---- LDAP group names -----------------------------------------------------------
++
++class FakeConnection:
++    def __init__(self, nested_dns, fail=False):
++        self.nested_dns = nested_dns
++        self.fail = fail
++        self.entries = []
++        self.searches = []
++
++    def search(self, **kwargs):
++        self.searches.append(kwargs)
++        if self.fail:
++            raise ldap_module._ldap3()[1]("boom")
++        self.entries = [SimpleNamespace(entry_dn=dn) for dn in self.nested_dns]
++
++
++def test_login_records_direct_and_nested_group_names():
++    config = SimpleNamespace(nested_group_search=True, user_base_dn="OU=Users,DC=tcmb,DC=gov,DC=tr")
++    connection = FakeConnection(["CN=t2-yapayzeka,OU=G,DC=tcmb,DC=gov,DC=tr", "CN=T2-ARGE,OU=G,DC=tcmb,DC=gov,DC=tr"])
++    names = ldap_module._group_names(
++        connection,
++        config,
++        "CN=Ali,OU=Users,DC=tcmb,DC=gov,DC=tr",
++        ["CN=T2-ARGE,OU=G,DC=tcmb,DC=gov,DC=tr"],
++    )
++    assert names == ("T2-ARGE", "t2-yapayzeka")
++    assert connection.searches[0]["search_base"] == "DC=tcmb,DC=gov,DC=tr"
++    assert "1.2.840.113556.1.4.1941" in connection.searches[0]["search_filter"]
++
++    # A failed nested search keeps the direct groups.
++    failing = FakeConnection([], fail=True)
++    assert ldap_module._group_names(failing, config, "CN=Ali,DC=x", ["CN=a,OU=G,DC=x"]) == ("a",)
++    # Without nested search no extra query is made.
++    flat = SimpleNamespace(nested_group_search=False, user_base_dn="")
++    quiet = FakeConnection(["CN=never,DC=x"])
++    assert ldap_module._group_names(quiet, flat, "CN=Ali,DC=x", ["CN=a,OU=G,DC=x"]) == ("a",)
++    assert quiet.searches == []

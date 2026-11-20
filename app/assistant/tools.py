@@ -244,7 +244,7 @@ async def _list_templates(db: AsyncSession, user: User, _args: NoArgs) -> dict:
 
     return _capped([
         _pick(item, "id", "name", "description", "category", "requires_accelerator")
-        for item in await get_templates(db)
+        for item in await get_templates(db, user)
     ])
 
 

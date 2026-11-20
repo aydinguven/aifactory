@@ -64,6 +64,7 @@ from app.directory_sync import directory_teams_by_key, parse_summary
 from app.quotas import build_group_views, build_hierarchy, effective_quota, load_quota_groups
 from app.orchestrator.metrics_service import get_workspace_disk_usage_by_user
 from app.schemas.workspace import WorkspaceOut
+from app.template_access import filter_templates, format_entries, load_rules, user_groups
 from app.workspace_catalog import configured_flavors, configured_templates, list_enabled_flavors, list_enabled_templates
 from app.static_assets import STATIC_ASSET_VERSION
 
@@ -217,7 +218,7 @@ async def dashboard_page(
             **details,
         }))
 
-    all_tpls = await list_enabled_templates(db)
+    all_tpls = await filter_templates(db, current_user, await list_enabled_templates(db))
     default_flavor_id = (
         "t1.micro"
         if any(item.id == "t1.micro" for item in flavor_catalog)
@@ -302,6 +303,7 @@ async def profile_page(
         context={
             "app_name": settings.APP_NAME,
             "user": current_user,
+            "directory_groups": user_groups(current_user),
         },
     )
 
@@ -660,6 +662,13 @@ async def admin_page(
         context["admin_flavors"] = await configured_flavors(db)
         context["admin_templates"] = await configured_templates(db)
         context["builtin_template_ids"] = set(list_builtin_templates_item.id for list_builtin_templates_item in list_builtin_templates())
+        context["template_access"] = {
+            template_id: {
+                "allow": format_entries(rule.allow),
+                "deny": format_entries(rule.deny),
+            }
+            for template_id, rule in (await load_rules(db, cached=False)).items()
+        }
     elif section == "images":
         image_templates = list_builtin_templates()
         custom_templates = (
