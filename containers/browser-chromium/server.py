@@ -45,7 +45,7 @@ class Config:
     web_root: Path
     files_dir: Path
     websocket_port: int
-    clipboard: str = "in"
+    clipboard: str = "out"
     files: str = "both"
 
     @property
@@ -64,7 +64,7 @@ class Config:
             files_dir=Path(os.environ.get("AIFACTORY_BROWSER_FILES_DIR", str(home / "Downloads"))),
             websocket_port=int(os.environ.get("AIFACTORY_BROWSER_WEBSOCKIFY_PORT", "6081")),
             # Defaults match entrypoint.sh.
-            clipboard=_direction(os.environ.get("AIFACTORY_BROWSER_CLIPBOARD"), "in"),
+            clipboard=_direction(os.environ.get("AIFACTORY_BROWSER_CLIPBOARD"), "out"),
             files=_direction(os.environ.get("AIFACTORY_BROWSER_FILES"), "both"),
         )
 

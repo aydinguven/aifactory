@@ -241,11 +241,11 @@ def test_browser_template_matches_its_image_contract():
     assert template.startup_command == []
     # Older workers would not pass the CA bundle to the container.
     assert template.min_agent_version == "3.55.0"
-    # Text can be pasted in, but nothing copied in the workspace leaves it.
-    assert template.env_vars["AIFACTORY_BROWSER_CLIPBOARD"] == "in"
+    # Text copied in the workspace can leave it, but nothing is pasted in.
+    assert template.env_vars["AIFACTORY_BROWSER_CLIPBOARD"] == "out"
     assert template.env_vars["AIFACTORY_BROWSER_FILES"] == "both"
     entrypoint = (ROOT / "containers" / "browser-chromium" / "entrypoint.sh").read_text(encoding="utf-8")
-    assert '"${AIFACTORY_BROWSER_CLIPBOARD:-in}"' in entrypoint
+    assert '"${AIFACTORY_BROWSER_CLIPBOARD:-out}"' in entrypoint
     # Chromium is refused on flavors it cannot run in.
     assert "2 GB" in flavor_mismatch(template, FLAVORS["t1.micro"])
     assert flavor_mismatch(template, FLAVORS["t1.small"]) == ""

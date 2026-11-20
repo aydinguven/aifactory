@@ -140,12 +140,12 @@ image regularly** to pick up browser fixes.
   `"URLBlocklist": ["*"]` and
   `"URLAllowlist": ["claude.ai", "anthropic.com", "chatgpt.com", "openai.com", "accounts.google.com"]`
   (include every sign-in provider your users need) and rebuild.
-- **Clipboard**: text can be pasted into the workspace, but nothing copied
-  inside it reaches the user's machine: `AIFACTORY_BROWSER_CLIPBOARD` defaults
-  to `in` (the template also sets it in its `env_vars`), so Xvnc runs with
-  `SendCutText=0` and the server never sends its clipboard to the client. Change
-  it to `both`, `out` or `none` (and recreate the workspaces) to allow copying
-  out or to block pasting in as well. Screenshots and retyping are not blocked.
+- **Clipboard**: text copied in the workspace reaches the user's machine, but
+  nothing can be pasted into it: `AIFACTORY_BROWSER_CLIPBOARD` defaults to
+  `out` (the template also sets it in its `env_vars`), so Xvnc runs with
+  `AcceptCutText=0` and ignores clipboard text the client sends. Change it to
+  `both`, `in` (paste in only) or `none` (and recreate the workspaces). Typing
+  is not blocked, and uploads are governed by `AIFACTORY_BROWSER_FILES`.
 - **Panel**: a red **Pano · Dosyalar** tab on the left edge opens the clipboard
   and file panel. It is open on first use and stays hidden once the user hides
   it (remembered per browser). Its sections follow the settings below, which
@@ -159,8 +159,8 @@ image regularly** to pick up browser fixes.
   with the `X-AIFactory-Files` header. Every transfer is logged to the
   workspace log. `AIFACTORY_BROWSER_FILES` in the template's `env_vars` sets the
   direction: `both` (default), `in` (upload only), `out` (download only) or
-  `none`. Note that with downloads on, content can leave the workspace as a file
-  even though the clipboard is one-way; use `in` to close that too.
+  `none`. Note that with uploads on, content can still enter the workspace as a
+  file even though pasting in is blocked; use `out` to close that too.
 - **Sandbox**: Chromium runs with `--no-sandbox`, because rootless Podman's
   default seccomp profile does not allow its sandbox namespaces. The container
   (non-root, no `sudo`, one per user) is the isolation boundary.

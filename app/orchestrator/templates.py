@@ -189,21 +189,21 @@ TEMPLATES: dict[str, WorkspaceTemplate] = {
         features=[
             "Chromium (Türkçe arayüz)",
             "Merkez Asistan, Claude ve ChatGPT başlangıç sayfası",
-            "Yapıştır (dışarıya kopyalama kapalı)",
+            "Dışarı kopyalama (içeri yapıştırma kapalı)",
             "Dosya yükleme ve indirme",
             "Kalıcı oturum ve indirilenler",
         ],
         # Like the terminal, its own ide_type keeps the image ENTRYPOINT in
         # charge; the worker only adds the Admin CA bundle to the environment.
         ide_type="browser",
-        # Clipboard is one-way: text can be pasted into the workspace, but
-        # nothing copied inside it reaches the user's machine (Xvnc
-        # SendCutText=0). See containers/browser-chromium/entrypoint.sh.
+        # Clipboard is one-way: text copied in the workspace reaches the
+        # user's machine, but nothing can be pasted into it (Xvnc
+        # AcceptCutText=0). See containers/browser-chromium/entrypoint.sh.
         # Files move both ways through the panel (~/Downloads); "in" allows
         # uploads only, "out" downloads only, "none" neither.
         env_vars={
             "TZ": "Europe/Istanbul",
-            "AIFACTORY_BROWSER_CLIPBOARD": "in",
+            "AIFACTORY_BROWSER_CLIPBOARD": "out",
             "AIFACTORY_BROWSER_FILES": "both",
         },
         health_path="/",

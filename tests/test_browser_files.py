@@ -76,7 +76,7 @@ def test_lists_downloads_without_hidden_or_partial_files(running):
     payload = json.loads(body)
     assert status == 200
     assert [item["name"] for item in payload["files"]] == ["rapor.txt"]
-    assert payload["clipboard"] == "in" and payload["upload"] and payload["download"]
+    assert payload["clipboard"] == "out" and payload["upload"] and payload["download"]
 
 
 def test_upload_never_overwrites_and_download_round_trips(running):

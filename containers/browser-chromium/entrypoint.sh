@@ -64,11 +64,11 @@ sync_ca_bundle
 unset AIFACTORY_CA_BUNDLE_PEM
 
 # Clipboard direction between the user's machine and the workspace:
-# in (default: paste into the workspace only, nothing is copied out), both,
-# out (copy out only), none.
+# out (default: copy out of the workspace only, nothing is pasted in), both,
+# in (paste in only), none.
 accept_clipboard=1
 send_clipboard=1
-case "${AIFACTORY_BROWSER_CLIPBOARD:-in}" in
+case "${AIFACTORY_BROWSER_CLIPBOARD:-out}" in
     in) send_clipboard=0 ;;
     out) accept_clipboard=0 ;;
     none) accept_clipboard=0; send_clipboard=0 ;;

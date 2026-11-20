@@ -96,8 +96,8 @@
     <section id="clipboard-section">
       <h2>Pano</h2>
       <p id="clipboard-hint">
-        Bilgisayarınızda kopyaladığınız metin tarayıcıya kendiliğinden aktarılır. Çalışmazsa metni buraya
-        yapıştırıp <b>Tarayıcıya gönder</b>'e basın. Tarayıcıda kopyalanan metin dışarı aktarılmaz.
+        Tarayıcıda kopyaladığınız metin burada görünür ve bilgisayarınıza aktarılır.
+        Bilgisayarınızdan tarayıcıya yapıştırma kapalı.
       </p>
       <textarea id="clipboard" spellcheck="false" aria-label="Pano metni"></textarea>
       <div class="row">
@@ -181,8 +181,8 @@ let retryDelay = 1000;
 let retryTimer = null;
 let lastLocalClipboard = null;
 // What this workspace allows; GET files reports it. Until then assume the
-// defaults (paste in only, files both ways).
-let settings = { clipboard: "in", upload: true, download: true };
+// defaults (copy out only, files both ways).
+let settings = { clipboard: "out", upload: true, download: true };
 
 function showStatus(text, detail = "") {
   statusText.textContent = text;
