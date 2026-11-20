@@ -134,6 +134,8 @@ AIFACTORY_BROWSER_PORT="${PORT}" \
     python3 -I /opt/aifactory-browser/server.py &
 children+=("$!")
 server_pid="$!"
+# Only server.py needs the panel-paste token; Chromium does not inherit it.
+unset AIFACTORY_BROWSER_PASTE_TOKEN
 
 # Chromium opens the start page by policy (policies/recommended.json).
 # AIFACTORY_BROWSER_START_URLS adds tabs on the very first start only.

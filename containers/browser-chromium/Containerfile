@@ -33,6 +33,7 @@ RUN apt-get update \
         tzdata \
         websockify \
         x11-xserver-utils \
+        xclip \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
 RUN useradd --create-home --uid 1000 --shell /bin/bash browser

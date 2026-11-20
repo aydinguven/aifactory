@@ -174,6 +174,10 @@ def test_browser_workspace_image_is_pinned_and_proxy_compatible():
     assert '"127.0.0.1:${WEBSOCKIFY_PORT}"' in entrypoint
     assert "0.0.0.0:${PORT}" not in entrypoint
     assert "python3 -I /opt/aifactory-browser/server.py" in entrypoint
+    # Panel paste: xclip sets the remote clipboard, and Chromium never sees
+    # the token that lets the controller do so.
+    assert "xclip" in containerfile
+    assert "unset AIFACTORY_BROWSER_PASTE_TOKEN" in entrypoint
     assert "COPY server.py /opt/aifactory-browser/server.py" in containerfile
     # A killed container must not lock the persistent profile or the display.
     assert 'rm -f "${PROFILE_DIR}"/Singleton{Lock,Socket,Cookie}' in entrypoint

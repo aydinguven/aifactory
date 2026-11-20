@@ -283,7 +283,11 @@ async def port_is_ready(host_port: int) -> bool:
 
 
 def _forward_headers(request: Request, workspace: Workspace, custom_port: int | None = None) -> dict[str, str]:
-    excluded = {"host", "content-length", "transfer-encoding", "connection", "authorization", "cookie"}
+    excluded = {
+        "host", "content-length", "transfer-encoding", "connection", "authorization", "cookie",
+        # Only the controller's own paste route may carry this (after DLP).
+        PASTE_TOKEN_HEADER.lower(),
+    }
     headers = {key: value for key, value in request.headers.items() if key.lower() not in excluded}
     incoming_cookie = request.headers.get("cookie", "")
     if incoming_cookie:
@@ -416,6 +420,67 @@ async def proxy_remote_http(
     for cookie in set_cookies:
         response.raw_headers.append((b"set-cookie", cookie.encode("latin-1")))
     return response
+
+
+PASTE_TOKEN_HEADER = "X-AIFactory-Paste-Token"
+MAX_INTERNAL_RESPONSE_BYTES = 64 * 1024
+
+
+async def request_workspace(
+    workspace: Workspace,
+    method: str,
+    path: str,
+    body: bytes = b"",
+    headers: dict[str, str] | None = None,
+) -> tuple[int, bytes]:
+    """One controller-originated HTTP request to the workspace's main port.
+
+    Unlike :func:`proxy_remote_http` nothing comes from a browser: the caller
+    chooses every header. Returns the status and (at most 64 KB of) body.
+    """
+    if not workspace.node_id:
+        raise AgentUnavailable("Workspace bir worker'a atanmamış.")
+    connection = agent_manager.get(workspace.node_id)
+    payload = {
+        "workspace_id": workspace.id,
+        "container_name": workspace.container_name,
+        "host_port": workspace.host_port,
+        "custom_port": None,
+        "method": method,
+        "path": path,
+        "query": "",
+        "headers": dict(headers or {}),
+        "body": "",
+    }
+    body_transfer_id = None
+    try:
+        if body:
+            async def chunks():
+                yield body
+
+            result = await upload_transfer(
+                connection, chunks(), payload={"purpose": "http"}, limit=settings.PROXY_MAX_REQUEST_BYTES
+            )
+            body_transfer_id = result["transfer_id"]
+            payload["body_transfer_id"] = body_transfer_id
+            payload["headers"]["Content-Length"] = str(result["size"])
+        metadata, stream = await connection.open_stream("proxy.http.open", payload)
+    finally:
+        if body_transfer_id:
+            await abort_transfer(connection, body_transfer_id)
+    received = bytearray()
+    try:
+        while True:
+            item = await connection.receive_stream(stream)
+            if item is None:
+                break
+            if isinstance(item, Exception):
+                raise item
+            if len(received) < MAX_INTERNAL_RESPONSE_BYTES:
+                received.extend(item.data[: MAX_INTERNAL_RESPONSE_BYTES - len(received)])
+    finally:
+        await connection.close_stream(stream.id)
+    return int(metadata.get("status_code", 502)), bytes(received)
 
 
 async def proxy_remote_websocket(

@@ -146,6 +146,19 @@ image regularly** to pick up browser fixes.
   `AcceptCutText=0` and ignores clipboard text the client sends. Change it to
   `both`, `in` (paste in only) or `none` (and recreate the workspaces). Typing
   is not blocked, and uploads are governed by `AIFACTORY_BROWSER_FILES`.
+- **Panel paste (DLP)**: with the clipboard `out`, text from the user's PC
+  reaches the remote browser only through the panel's **Tarayıcıya gönder**.
+  It calls `POST /api/workspaces/{id}/clipboard` on the controller, which asks
+  `app/paste_dlp.py:check_paste` (connect the organization's DLP there; it
+  allows everything until then, and an exception refuses), writes a
+  `workspace.browser_paste` audit event with the text's length and SHA-256
+  (never the text), and only then puts the text on the remote clipboard with
+  `xclip`; the user presses Ctrl+V in Chromium. The container accepts that
+  request only with the workspace's `AIFACTORY_BROWSER_PASTE_TOKEN` (set by
+  the worker from the workspace token, unset before Chromium starts), and the
+  proxy strips its header from every browser request, so the panel path
+  cannot be bypassed through `/proxy`. Workspaces created before 3.56.3 have
+  no token: recreate them to enable panel paste.
 - **Panel**: a red **Pano · Dosyalar** tab on the left edge opens the clipboard
   and file panel. It is open on first use and stays hidden once the user hides
   it (remembered per browser). Its sections follow the settings below, which

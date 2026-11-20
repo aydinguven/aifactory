@@ -6,6 +6,11 @@
   browser and downloaded from it. ``GET /files`` lists it together with what
   the workspace allows, ``GET /files/<name>`` downloads one file and
   ``PUT /files/<name>`` uploads one (the raw body is the file).
+- ``POST /clipboard``: puts text on the remote browser's clipboard. Only the
+  AI Factory controller calls it, after its DLP check (the panel's "send"
+  when pasting into the workspace is otherwise closed); it needs the
+  workspace's paste token, which the controller's proxy never forwards from
+  a browser.
 - Any WebSocket upgrade: piped byte for byte to websockify, which listens on
   loopback only and bridges to the VNC socket.
 
@@ -14,12 +19,14 @@ Standard library only: the image's python3 comes with websockify.
 
 from __future__ import annotations
 
+import hmac
 import http.server
 import json
 import os
 import select
 import socket
 import stat
+import subprocess
 import sys
 import tempfile
 import urllib.parse
@@ -32,6 +39,8 @@ PARTIAL_SUFFIXES = (".crdownload",)
 UPLOAD_PREFIX = ".aifactory-upload-"
 # A cross-site page cannot send a custom header without a CORS preflight.
 WRITE_HEADER = "X-AIFactory-Files"
+PASTE_TOKEN_HEADER = "X-AIFactory-Paste-Token"
+MAX_PASTE_BYTES = 1024 * 1024
 
 
 def _direction(value: str | None, default: str) -> str:
@@ -47,6 +56,13 @@ class Config:
     websocket_port: int
     clipboard: str = "out"
     files: str = "both"
+    # Set per workspace by the worker; empty disables POST /clipboard.
+    paste_token: str = ""
+    clipboard_command: tuple[str, ...] = ("xclip", "-selection", "clipboard", "-in")
+
+    @property
+    def panel_paste(self) -> bool:
+        return bool(self.paste_token)
 
     @property
     def can_upload(self) -> bool:
@@ -66,6 +82,7 @@ class Config:
             # Defaults match entrypoint.sh.
             clipboard=_direction(os.environ.get("AIFACTORY_BROWSER_CLIPBOARD"), "out"),
             files=_direction(os.environ.get("AIFACTORY_BROWSER_FILES"), "both"),
+            paste_token=os.environ.get("AIFACTORY_BROWSER_PASTE_TOKEN", ""),
         )
 
 
@@ -146,6 +163,13 @@ def make_handler(config: Config):
             else:
                 self.send_error(405)
 
+        def do_POST(self):
+            self.close_connection = True
+            if urllib.parse.urlsplit(self.path).path == "/clipboard":
+                self._paste()
+            else:
+                self.send_error(405)
+
         def do_PUT(self):
             # A refused upload leaves its body unread on the connection.
             self.close_connection = True
@@ -199,6 +223,7 @@ def make_handler(config: Config):
                 files.sort(key=lambda item: item["modified"], reverse=True)
             self._send_json(200, {
                 "clipboard": config.clipboard,
+                "panel_paste": config.panel_paste,
                 "upload": config.can_upload,
                 "download": config.can_download,
                 "files": files,
@@ -287,6 +312,45 @@ def make_handler(config: Config):
             log(f"file uploaded: {final} ({received} bytes)")
             self._send_json(201, {"name": final, "size": received})
 
+        def _paste(self) -> None:
+            """Text from the controller (already DLP-checked) to the X clipboard."""
+            supplied = self.headers.get(PASTE_TOKEN_HEADER, "")
+            if not config.paste_token or not hmac.compare_digest(
+                supplied.encode("utf-8"), config.paste_token.encode("utf-8")
+            ):
+                self._fail(403, "İstek reddedildi.")
+                return
+            try:
+                length = int(self.headers.get("Content-Length", ""))
+            except ValueError:
+                self._fail(411, "Metin boyutu bilinmiyor.")
+                return
+            if not 0 < length <= MAX_PASTE_BYTES:
+                self._fail(413, "Metin çok uzun.")
+                return
+            data = self.rfile.read(length)
+            try:
+                data.decode("utf-8")
+            except UnicodeDecodeError:
+                self._fail(400, "Metin UTF-8 değil.")
+                return
+            try:
+                # xclip keeps serving the selection from a background child,
+                # so its output must not be a pipe this call waits on.
+                subprocess.run(
+                    config.clipboard_command,
+                    input=data,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=True,
+                    timeout=10,
+                )
+            except (OSError, subprocess.SubprocessError):
+                self._fail(500, "Metin tarayıcı panosuna konamadı.")
+                return
+            log(f"panel paste: {len(data)} bytes")
+            self._send_json(200, {"bytes": len(data)})
+
         @staticmethod
         def _claim_name(temporary: Path, name: str) -> str:
             """Hard-link the upload under a free name; never overwrite a file."""
@@ -343,7 +407,8 @@ def main() -> None:
     port = int(os.environ.get("AIFACTORY_BROWSER_PORT", "6080"))
     server = make_server(config, "0.0.0.0", port)
     log(
-        f"listening on {port} (clipboard: {config.clipboard}, files: {config.files})"
+        f"listening on {port} (clipboard: {config.clipboard}, files: {config.files}, "
+        f"panel paste: {'on' if config.panel_paste else 'off'})"
     )
     server.serve_forever()
 

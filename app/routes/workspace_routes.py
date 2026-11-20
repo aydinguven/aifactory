@@ -4,7 +4,8 @@ import logging
 import re
 from typing import Annotated
 from urllib.parse import quote
-from fastapi import APIRouter, Depends, Form, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, status
+from pydantic import BaseModel, Field
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -978,3 +979,95 @@ async def snapshot_workspace_endpoint(
         "template_name": template_name,
         "image_tag": image_tag_or_err,
     }
+
+
+# ---- Browser workspace: paste from the user's PC through the panel ----------
+
+MAX_PANEL_PASTE_CHARS = 100_000
+
+
+class PanelPaste(BaseModel):
+    text: str = Field(min_length=1, max_length=MAX_PANEL_PASTE_CHARS)
+
+
+@workspace_router.post("/{workspace_id}/clipboard")
+async def paste_into_browser_workspace(
+    workspace_id: str,
+    data: PanelPaste,
+    request: Request,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Put text on a browser workspace's clipboard after the DLP check.
+
+    The only way into the remote browser for text from the user's PC: the
+    VNC clipboard only flows out. Every attempt is audited with the text's
+    length and SHA-256, never the text itself (app/paste_dlp.py).
+    """
+    import hashlib
+
+    from app.agents.manager import AgentCommandError, AgentUnavailable
+    from app.audit import audit_event, client_ip, mark_audited
+    from app.paste_dlp import PasteDecision, check_paste
+    from app.proxy.router import PASTE_TOKEN_HEADER, request_workspace
+
+    workspace = (
+        await db.execute(select(Workspace).where(Workspace.id == workspace_id))
+    ).scalar_one_or_none()
+    if not workspace or workspace.status == WorkspaceStatus.DELETED:
+        raise HTTPException(status_code=404, detail="Çalışma alanı bulunamadı.")
+    # Pasting is personal: not even an admin pastes into someone else's browser.
+    if workspace.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Erişim reddedildi.")
+    template = await resolve_template(db, workspace.template_id)
+    if not template or template.ide_type != "browser":
+        raise HTTPException(status_code=400, detail="Panelden yapıştırma yalnızca tarayıcı workspace'lerinde var.")
+    await require_template_access(db, current_user, workspace.template_id)
+    if workspace.status != WorkspaceStatus.RUNNING:
+        raise HTTPException(status_code=409, detail="Çalışma alanı çalışmıyor.")
+
+    text = data.text
+    audit = {
+        "actor": current_user.username,
+        "actor_role": getattr(current_user.role, "value", str(current_user.role)),
+        "src_ip": client_ip(request),
+        "target": workspace.id,
+        "chars": len(text),
+        "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+    }
+    mark_audited(request)
+    try:
+        decision = await check_paste(user=current_user, workspace=workspace, text=text)
+    except Exception:  # noqa: BLE001 - a broken DLP check must refuse, not pass
+        logger.exception("Paste DLP check failed for workspace %s", workspace.id)
+        decision = PasteDecision(False, "Metin denetlenemedi, gönderilmedi. Daha sonra yeniden deneyin.")
+    if not decision.allowed:
+        audit_event("workspace.browser_paste", outcome="denied", reason=decision.reason, **audit)
+        raise HTTPException(
+            status_code=403,
+            detail=decision.reason or "Bu metin kurum politikası gereği tarayıcıya gönderilemez.",
+        )
+
+    try:
+        status_code, _ = await request_workspace(
+            workspace,
+            "POST",
+            "/clipboard",
+            text.encode("utf-8"),
+            {PASTE_TOKEN_HEADER: workspace.workspace_token, "Content-Type": "text/plain; charset=utf-8"},
+        )
+    except (AgentUnavailable, AgentCommandError, TimeoutError) as exc:
+        audit_event("workspace.browser_paste", outcome="failure", reason=str(exc), **audit)
+        raise HTTPException(status_code=502, detail="Tarayıcıya ulaşılamadı, metin gönderilmedi.") from exc
+    if status_code == 403:
+        # Containers created before panel paste have no token.
+        audit_event("workspace.browser_paste", outcome="failure", reason="no paste token", **audit)
+        raise HTTPException(
+            status_code=409,
+            detail="Bu workspace panelden yapıştırmayı desteklemiyor. Yöneticinizden workspace'i yeniden oluşturmasını isteyin.",
+        )
+    if status_code != 200:
+        audit_event("workspace.browser_paste", outcome="failure", reason=f"container {status_code}", **audit)
+        raise HTTPException(status_code=502, detail="Metin tarayıcı panosuna konamadı.")
+    audit_event("workspace.browser_paste", **audit)
+    return {"chars": len(text)}

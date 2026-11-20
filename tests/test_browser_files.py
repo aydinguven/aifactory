@@ -21,14 +21,25 @@ sys.modules[spec.name] = server_module
 spec.loader.exec_module(server_module)
 
 
-def start(tmp_path: Path, files: str = "both", websocket_port: int = 1):
+def start(tmp_path: Path, files: str = "both", websocket_port: int = 1, paste_token: str = ""):
     web = tmp_path / "web"
     web.mkdir(exist_ok=True)
     (web / "index.html").write_text("<!DOCTYPE html><title>t</title>", encoding="utf-8")
     downloads = tmp_path / "Downloads"
     downloads.mkdir(exist_ok=True)
+    sink = tmp_path / "remote-clipboard.txt"
     config = server_module.Config(
-        web_root=web, files_dir=downloads, websocket_port=websocket_port, files=files
+        web_root=web,
+        files_dir=downloads,
+        websocket_port=websocket_port,
+        files=files,
+        paste_token=paste_token,
+        # Stands in for xclip: what it reads is what the remote clipboard holds.
+        clipboard_command=(
+            sys.executable,
+            "-c",
+            f"import sys; open({str(sink)!r}, 'wb').write(sys.stdin.buffer.read())",
+        ),
     )
     server = server_module.make_server(config, "127.0.0.1", 0)
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -172,3 +183,34 @@ def test_websocket_upgrade_is_piped_to_websockify(tmp_path):
         server.shutdown()
         server.server_close()
         backend.close()
+
+
+def test_panel_paste_needs_the_workspace_token(tmp_path):
+    server, base, _ = start(tmp_path, paste_token="s3cret")
+    sink = tmp_path / "remote-clipboard.txt"
+    try:
+        payload = json.loads(request(f"{base}/files")[2])
+        assert payload["panel_paste"] is True and payload["clipboard"] == "out"
+        text = "Gizli olmayan özet".encode("utf-8")
+        assert request(f"{base}/clipboard", method="POST", data=text)[0] == 403
+        wrong = {"X-AIFactory-Paste-Token": "nope"}
+        assert request(f"{base}/clipboard", method="POST", data=text, headers=wrong)[0] == 403
+        assert not sink.exists()
+        right = {"X-AIFactory-Paste-Token": "s3cret"}
+        status, _, body = request(f"{base}/clipboard", method="POST", data=text, headers=right)
+        assert status == 200 and json.loads(body)["bytes"] == len(text)
+        assert sink.read_bytes() == text
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_panel_paste_is_off_without_a_token(tmp_path):
+    server, base, _ = start(tmp_path)
+    try:
+        assert json.loads(request(f"{base}/files")[2])["panel_paste"] is False
+        headers = {"X-AIFactory-Paste-Token": ""}
+        assert request(f"{base}/clipboard", method="POST", data=b"x", headers=headers)[0] == 403
+    finally:
+        server.shutdown()
+        server.server_close()

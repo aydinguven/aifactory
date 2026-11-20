@@ -595,6 +595,11 @@ class PodmanService:
             if not is_browser:
                 for key, value in WORKSPACE_CA_ENVIRONMENT.items():
                     cmd_args.extend(["-e", f"{key}={value}"])
+        if is_browser:
+            # Lets the controller (and only it: the proxy strips the header
+            # from browser requests) put DLP-checked panel text on the
+            # remote clipboard. The workspace token is never shown to users.
+            cmd_args.extend(["-e", f"AIFACTORY_BROWSER_PASTE_TOKEN={workspace_token}"])
         if ai_skills_bundle:
             cmd_args.extend(["-e", f"AIFACTORY_SKILLS_TGZ={ai_skills_bundle}"])
 
