@@ -295,3 +295,28 @@ def test_terminal_workspace_uses_the_image_entrypoint():
     assert 'is_jupyter = template.ide_type == "jupyter"' in source
     assert 'is_service = template.ide_type == "service"' in source
     assert 'ide_type == "terminal"' not in source
+
+
+def test_runtime_images_share_one_pinned_ubi_python_base():
+    """Controller and worker builds use one pinned UBI base, never :latest.
+
+    UBI images signed after Red Hat's Rekor change (~2026-11-14) fail Podman's
+    signature policy on EL10, so the base stays pinned to an earlier build.
+    """
+    import re
+
+    files = [
+        "containers/aifactory-controller/Containerfile",
+        "containers/aifactory-worker/Containerfile",
+        "deploy/ci/build-release-assets.sh",
+        "deploy/container/build-controller-image.sh",
+        "deploy/container/build-worker-image.sh",
+    ]
+    references = set()
+    for name in files:
+        text = (ROOT / name).read_text(encoding="utf-8")
+        found = re.findall(r"registry\.access\.redhat\.com/ubi10/python-312-minimal:[\w.-]+", text)
+        assert len(found) == 1, name
+        references.update(found)
+    assert len(references) == 1, references
+    assert not references.pop().endswith(":latest")

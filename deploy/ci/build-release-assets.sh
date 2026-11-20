@@ -147,7 +147,10 @@ pull_postgresql() {
 
 # Both runtime images share one base; pull it once before building them in
 # parallel.
-podman pull "${AIFACTORY_PYTHON_IMAGE:-registry.access.redhat.com/ubi10/python-312-minimal:latest}"
+# Pinned to a build signed before Red Hat's Rekor change (~2026-11-14):
+# EL10 containers-common does not yet trust the new Rekor key, so newer
+# UBI images fail Podman's signature policy. Return to :latest once it does.
+podman pull "${AIFACTORY_PYTHON_IMAGE:-registry.access.redhat.com/ubi10/python-312-minimal:10.3-1793856095}"
 labeled controller bash deploy/container/build-controller-image.sh &
 controller_build=$!
 labeled worker bash deploy/container/build-worker-image.sh &
