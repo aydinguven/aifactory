@@ -671,3 +671,223 @@ async def test_agent_manager_event_broadcasting():
 
 
 
+
+
+class _FakeUpgradeConnection:
+    """A connected worker that answers system.upgrade without a socket."""
+
+    def __init__(self, response=None, error=None):
+        self.response = response
+        self.error = error
+        self.requests = []
+
+    async def request(self, action, payload, timeout=60):
+        self.requests.append((action, payload))
+        if self.error is not None:
+            raise self.error
+        return self.response
+
+
+def _publish_release(tmp_path: Path, monkeypatch, version: str = "99.0.0") -> None:
+    releases = tmp_path / "releases"
+    releases.mkdir(exist_ok=True)
+    (releases / f"aifactory-platform-update-v{version}-abcdef1.tar.gz").write_bytes(b"release")
+    monkeypatch.setattr(settings, "DOWNLOADS_ROOT", str(tmp_path))
+
+
+async def _capture_worker_upgrades(monkeypatch) -> list[bool]:
+    """Stub the in-process test worker's download; record its os_upgrade flag."""
+    from app.worker_agent import WorkerAgent
+
+    seen: list[bool] = []
+
+    async def fake_execute(self, controller_url, *, os_upgrade=False):
+        seen.append(os_upgrade)
+
+    monkeypatch.setenv("AIFACTORY_MASTER_URL", "https://controller.local")
+    monkeypatch.setattr(WorkerAgent, "_execute_upgrade", fake_execute)
+    return seen
+
+
+@pytest.mark.asyncio
+async def test_admin_bulk_worker_upgrade_skips_ineligible_and_reports_each(
+    client: AsyncClient,
+    db_session,
+    tmp_path: Path,
+    monkeypatch,
+):
+    from app.agents.manager import agent_manager
+    from app.routes.admin import nodes as nodes_routes
+
+    headers = await _admin_headers(client)
+    _publish_release(tmp_path, monkeypatch)
+    seen = await _capture_worker_upgrades(monkeypatch)
+    audits = []
+    monkeypatch.setattr(
+        nodes_routes, "audit_event", lambda action, **fields: audits.append((action, fields))
+    )
+    worker = await db_session.get(Node, TEST_WORKER_ID)
+    worker.agent_version = "3.4.9"
+    connections = {
+        "w-current": _FakeUpgradeConnection(),
+        "w-busy": _FakeUpgradeConnection(),
+        "w-old": _FakeUpgradeConnection({"status": "upgrade_started", "message": "eski worker"}),
+        "w-broken": _FakeUpgradeConnection(error=RuntimeError("tunnel kapandı")),
+        "w-newer": _FakeUpgradeConnection(),
+    }
+    versions = {
+        "w-current": "99.0.0",
+        "w-busy": "3.4.9",
+        "w-old": "3.4.9",
+        "w-broken": "3.4.9",
+        "w-newer": "100.0.0",
+        "w-offline": "3.4.9",
+    }
+    for name, version in versions.items():
+        node = Node(
+            name=name,
+            status=NodeStatus.ONLINE,
+            enabled=True,
+            schedulable=True,
+            agent_token_hash=name[0] * 64,
+            agent_version=version,
+            capabilities_json=json.dumps(
+                {"upgrade": {"state": "downloading"}} if name == "w-busy" else {}
+            ),
+        )
+        db_session.add(node)
+        await db_session.flush()
+        if name in connections:
+            monkeypatch.setitem(agent_manager._connections, node.id, connections[name])
+    await db_session.commit()
+
+    preview = await client.post(
+        "/api/admin/nodes/upgrade-all",
+        headers=headers,
+        json={"dry_run": True, "os_upgrade": True},
+    )
+
+    assert preview.status_code == 200, preview.text
+    statuses = {item["node_name"]: item["status"] for item in preview.json()["results"]}
+    assert statuses == {
+        "test-worker": "eligible",
+        "w-current": "already_current",
+        "w-busy": "in_progress",
+        "w-old": "eligible",
+        "w-broken": "eligible",
+        "w-newer": "downgrade_blocked",
+        "w-offline": "offline",
+    }
+    assert preview.json()["target_version"] == "99.0.0"
+    # A preview sends nothing and records no audit event.
+    assert seen == [] and audits == []
+    assert all(not connection.requests for connection in connections.values())
+
+    response = await client.post(
+        "/api/admin/nodes/upgrade-all", headers=headers, json={"os_upgrade": True}
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    results = {item["node_name"]: item for item in body["results"]}
+    assert results["test-worker"]["status"] == "started"
+    assert results["test-worker"]["os_upgrade"] is True
+    assert "warning" not in results["test-worker"]
+    assert seen == [True]
+    # A worker without the option still updates, with a warning.
+    assert results["w-old"]["status"] == "started"
+    assert results["w-old"]["os_upgrade"] is False
+    assert "desteklemiyor" in results["w-old"]["warning"]
+    assert connections["w-old"].requests == [("system.upgrade", {"os_upgrade": True})]
+    assert results["w-broken"]["status"] == "failed"
+    assert "tunnel kapandı" in results["w-broken"]["message"]
+    for skipped in ("w-current", "w-busy", "w-newer"):
+        assert connections[skipped].requests == []
+    assert body["summary"] == {
+        "started": 2,
+        "failed": 1,
+        "already_current": 1,
+        "in_progress": 1,
+        "downgrade_blocked": 1,
+        "offline": 1,
+    }
+    assert body["message"].startswith("2 worker için güncelleme başlatıldı")
+    [(action, fields)] = audits
+    assert action == "node.upgrade.bulk"
+    assert fields["outcome"] == "failure"
+    assert fields["os_upgrade"] is True
+    assert fields["target_version"] == "99.0.0"
+    assert sorted(fields["started"]) == ["test-worker", "w-old"]
+    assert fields["failed"] == ["w-broken"]
+    assert fields["skipped"] == {
+        "already_current": 1,
+        "in_progress": 1,
+        "downgrade_blocked": 1,
+        "offline": 1,
+    }
+
+
+@pytest.mark.asyncio
+async def test_admin_bulk_worker_upgrade_defaults_to_platform_only(
+    client: AsyncClient,
+    db_session,
+    tmp_path: Path,
+    monkeypatch,
+):
+    headers = await _admin_headers(client)
+    _publish_release(tmp_path, monkeypatch)
+    seen = await _capture_worker_upgrades(monkeypatch)
+    worker = await db_session.get(Node, TEST_WORKER_ID)
+    worker.agent_version = "3.4.9"
+    await db_session.commit()
+
+    response = await client.post("/api/admin/nodes/upgrade-all", headers=headers)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["os_upgrade"] is False
+    assert response.json()["summary"] == {"started": 1}
+    assert seen == [False]
+
+
+@pytest.mark.asyncio
+async def test_admin_bulk_worker_upgrade_requires_admin(client: AsyncClient):
+    response = await client.post("/api/admin/nodes/upgrade-all")
+    assert response.status_code in (401, 403)
+
+
+@pytest.mark.asyncio
+async def test_admin_single_worker_upgrade_forwards_os_upgrade_and_audits(
+    client: AsyncClient,
+    db_session,
+    tmp_path: Path,
+    monkeypatch,
+):
+    from app.routes.admin import nodes as nodes_routes
+
+    headers = await _admin_headers(client)
+    _publish_release(tmp_path, monkeypatch)
+    seen = await _capture_worker_upgrades(monkeypatch)
+    audits = []
+    monkeypatch.setattr(
+        nodes_routes, "audit_event", lambda action, **fields: audits.append((action, fields))
+    )
+    worker = await db_session.get(Node, TEST_WORKER_ID)
+    worker.agent_version = "3.4.9"
+    await db_session.commit()
+
+    response = await client.post(
+        f"/api/admin/nodes/{TEST_WORKER_ID}/upgrade",
+        headers=headers,
+        json={"os_upgrade": True},
+    )
+
+    assert response.status_code == 200, response.text
+    detail = response.json()["detail"]
+    assert detail["status"] == "upgrade_started"
+    assert detail["os_upgrade"] is True
+    assert detail["target_version"] == "99.0.0"
+    assert seen == [True]
+    [(action, fields)] = audits
+    assert action == "node.upgrade"
+    assert fields["target"] == "test-worker"
+    assert fields["os_upgrade"] is True and fields["status"] == "started"

@@ -29,6 +29,19 @@ class NodePlacementUpdate(BaseModel):
     tags: list[str] = Field(default_factory=list, max_length=50)
 
 
+class NodeUpgradeRequest(BaseModel):
+    """Options of a worker platform update (single or bulk)."""
+
+    # Also run `dnf -y upgrade --refresh` on the worker host before the
+    # platform update. Off unless the admin ticks it.
+    os_upgrade: bool = False
+
+
+class BulkNodeUpgradeRequest(NodeUpgradeRequest):
+    # Classify every worker without sending anything (confirmation preview).
+    dry_run: bool = False
+
+
 class PlacementTagCreate(BaseModel):
     name: str = Field(min_length=1, max_length=40, pattern=TAG_NAME_PATTERN)
     description: str = Field(default="", max_length=255)

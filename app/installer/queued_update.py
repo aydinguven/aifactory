@@ -9,6 +9,7 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
+from app.installer.os_upgrade import run_os_upgrade
 from app.installer.progress import (
     OUTPUT_FILENAME,
     PROGRESS_FILE_ENV,
@@ -118,6 +119,8 @@ def main() -> int:
             raise RuntimeError("Queued update source type is unsupported")
         if request.get("allow_unsigned") is True:
             command.append("--allow-unsigned")
+        # Opt-in, admin-selected: upgrade OS packages before the platform.
+        os_upgrade = request.get("os_upgrade") is True
         started_at = datetime.now(timezone.utc).isoformat()
         running_request = {**request, "state": "running", "started_at": started_at}
         _write_json(running, running_request)
@@ -129,17 +132,47 @@ def main() -> int:
                 "filename": request.get("filename"),
                 "source_type": source_type,
                 "target_version": request.get("target_version"),
+                **(
+                    {"os_upgrade_result": {"requested": True, "state": "pending"}}
+                    if os_upgrade
+                    else {}
+                ),
             },
         )
         progress.reset(started_at=started_at, target_version=request.get("target_version"))
         # Output goes to a file while the update runs, so the admin panel can
         # show it live; the installers report step progress to progress.json.
         env = {**os.environ, PROGRESS_FILE_ENV: str(progress.path), "PYTHONUNBUFFERED": "1"}
+        os_result: dict | None = None
         with _open_output(output) as log:
-            returncode = subprocess.run(
-                command, text=True, stdout=log, stderr=subprocess.STDOUT, env=env
-            ).returncode
+            if os_upgrade:
+                os_result = run_os_upgrade(log, progress)
+            if os_result is not None and os_result["state"] != "succeeded":
+                # dnf rolled its own transaction back; leave the platform alone
+                # too, so the host is not half-updated.
+                returncode = None
+            else:
+                returncode = subprocess.run(
+                    command, text=True, stdout=log, stderr=subprocess.STDOUT, env=env
+                ).returncode
         _archive_output(output, started_at)
+        if returncode is None:
+            progress.finish(False)
+            _write_json(
+                status,
+                {
+                    "state": "failed",
+                    "error": os_result["message"],
+                    "started_at": started_at,
+                    "finished_at": datetime.now(timezone.utc).isoformat(),
+                    "filename": request.get("filename"),
+                    "source_type": source_type,
+                    "target_version": request.get("target_version"),
+                    "os_upgrade_result": os_result,
+                    "output": read_output_tail(output),
+                },
+            )
+            return 1
         # Exit code 3: applied, but the worker bundle was not published.
         applied = returncode in (0, PUBLISH_FAILED_EXIT_CODE)
         progress.finish(applied)
@@ -156,6 +189,14 @@ def main() -> int:
                         )
                     }
                     if returncode == PUBLISH_FAILED_EXIT_CODE
+                    else {}
+                ),
+                **({"os_upgrade_result": os_result} if os_result is not None else {}),
+                # Shown on the worker inventory (reboot advice). A failed
+                # platform step keeps the installer output as its message.
+                **(
+                    {"message": os_result["message"]}
+                    if os_result is not None and applied
                     else {}
                 ),
                 "started_at": started_at,

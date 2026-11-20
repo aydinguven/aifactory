@@ -684,6 +684,9 @@ intelligent-nobel/
 | `GET` | `/api/admin/stats` | System statistics | Yes (Admin) |
 | `GET`, `POST` | `/api/admin/skills` | List the skill library, add a `SKILL.md` | Yes (Admin) |
 | `PUT`, `DELETE` | `/api/admin/skills/{id}` | Replace, enable/disable or delete a skill | Yes (Admin) |
+| `GET` | `/api/admin/nodes/{id}/upgrade-check` | Compare a worker's installed version with the published release | Yes (Admin) |
+| `POST` | `/api/admin/nodes/{id}/upgrade` | Queue the published release on one worker; body `{"os_upgrade": true}` also runs `dnf -y upgrade --refresh` first (off by default) | Yes (Admin) |
+| `POST` | `/api/admin/nodes/upgrade-all` | Queue the published release on every online, outdated, idle worker and return per-worker results; body `{"os_upgrade": bool, "dry_run": bool}` (`dry_run` only previews) | Yes (Admin) |
 | `GET`, `PUT` | `/api/admin/logging-settings` | Log retention, level and forwarding policy | Yes (Admin) |
 | `POST` | `/api/admin/logging-settings/test` | Send a test event with unsaved forwarding values | Yes (Admin) |
 | `GET` | `/api/admin/logging-status` | Controller and per-worker logging state | Yes (Admin) |

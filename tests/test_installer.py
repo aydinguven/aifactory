@@ -1234,3 +1234,128 @@ def test_applied_update_with_unpublished_worker_bundle_is_not_reported_failed(tm
     assert status["state"] == "succeeded" and status["return_code"] == 3
     assert "publish-worker-bundle" in status["warning"]
     assert not bundle.exists()
+
+
+def _queue_bundle_request(tmp_path, **request):
+    queue = tmp_path / "update-queue"
+    (queue / "uploads").mkdir(parents=True)
+    bundle = queue / "uploads" / "abc.tar.gz"
+    bundle.write_bytes(b"bundle")
+    (queue / "pending.json").write_text(
+        json.dumps(
+            {
+                "source_type": "bundle",
+                "bundle": str(bundle),
+                "target_version": "3.57.0",
+                **request,
+            }
+        ),
+        encoding="utf-8",
+    )
+    return queue, bundle
+
+
+def _fake_host(calls, *, dnf_code=0, needs_restarting_code=1, installer_code=0):
+    """subprocess.run stand-in for systemd-run/dnf, needs-restarting and setup."""
+
+    def fake_run(command, **kwargs):
+        calls.append(list(command))
+        if command[0] == "systemd-run":
+            kwargs["stdout"].write("Upgraded: kernel-core\n")
+            return subprocess.CompletedProcess(command, dnf_code)
+        if command[:2] == ["dnf", "-q"]:
+            return subprocess.CompletedProcess(command, needs_restarting_code, "", "")
+        kwargs["stdout"].write("platform updated\n")
+        return subprocess.CompletedProcess(command, installer_code)
+
+    return fake_run
+
+
+def test_root_updater_skips_dnf_unless_the_request_opts_in(tmp_path, monkeypatch):
+    queue, _bundle = _queue_bundle_request(tmp_path)
+    calls = []
+    monkeypatch.setenv("UPDATE_QUEUE_ROOT", str(queue))
+    monkeypatch.setattr(queued_update.subprocess, "run", _fake_host(calls))
+
+    assert queued_update.main() == 0
+    assert [command[0] for command in calls] == ["bash"]
+    status = json.loads((queue / "status.json").read_text(encoding="utf-8"))
+    assert "os_upgrade_result" not in status
+
+
+def test_root_updater_upgrades_os_packages_before_the_platform(tmp_path, monkeypatch):
+    queue, bundle = _queue_bundle_request(tmp_path, os_upgrade=True)
+    calls = []
+    monkeypatch.setenv("UPDATE_QUEUE_ROOT", str(queue))
+    monkeypatch.setattr(queued_update.subprocess, "run", _fake_host(calls))
+
+    assert queued_update.main() == 0
+    # dnf runs first, in a transient unit outside the NoNewPrivileges
+    # sandbox, then the reboot check, then the platform installer.
+    upgrade, reboot_check, installer = calls
+    assert upgrade[0] == "systemd-run" and "--wait" in upgrade and "--pipe" in upgrade
+    assert upgrade[-4:] == ["dnf", "-y", "upgrade", "--refresh"]
+    assert reboot_check == ["dnf", "-q", "needs-restarting", "-r"]
+    assert installer[:2] == ["bash", str(Path(queued_update.__file__).resolve().parents[2] / "deploy" / "aifactory-setup.sh")]
+    status = json.loads((queue / "status.json").read_text(encoding="utf-8"))
+    assert status["state"] == "succeeded"
+    result = status["os_upgrade_result"]
+    assert result["state"] == "succeeded" and result["reboot_required"] is True
+    assert "yeniden başlatın" in status["message"]
+    assert "otomatik yeniden" in status["message"]
+    assert "Upgraded: kernel-core" in status["output"]
+    assert "platform updated" in status["output"]
+    assert not bundle.exists()
+
+
+def test_root_updater_leaves_platform_alone_when_dnf_fails(tmp_path, monkeypatch):
+    queue, bundle = _queue_bundle_request(tmp_path, os_upgrade=True)
+    calls = []
+    monkeypatch.setenv("UPDATE_QUEUE_ROOT", str(queue))
+    monkeypatch.setattr(queued_update.subprocess, "run", _fake_host(calls, dnf_code=1))
+
+    assert queued_update.main() == 1
+    assert [command[0] for command in calls] == ["systemd-run"]
+    status = json.loads((queue / "status.json").read_text(encoding="utf-8"))
+    assert status["state"] == "failed"
+    assert status["os_upgrade_result"]["state"] == "failed"
+    assert status["os_upgrade_result"]["return_code"] == 1
+    assert "platform güncellemesi uygulanmadı" in status["error"]
+    assert not (queue / "running.json").exists()
+    # The bundle stays for a retry, as after any failed update.
+    assert bundle.exists()
+    progress = json.loads((queue / "progress.json").read_text(encoding="utf-8"))
+    assert progress["phase"] == "failed"
+    assert progress["label"] == "OS paketleri yükseltiliyor (dnf)"
+
+
+def test_root_updater_reports_platform_failure_after_dnf(tmp_path, monkeypatch):
+    queue, _bundle = _queue_bundle_request(tmp_path, os_upgrade=True)
+    calls = []
+    monkeypatch.setenv("UPDATE_QUEUE_ROOT", str(queue))
+    monkeypatch.setattr(
+        queued_update.subprocess,
+        "run",
+        _fake_host(calls, needs_restarting_code=0, installer_code=2),
+    )
+
+    assert queued_update.main() == 2
+    status = json.loads((queue / "status.json").read_text(encoding="utf-8"))
+    assert status["state"] == "failed"
+    # The installer's failure is the message, not the dnf success note.
+    assert "message" not in status
+    assert status["os_upgrade_result"]["reboot_required"] is False
+
+
+def test_os_upgrade_reboot_check_is_unknown_without_needs_restarting():
+    from app.installer.os_upgrade import reboot_required
+
+    def missing(command, **kwargs):
+        raise FileNotFoundError("dnf")
+
+    def unknown_command(command, **kwargs):
+        return subprocess.CompletedProcess(command, 2, "", "No such command")
+
+    assert reboot_required(missing) is None
+    assert reboot_required(unknown_command) is None
+    assert reboot_required(lambda command, **kwargs: subprocess.CompletedProcess(command, 0)) is False

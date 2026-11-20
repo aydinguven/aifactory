@@ -120,6 +120,15 @@ class ProgressReporter:
             percent=low + (high - low) * min(1.0, share),
         )
 
+    def os_packages(self) -> None:
+        """The opt-in ``dnf upgrade`` before the platform installer starts."""
+        self._emit(
+            phase="os-packages",
+            label="OS paketleri yükseltiliyor (dnf)",
+            detail="",
+            percent=DOWNLOAD_RANGE[1],
+        )
+
     def verify(self, label: str = "Bundle doğrulanıyor") -> None:
         self._emit(phase="verify", label=label, percent=VERIFY_RANGE[0])
 

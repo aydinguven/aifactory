@@ -551,3 +551,23 @@ def test_admin_catalog_fields_use_inline_edit_and_image_cards_align():
     assert ".image-import-actions" in css
     assert "align-items: stretch" in css
     assert "margin-top: auto" in css
+
+
+def test_worker_inventory_offers_bulk_update_and_opt_in_dnf_upgrade():
+    template = (PROJECT_ROOT / "app/templates/admin.html").read_text(encoding="utf-8")
+    javascript = (PROJECT_ROOT / "app/static/js/app.js").read_text(encoding="utf-8")
+    css = (PROJECT_ROOT / "app/static/css/kurumsal.css").read_text(encoding="utf-8")
+
+    assert 'id="btn-upgrade-all-workers"' in template
+    assert "Tüm Worker'ları Güncelle" in template
+    # The dnf option is one explicit checkbox, unticked by default.
+    assert '<input id="worker-upgrade-os-packages" type="checkbox">' in template
+    assert "OS paketlerini de yükselt (dnf)" in template
+    assert "node-os-upgrade-state" in template
+    assert "Yeniden başlatma gerekli" in template
+    assert "/api/admin/nodes/upgrade-all" in javascript
+    assert "dry_run: true" in javascript
+    assert "confirm(prompt)" in javascript
+    assert "body: JSON.stringify({ os_upgrade: osUpgrade })" in javascript
+    assert "Yeniden başlatma gerekli" in javascript
+    assert ".worker-bulk-update-results" in css

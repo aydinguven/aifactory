@@ -208,3 +208,28 @@ def test_publishing_prunes_old_bundles_and_refuses_without_disk_space(tmp_path, 
         "aifactory-platform-update-v3.14.0-aaaaaaaaaaaa.tar.gz",
         published.name,
     }
+
+
+def test_os_package_upgrade_reports_progress_and_leaves_updater_sandbox(tmp_path):
+    from app.installer.os_upgrade import upgrade_command
+    from app.installer.progress import DOWNLOAD_RANGE, ProgressReporter, read_progress
+
+    progress = ProgressReporter(tmp_path / "progress.json")
+    progress.reset(target_version="3.57.0")
+    progress.os_packages()
+    value = read_progress(tmp_path / "progress.json")
+    assert value["phase"] == "os-packages"
+    assert value["label"] == "OS paketleri yükseltiliyor (dnf)"
+    assert value["percent"] == DOWNLOAD_RANGE[1]
+
+    # The updater keeps NoNewPrivileges; dnf runs in a transient unit instead,
+    # waits for it and streams its output into the update log.
+    unit = (Path(__file__).resolve().parents[1] / "deploy" / "aifactory-update.service").read_text(
+        encoding="utf-8"
+    )
+    assert "NoNewPrivileges=true" in unit
+    command = upgrade_command()
+    assert command[0] == "systemd-run"
+    assert {"--wait", "--pipe", "--collect"} <= set(command)
+    assert command[-4:] == ["dnf", "-y", "upgrade", "--refresh"]
+    assert "reboot" not in " ".join(command)

@@ -435,7 +435,22 @@ cd aifactory
   </form>
   <div id="worker-bootstrap-ticket-box" class="terminal-window" style="display:none;margin-bottom:1.25rem;padding:1rem;"></div>
   <div id="node-enrollment-token" class="terminal-window" style="display:none;margin-bottom:1.25rem;padding:1rem;"></div>
-  
+
+  <div class="worker-bulk-update" id="worker-bulk-update">
+    <label class="worker-os-upgrade-control">
+      <input id="worker-upgrade-os-packages" type="checkbox">
+      <span>
+        <strong>OS paketlerini de yükselt (dnf)</strong>
+        <small>Tekli <em>Güncelle</em> ve toplu güncellemede geçerlidir. Platform güncellemesinden önce worker üzerinde <code>dnf -y upgrade --refresh</code> çalışır; başarısız olursa platform güncellenmez. Worker otomatik yeniden başlatılmaz, gerekiyorsa bildirilir.</small>
+      </span>
+    </label>
+    <div class="worker-bulk-update-actions">
+      <button class="btn btn-primary" id="btn-upgrade-all-workers" type="button" title="Çevrimiçi ve güncel olmayan tüm worker'ları yayınlanan sürüme güncelle">Tüm Worker'ları Güncelle</button>
+      <span id="worker-bulk-update-status" class="quota-form-status" role="status"></span>
+    </div>
+    <ul id="worker-bulk-update-results" class="worker-bulk-update-results" hidden></ul>
+  </div>
+
   <div class="data-table-shell responsive-card-table-shell worker-table-shell">
   <table class="table responsive-card-table" id="admin-nodes-table">
     <thead>
@@ -479,6 +494,17 @@ cd aifactory
               {% elif upgrade_state == 'failed' %}Güncelleme hatası
               {% else %}Hazır{% endif %}
               {% if upgrade_status.get('target_version') %} · v{{ upgrade_status.get('target_version') }}{% endif %}
+            </span>
+            {% set os_upgrade = upgrade_status.get('os_upgrade') or {} %}
+            <span
+              class="node-os-upgrade-state badge {% if os_upgrade.get('reboot_required') %}badge-starting{% elif os_upgrade.get('state') == 'failed' %}badge-error{% else %}badge-neutral{% endif %}"
+              title="{{ os_upgrade.get('message', '') }}"
+              {% if not os_upgrade.get('requested') %}hidden{% endif %}
+            >
+              {% if os_upgrade.get('reboot_required') %}Yeniden başlatma gerekli
+              {% elif os_upgrade.get('state') == 'failed' %}OS yükseltme hatası
+              {% elif os_upgrade.get('state') == 'succeeded' %}OS paketleri güncel
+              {% else %}OS yükseltmesi bekliyor{% endif %}
             </span>
           </div>
           <div class="update-progress is-compact" data-update-progress data-upgrade='{{ upgrade_status|tojson }}' hidden>

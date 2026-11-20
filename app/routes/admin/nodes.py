@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 import secrets
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
@@ -17,6 +18,7 @@ from fastapi import (
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.audit import audit_event, client_ip, mark_audited
 from app.auth.dependencies import get_current_admin_user
 from app.database import get_db
 from app.models.user import User
@@ -33,12 +35,14 @@ from app.placement import (
     validate_node_placement,
 )
 from app.schemas.node import (
+    BulkNodeUpgradeRequest,
     NodeCreate,
     NodeCreated,
     NodeLabelsUpdate,
     NodeOut,
     NodePlacementUpdate,
     NodeUpdate,
+    NodeUpgradeRequest,
     PlacementTagCreate,
     PlacementTagOut,
     PlacementTagUpdate,
@@ -422,13 +426,184 @@ async def delete_placement_tag(
     return {"message": f"'{name}' silindi."}
 
 
+# Worker OTA states (heartbeat "upgrade") that mean an update is under way.
+UPGRADE_ACTIVE_STATES = frozenset({"preparing", "downloading", "queued", "running"})
+# Commands sent at once by "update all"; each worker then downloads on its own.
+BULK_UPGRADE_CONCURRENCY = 8
+OS_UPGRADE_UNSUPPORTED_WARNING = (
+    "Bu worker sürümü OS paket yükseltmesini desteklemiyor; yalnızca platform "
+    "güncelleniyor. Seçenek bir sonraki güncellemede uygulanır."
+)
+
+
+def _reported_upgrade_state(node: Node) -> str:
+    try:
+        capabilities = json.loads(node.capabilities_json or "{}")
+    except (TypeError, ValueError):
+        return ""
+    upgrade = capabilities.get("upgrade") if isinstance(capabilities, dict) else None
+    return str(upgrade.get("state") or "") if isinstance(upgrade, dict) else ""
+
+
+def _upgrade_result(node: Node, release, status_name: str, message: str) -> dict:
+    return {
+        "node_id": node.id,
+        "node_name": node.name,
+        "current_version": node.agent_version or "",
+        "target_version": release.version,
+        "status": status_name,
+        "message": message,
+    }
+
+
+def _upgrade_blocker(node: Node, release) -> dict | None:
+    """Why ``node`` cannot take ``release`` now, or None when it can."""
+    if not agent_manager.is_connected(node.id):
+        return _upgrade_result(
+            node, release, "offline", "Worker çevrimdışı; yükseltme komutu gönderilemez."
+        )
+    if node.agent_version == release.version:
+        return _upgrade_result(
+            node, release, "already_current", f"Worker zaten v{release.version} sürümünde."
+        )
+    current_semantic = semantic_version(node.agent_version)
+    target_semantic = semantic_version(release.version)
+    if (
+        current_semantic is not None
+        and target_semantic is not None
+        and target_semantic < current_semantic
+    ):
+        return _upgrade_result(
+            node,
+            release,
+            "downgrade_blocked",
+            (
+                f"Yayımlanan worker release v{release.version}, kurulu "
+                f"v{node.agent_version} sürümünden eski. Sürüm düşürme engellendi."
+            ),
+        )
+    return None
+
+
+async def _send_node_upgrade(node: Node, release, *, os_upgrade: bool) -> dict:
+    """Ask a connected worker to download and queue ``release``."""
+    try:
+        response = await agent_manager.get(node.id).request(
+            "system.upgrade", {"os_upgrade": True} if os_upgrade else {}, timeout=15
+        )
+    except Exception as exc:
+        return _upgrade_result(
+            node, release, "failed", f"Yükseltme komutu başarısız oldu: {exc}"
+        )
+    response = response if isinstance(response, dict) else {}
+    in_progress = response.get("status") == "upgrade_in_progress"
+    result = _upgrade_result(
+        node,
+        release,
+        "in_progress" if in_progress else "started",
+        str(response.get("message") or "Worker güncellemesi başlatıldı."),
+    )
+    result["os_upgrade"] = os_upgrade and response.get("os_upgrade") is True
+    result["worker_response"] = response
+    # Workers before this option ignore the flag and do not echo it back.
+    if os_upgrade and not in_progress and response.get("os_upgrade") is not True:
+        result["warning"] = OS_UPGRADE_UNSUPPORTED_WARNING
+    return result
+
+
+@router.post("/nodes/upgrade-all")
+async def upgrade_all_nodes(
+    request: Request,
+    admin: Annotated[User, Depends(get_current_admin_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    options: BulkNodeUpgradeRequest | None = None,
+):
+    """Admin: Queue the published release on every eligible worker at once.
+
+    Offline workers, workers already on the release (or newer) and workers
+    with an update under way are skipped. ``dry_run`` only classifies them
+    for the confirmation dialog and sends nothing.
+    """
+    options = options or BulkNodeUpgradeRequest()
+    release = current_platform_release()
+    nodes = (await db.execute(select(Node).order_by(Node.name))).scalars().all()
+    results: list[dict] = []
+    eligible: list[Node] = []
+    for node in nodes:
+        blocker = _upgrade_blocker(node, release)
+        if blocker is None and _reported_upgrade_state(node) in UPGRADE_ACTIVE_STATES:
+            blocker = _upgrade_result(
+                node, release, "in_progress", "Worker'da güncelleme zaten sürüyor; atlandı."
+            )
+        if blocker is None:
+            eligible.append(node)
+        else:
+            results.append(blocker)
+    skipped_count = len(results)
+    if options.dry_run:
+        results.extend(
+            _upgrade_result(node, release, "eligible", "Güncellenecek.") for node in eligible
+        )
+    else:
+        semaphore = asyncio.Semaphore(BULK_UPGRADE_CONCURRENCY)
+
+        async def send(node: Node) -> dict:
+            async with semaphore:
+                return await _send_node_upgrade(node, release, os_upgrade=options.os_upgrade)
+
+        results.extend(await asyncio.gather(*(send(node) for node in eligible)))
+    results.sort(key=lambda item: item["node_name"].lower())
+    summary = dict(Counter(item["status"] for item in results))
+    if options.dry_run:
+        message = (
+            f"{len(eligible)} worker güncellenecek, {skipped_count} worker atlanacak."
+        )
+    else:
+        started = [item["node_name"] for item in results if item["status"] == "started"]
+        failed = [item["node_name"] for item in results if item["status"] == "failed"]
+        message = (
+            f"{len(started)} worker için güncelleme başlatıldı"
+            + (f", {len(failed)} worker için komut başarısız" if failed else "")
+            + f", {len(results) - len(started) - len(failed)} worker atlandı."
+        )
+        mark_audited(request)
+        audit_event(
+            "node.upgrade.bulk",
+            outcome="failure" if failed else "success",
+            actor=admin.username,
+            actor_role=admin.role.value,
+            src_ip=client_ip(request),
+            target="nodes",
+            target_version=release.version,
+            os_upgrade=options.os_upgrade,
+            started=started,
+            failed=failed,
+            skipped={
+                name: count
+                for name, count in summary.items()
+                if name not in {"started", "failed"}
+            },
+        )
+    return {
+        "message": message,
+        "dry_run": options.dry_run,
+        "os_upgrade": options.os_upgrade,
+        "target_version": release.version,
+        "summary": summary,
+        "results": results,
+    }
+
+
 @router.post("/nodes/{node_id}/upgrade")
 async def upgrade_node(
     node_id: str,
-    _admin: Annotated[User, Depends(get_current_admin_user)],
+    request: Request,
+    admin: Annotated[User, Depends(get_current_admin_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
+    options: NodeUpgradeRequest | None = None,
 ):
     """Admin: Trigger remote OTA upgrade for a connected worker."""
+    options = options or NodeUpgradeRequest()
     node = await db.get(Node, node_id)
     if not node:
         raise HTTPException(status_code=404, detail="Worker bulunamadı.")
@@ -437,9 +612,8 @@ async def upgrade_node(
             status_code=400, detail="Worker çevrimdışı; yükseltme komutu gönderilemez."
         )
     release = current_platform_release()
-    current_semantic = semantic_version(node.agent_version)
-    target_semantic = semantic_version(release.version)
-    if node.agent_version == release.version:
+    blocker = _upgrade_blocker(node, release)
+    if blocker is not None and blocker["status"] == "already_current":
         return {
             "message": f"Worker '{node.name}' zaten v{release.version} sürümünde.",
             "detail": {
@@ -449,29 +623,32 @@ async def upgrade_node(
                 "message": "İndirme veya güncelleme kuyruğu oluşturulmadı.",
             },
         }
-    if (
-        current_semantic is not None
-        and target_semantic is not None
-        and target_semantic < current_semantic
-    ):
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"Yayımlanan worker release v{release.version}, kurulu "
-                f"v{node.agent_version} sürümünden eski. Sürüm düşürme engellendi."
-            ),
-        )
-    connection = agent_manager.get(node.id)
-    try:
-        resp = await connection.request("system.upgrade", {}, timeout=15)
-        return {
-            "message": f"Worker '{node.name}' yükseltme işlemi başlatıldı.",
-            "detail": {**resp, "target_version": release.version},
-        }
-    except Exception as exc:
-        raise HTTPException(
-            status_code=500, detail=f"Yükseltme komutu başarısız oldu: {exc}"
-        )
+    if blocker is not None:
+        raise HTTPException(status_code=409, detail=blocker["message"])
+    result = await _send_node_upgrade(node, release, os_upgrade=options.os_upgrade)
+    mark_audited(request)
+    audit_event(
+        "node.upgrade",
+        outcome="failure" if result["status"] == "failed" else "success",
+        actor=admin.username,
+        actor_role=admin.role.value,
+        src_ip=client_ip(request),
+        target=node.name,
+        target_version=release.version,
+        os_upgrade=options.os_upgrade,
+        status=result["status"],
+    )
+    if result["status"] == "failed":
+        raise HTTPException(status_code=500, detail=result["message"])
+    return {
+        "message": f"Worker '{node.name}' yükseltme işlemi başlatıldı.",
+        "detail": {
+            **result["worker_response"],
+            "target_version": release.version,
+            "os_upgrade": result["os_upgrade"],
+            **({"warning": result["warning"]} if "warning" in result else {}),
+        },
+    }
 
 
 @router.get("/nodes/{node_id}/upgrade-check")

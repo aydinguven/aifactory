@@ -32,6 +32,63 @@ bundle. Downgrades are blocked. If the root updater fails, the inventory shows
 its final message and a bounded tail of the installer output instead of only a
 generic error badge.
 
+### Updating all workers at once
+
+**Tüm Worker'ları Güncelle** above the worker inventory queues the published
+release on every eligible worker in one step. It first asks the controller for
+a preview and lists, in the confirmation dialog, which workers will be updated
+and how many are skipped. Workers that are offline, already on the published
+release, newer than it (downgrade) or already in an update (preparing,
+downloading, queued or running) are skipped. After confirmation each eligible
+worker receives the same command as the per-worker **Güncelle** action and
+reports progress in its row; the panel below the button lists the result for
+every worker (started, current, offline, update in progress, downgrade blocked
+or failed). Each single and bulk update is recorded in the audit log as
+`node.upgrade` / `node.upgrade.bulk` with the acting admin, target version,
+the OS-package choice and the started, failed and skipped workers.
+
+### Optional OS package upgrade (dnf)
+
+The **OS paketlerini de yükselt (dnf)** checkbox next to the bulk button applies
+to both the per-worker **Güncelle** action and the bulk update. It is off by
+default and is not remembered; tick it for each update that should also patch
+the host. dnf runs only together with a platform update: a worker that is
+already on the published release is reported as current and its packages are
+not touched.
+
+When it is ticked, the worker's root updater (`aifactory-update.service`) runs
+`dnf -y upgrade --refresh` before the platform installer:
+
+- dnf uses whatever repositories the host has enabled. Connected hosts use
+  their normal repositories; air-gapped hosts use their Satellite/Foreman or
+  local `file://` repositories registered as described in
+  [AIRGAP.md](AIRGAP.md). `--refresh` re-reads their metadata so a worker
+  does not upgrade from a stale cache.
+- dnf runs in a transient systemd unit (`aifactory-os-upgrade`) because the
+  updater service runs with `NoNewPrivileges`, which would block RPM
+  scriptlets' SELinux transition. Its output goes to the same live update log.
+- If dnf fails (for example no reachable repository or a dependency problem),
+  RPM leaves the previous package set in place and the platform update is
+  **not** applied either; the worker stays on its current version and the
+  inventory shows the dnf error. Fix the repositories and retry, or update
+  without the checkbox. If dnf succeeds but the platform installer then fails,
+  the installer rolls the platform back as usual; the OS packages stay
+  upgraded.
+- Running the upgrade first means the platform installer's service restart
+  also picks up upgraded Podman and system libraries.
+- The worker is **never rebooted automatically**. After the upgrade the
+  updater runs `dnf needs-restarting -r` and the inventory shows
+  **Yeniden başlatma gerekli** when a new kernel or core library needs a
+  reboot. Drain the worker, reboot it at a convenient time, and the notice
+  clears once the host reports a boot time after the upgrade. When
+  `dnf needs-restarting` is unavailable the result says the reboot need could
+  not be determined.
+
+The option takes effect on workers that already run a release with this
+feature. An older worker ignores it and only updates the platform; the
+controller reports that with a warning. The next update with the checkbox
+ticked then upgrades its OS packages.
+
 ## Temporary unsigned OTA transition
 
 Unsigned worker OTA is disabled by default. To temporarily enable it, set

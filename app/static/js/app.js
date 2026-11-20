@@ -1997,7 +1997,27 @@ AIFACTORY_NODE_TOKEN=${data.enrollment_token}</pre>
       detail.textContent = [message, timestamp].filter(Boolean).join(" · ");
       detail.className = `node-upgrade-detail${message ? "" : " is-hidden"}${state === "failed" ? " is-error" : ""}`;
     }
+    // Opt-in dnf upgrade; left alone when the caller says nothing about it,
+    // so a version check does not hide a pending reboot notice.
+    const osBadge = row?.querySelector(".node-os-upgrade-state");
+    if (osBadge && "os_upgrade" in upgrade) {
+      const os = upgrade.os_upgrade || {};
+      const rebootNeeded = os.reboot_required === true;
+      osBadge.hidden = !os.requested;
+      osBadge.className = `node-os-upgrade-state badge ${rebootNeeded ? "badge-starting" : os.state === "failed" ? "badge-error" : "badge-neutral"}`;
+      osBadge.textContent = rebootNeeded
+        ? "Yeniden başlatma gerekli"
+        : os.state === "failed"
+          ? "OS yükseltme hatası"
+          : os.state === "succeeded" ? "OS paketleri güncel" : "OS yükseltmesi bekliyor";
+      osBadge.title = os.message || "";
+    }
   };
+  const workerOsUpgradeRequested = () =>
+    document.getElementById("worker-upgrade-os-packages")?.checked === true;
+  const OS_UPGRADE_CONFIRM_NOTE =
+    "OS paketleri de yükseltilecek (dnf -y upgrade --refresh). Başarısız olursa platform güncellenmez; " +
+    "worker otomatik yeniden başlatılmaz, gerekirse bildirilir.";
 
   const nodesTable = document.getElementById("admin-nodes-table");
   if (nodesTable) {
@@ -2102,7 +2122,8 @@ AIFACTORY_NODE_TOKEN=${data.enrollment_token}</pre>
                 versionBadge.textContent = d.agent_version ? `v${d.agent_version}` : "Sürüm bekleniyor";
               }
               if (d.upgrade_status && Object.keys(d.upgrade_status).length) {
-                renderWorkerUpgradeState(row, d.upgrade_status);
+                // The heartbeat is authoritative: no os_upgrade means none to show.
+                renderWorkerUpgradeState(row, { os_upgrade: {}, ...d.upgrade_status });
               }
               renderWorkerGpu(row, d.accelerators || [], d.accelerator_runtime || {});
 
@@ -2212,21 +2233,27 @@ AIFACTORY_NODE_TOKEN=${data.enrollment_token}</pre>
         if (!check.connected) {
           throw new Error(`${comparison} · Worker çevrimdışı; güncelleme başlatılamaz.`);
         }
-        if (!confirm(`${nodeName}: ${comparison}. Güncelleme başlatılsın mı?`)) return;
+        const osUpgrade = workerOsUpgradeRequested();
+        const osNote = osUpgrade ? `\n\n${OS_UPGRADE_CONFIRM_NOTE}` : "";
+        if (!confirm(`${nodeName}: ${comparison}.${osNote}\n\nGüncelleme başlatılsın mı?`)) return;
         button.textContent = "İletiliyor...";
         const response = await fetch(`/api/admin/nodes/${nodeId}/upgrade`, {
           method: "POST",
           headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ os_upgrade: osUpgrade }),
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.detail || "Yükseltme başlatılamadı.");
         const result = data.detail || {};
+        const started = !(result.status === "already_current");
         renderWorkerUpgradeState(row, {
-          state: result.status === "already_current" ? "succeeded" : "preparing",
+          state: started ? "preparing" : "succeeded",
           target_version: result.target_version || "",
-          message: result.message || data.message,
+          message: result.warning || result.message || data.message,
           updated_at: new Date().toISOString(),
+          ...(started ? { os_upgrade: result.os_upgrade ? { requested: true, state: "pending" } : {} } : {}),
         });
+        if (result.warning) alert(result.warning);
       } catch (error) {
         renderWorkerUpgradeState(row, {
           state: "failed",
@@ -2239,6 +2266,105 @@ AIFACTORY_NODE_TOKEN=${data.enrollment_token}</pre>
       }
     });
   });
+
+  const bulkUpgradeButton = document.getElementById("btn-upgrade-all-workers");
+  if (bulkUpgradeButton) {
+    const bulkStatus = document.getElementById("worker-bulk-update-status");
+    const bulkResults = document.getElementById("worker-bulk-update-results");
+    const bulkLabels = {
+      eligible: "Güncellenecek",
+      started: "Başlatıldı",
+      already_current: "Güncel",
+      offline: "Çevrimdışı",
+      in_progress: "Güncelleme sürüyor",
+      downgrade_blocked: "Sürüm düşürme engellendi",
+      failed: "Başarısız",
+    };
+    const bulkBadges = {
+      eligible: "badge-starting",
+      started: "badge-running",
+      failed: "badge-error",
+      downgrade_blocked: "badge-error",
+    };
+    const setBulkStatus = (text, kind = "") => {
+      if (!bulkStatus) return;
+      bulkStatus.textContent = text;
+      bulkStatus.className = `quota-form-status${kind ? ` quota-status-${kind}` : ""}`;
+    };
+    const renderBulkResults = (results = []) => {
+      if (!bulkResults) return;
+      bulkResults.replaceChildren(...results.map((item) => {
+        const line = document.createElement("li");
+        const name = document.createElement("strong");
+        name.textContent = item.node_name;
+        const badge = document.createElement("span");
+        badge.className = `badge ${bulkBadges[item.status] || "badge-neutral"}`;
+        badge.textContent = bulkLabels[item.status] || item.status;
+        const versions = document.createElement("small");
+        versions.textContent = `v${item.current_version || "?"} → v${item.target_version}`;
+        const message = document.createElement("small");
+        message.textContent = [item.message, item.warning].filter(Boolean).join(" · ");
+        line.append(name, badge, versions, message);
+        return line;
+      }));
+      bulkResults.hidden = results.length === 0;
+    };
+    const postBulkUpgrade = async (body) => {
+      const response = await fetch("/api/admin/nodes/upgrade-all", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(body),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || `Toplu güncelleme başarısız (${response.status})`);
+      return data;
+    };
+    bulkUpgradeButton.addEventListener("click", async () => {
+      const osUpgrade = workerOsUpgradeRequested();
+      bulkUpgradeButton.disabled = true;
+      setBulkStatus("Worker sürümleri kontrol ediliyor...");
+      try {
+        const preview = await postBulkUpgrade({ dry_run: true, os_upgrade: osUpgrade });
+        const eligible = preview.results.filter((item) => item.status === "eligible");
+        if (!eligible.length) {
+          renderBulkResults(preview.results);
+          setBulkStatus("Güncellenecek worker yok: hepsi güncel, çevrimdışı ya da güncelleniyor.");
+          return;
+        }
+        const skipped = preview.results.length - eligible.length;
+        const lines = eligible.map((item) => `• ${item.node_name} (v${item.current_version || "?"})`);
+        const prompt = [
+          `${eligible.length} worker v${preview.target_version} sürümüne güncellenecek:`,
+          lines.join("\n"),
+          skipped ? `${skipped} worker atlanacak (çevrimdışı, güncel veya güncelleme sürüyor).` : "",
+          osUpgrade ? OS_UPGRADE_CONFIRM_NOTE : "",
+          "Devam edilsin mi?",
+        ].filter(Boolean).join("\n\n");
+        if (!confirm(prompt)) {
+          setBulkStatus("");
+          return;
+        }
+        setBulkStatus("Güncelleme komutları gönderiliyor...");
+        const data = await postBulkUpgrade({ os_upgrade: osUpgrade });
+        renderBulkResults(data.results);
+        setBulkStatus(data.message, data.summary?.failed ? "error" : "success");
+        data.results.filter((item) => item.status === "started").forEach((item) => {
+          const row = document.querySelector(`#admin-nodes-table tr[data-node-id="${CSS.escape(item.node_id)}"]`);
+          renderWorkerUpgradeState(row, {
+            state: "preparing",
+            target_version: item.target_version,
+            message: item.warning || item.message,
+            updated_at: new Date().toISOString(),
+            os_upgrade: item.os_upgrade ? { requested: true, state: "pending" } : {},
+          });
+        });
+      } catch (error) {
+        setBulkStatus(error.message, "error");
+      } finally {
+        bulkUpgradeButton.disabled = false;
+      }
+    });
+  }
 
   document.querySelectorAll(".node-delete-btn").forEach(button => {
     button.addEventListener("click", async () => {

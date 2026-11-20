@@ -77,7 +77,7 @@ async def test_worker_agent_system_upgrade_initiates_upgrade(monkeypatch):
     # Stub _execute_upgrade to not run shell subprocess in test
     executed = False
 
-    async def fake_execute(master_url):
+    async def fake_execute(master_url, *, os_upgrade=False):
         nonlocal executed
         executed = True
 
@@ -85,7 +85,138 @@ async def test_worker_agent_system_upgrade_initiates_upgrade(monkeypatch):
 
     res = await agent.handle_system_command("system.upgrade", {})
     assert res["status"] == "upgrade_started"
+    assert res["os_upgrade"] is False
     assert agent.upgrade_status["state"] == "preparing"
+    assert "os_upgrade" not in agent.upgrade_status
+
+
+@pytest.mark.asyncio
+async def test_worker_agent_system_upgrade_passes_and_echoes_os_upgrade(monkeypatch):
+    monkeypatch.setenv("AIFACTORY_MASTER_URL", "https://master.aifactory.local")
+    agent = WorkerAgent()
+    received = {}
+
+    async def fake_execute(master_url, *, os_upgrade=False):
+        received["os_upgrade"] = os_upgrade
+
+    monkeypatch.setattr(agent, "_execute_upgrade", fake_execute)
+
+    res = await agent.handle_system_command("system.upgrade", {"os_upgrade": True})
+    await agent.upgrade_task
+
+    assert res["status"] == "upgrade_started"
+    # The echo tells the controller this worker understands the option.
+    assert res["os_upgrade"] is True
+    assert received == {"os_upgrade": True}
+    assert agent.upgrade_status["os_upgrade"] == {"requested": True, "state": "pending"}
+
+    # Only an explicit boolean opts in.
+    agent.upgrade_task = None
+    res = await agent.handle_system_command("system.upgrade", {"os_upgrade": "true"})
+    await agent.upgrade_task
+    assert res["os_upgrade"] is False and received == {"os_upgrade": False}
+
+
+@pytest.mark.asyncio
+async def test_worker_upgrade_marker_carries_os_upgrade_flag(tmp_path, monkeypatch):
+    import hashlib
+
+    import httpx
+
+    from app import worker_agent as worker_agent_module
+
+    queue = tmp_path / "update-queue"
+    queue.mkdir()
+    monkeypatch.setattr(settings, "UPDATE_QUEUE_ROOT", str(queue))
+    monkeypatch.setenv("AIFACTORY_NODE_ID", "node-1")
+    monkeypatch.setenv("AIFACTORY_NODE_TOKEN", "token-1")
+    bundle = b"platform-bundle"
+    filename = "aifactory-platform-update-v99.0.0-abcdef1.tar.gz"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/agent/releases/latest":
+            return httpx.Response(
+                200,
+                json={
+                    "version": "99.0.0",
+                    "filename": filename,
+                    "url": f"/api/agent/releases/{filename}",
+                    "sha256": hashlib.sha256(bundle).hexdigest(),
+                    "size": len(bundle),
+                },
+            )
+        return httpx.Response(200, content=bundle)
+
+    real_client = httpx.AsyncClient
+
+    def mocked_client(*args, **kwargs):
+        kwargs.pop("verify", None)
+        return real_client(*args, transport=httpx.MockTransport(handler), **kwargs)
+
+    monkeypatch.setattr(worker_agent_module.httpx, "AsyncClient", mocked_client)
+
+    agent = WorkerAgent()
+    await agent._execute_upgrade("http://controller.local", os_upgrade=True)
+
+    assert agent.upgrade_status["state"] == "queued", agent.upgrade_status
+    marker = json.loads((queue / "pending.json").read_text(encoding="utf-8"))
+    assert marker["os_upgrade"] is True
+    assert marker["target_version"] == "99.0.0"
+
+
+def test_worker_reports_os_upgrade_request_and_result(tmp_path, monkeypatch):
+    queue = tmp_path / "update-queue"
+    queue.mkdir()
+    monkeypatch.setattr(settings, "UPDATE_QUEUE_ROOT", str(queue))
+    (queue / "pending.json").write_text(
+        json.dumps({"state": "queued", "target_version": "3.57.0", "os_upgrade": True}),
+        encoding="utf-8",
+    )
+
+    status = WorkerAgent()._reported_upgrade_status()
+    assert status["os_upgrade"] == {"requested": True, "state": "pending"}
+
+    (queue / "pending.json").unlink()
+    (queue / "status.json").write_text(
+        json.dumps(
+            {
+                "state": "succeeded",
+                "target_version": "3.57.0",
+                "message": "OS paketleri yükseltildi. ... yeniden başlatın",
+                "finished_at": "2026-11-20T10:00:00+00:00",
+                "os_upgrade_result": {
+                    "requested": True,
+                    "state": "succeeded",
+                    "reboot_required": True,
+                    "message": "OS paketleri yükseltildi. ... yeniden başlatın",
+                    "finished_at": "2026-11-20T10:00:00+00:00",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    from app import worker_agent as worker_agent_module
+
+    # Booted before the upgrade: the reboot is still pending.
+    monkeypatch.setattr(worker_agent_module, "_host_boot_time", lambda: 1_700_000_000.0)
+    status = WorkerAgent()._reported_upgrade_status()
+    assert status["os_upgrade"]["reboot_required"] is True
+    assert "yeniden başlatın" in status["message"]
+
+    # Booted after it: the notice is closed.
+    monkeypatch.setattr(worker_agent_module, "_host_boot_time", lambda: 1_900_000_000.0)
+    status = WorkerAgent()._reported_upgrade_status()
+    assert status["os_upgrade"]["reboot_required"] is False
+    assert status["message"] == "OS paketleri yükseltildi; worker yeniden başlatıldı."
+
+
+def test_host_boot_time_reads_proc_stat(tmp_path):
+    from app.worker_agent import _host_boot_time
+
+    stat = tmp_path / "stat"
+    stat.write_text("cpu  1 2 3\nbtime 1763600000\nprocesses 5\n", encoding="ascii")
+    assert _host_boot_time(str(stat)) == 1763600000.0
+    assert _host_boot_time(str(tmp_path / "missing")) is None
 
 
 def test_worker_reports_durable_upgrade_queue_status(tmp_path, monkeypatch):

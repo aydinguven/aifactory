@@ -63,6 +63,27 @@ def _download_progress(done: int, total: int) -> dict:
     }
 
 
+def _host_boot_time(stat_path: str = "/proc/stat") -> float | None:
+    try:
+        with open(stat_path, encoding="ascii") as handle:
+            for line in handle:
+                if line.startswith("btime "):
+                    return float(line.split()[1])
+    except (OSError, ValueError, IndexError):
+        pass
+    return None
+
+
+def _rebooted_since(timestamp: object) -> bool:
+    """Whether the host booted after ``timestamp`` (an ISO time), when known."""
+    try:
+        since = datetime.fromisoformat(str(timestamp)).timestamp()
+    except (TypeError, ValueError):
+        return False
+    booted = _host_boot_time()
+    return booted is not None and booted > since
+
+
 def _storage_writable(root: str) -> dict:
     """Create and remove a probe file so a read-only remount is caught."""
     try:
@@ -174,6 +195,8 @@ class WorkerAgent:
         self.registry_lock = asyncio.Lock()
         self.image_sync_lock = asyncio.Lock()
         self.upgrade_task: asyncio.Task | None = None
+        # Admin opted in to `dnf upgrade` for the running OTA request.
+        self.upgrade_os_requested = False
         self.stream_targets: dict[str, object] = {}
         self.stream_tasks = {}
         self.stream_windows = {}
@@ -248,6 +271,8 @@ class WorkerAgent:
         }
         if progress is not None:
             self.upgrade_status["progress"] = progress
+        if self.upgrade_os_requested and state in {"preparing", "downloading", "queued"}:
+            self.upgrade_status["os_upgrade"] = {"requested": True, "state": "pending"}
         self.heartbeat_wakeup.set()
 
     def _reported_upgrade_status(self) -> dict:
@@ -295,11 +320,31 @@ class WorkerAgent:
                     "Önceki aynı-sürüm güncelleme hatası kapatıldı."
                 )
             progress = live_details(queue_root, queue_root / filename, value).get("progress")
+            # status.json carries the dnf result; a pending or running request
+            # only says that the admin asked for it.
+            os_upgrade = value.get("os_upgrade_result")
+            if not isinstance(os_upgrade, dict):
+                os_upgrade = (
+                    {"requested": True, "state": "pending"}
+                    if value.get("os_upgrade") is True
+                    else None
+                )
+            elif os_upgrade.get("reboot_required") is True and _rebooted_since(
+                os_upgrade.get("finished_at")
+            ):
+                os_upgrade = {
+                    **os_upgrade,
+                    "reboot_required": False,
+                    "message": "OS paketleri yükseltildi; worker yeniden başlatıldı.",
+                }
+                if message == value.get("message"):
+                    message = os_upgrade["message"]
             return {
                 "state": state,
                 "target_version": target_version,
                 "message": message,
                 **({"progress": progress} if progress else {}),
+                **({"os_upgrade": os_upgrade} if os_upgrade else {}),
                 "return_code": str(value.get("return_code") or ""),
                 "updated_at": str(
                     value.get("finished_at")
@@ -1491,17 +1536,30 @@ class WorkerAgent:
                     "status": "upgrade_in_progress",
                     "message": "Worker güncellemesi zaten çalışıyor.",
                 }
+            os_upgrade = payload.get("os_upgrade") is True
+            self.upgrade_os_requested = os_upgrade
             self._set_upgrade_status(
                 "preparing",
                 message="Controller release bilgisi alınıyor.",
             )
             self.upgrade_task = asyncio.create_task(
-                self._execute_upgrade(controller_url)
+                self._execute_upgrade(controller_url, os_upgrade=os_upgrade)
             )
-            return {"status": "upgrade_started", "message": "Worker güncellemesi başlatıldı."}
+            return {
+                "status": "upgrade_started",
+                "message": (
+                    "Worker güncellemesi başlatıldı (OS paketleri de yükseltilecek)."
+                    if os_upgrade
+                    else "Worker güncellemesi başlatıldı."
+                ),
+                # Echoed so the controller can tell this worker supports it.
+                "os_upgrade": os_upgrade,
+            }
         raise ValueError(f"Desteklenmeyen sistem komutu: {action}")
 
-    async def _execute_upgrade(self, controller_url: str) -> None:
+    async def _execute_upgrade(
+        self, controller_url: str, *, os_upgrade: bool = False
+    ) -> None:
         await asyncio.sleep(1)
         temporary: Path | None = None
         destination: Path | None = None
@@ -1607,6 +1665,8 @@ class WorkerAgent:
                     "sha256": digest.hexdigest(),
                     "target_version": target_version,
                     "allow_unsigned": _unsigned_ota_approved(metadata),
+                    # The root updater runs `dnf -y upgrade` first when set.
+                    "os_upgrade": os_upgrade,
                 }
                 marker_tmp = queue_root / "pending.tmp"
                 marker_tmp.write_text(
