@@ -209,8 +209,9 @@ TEMPLATES: dict[str, WorkspaceTemplate] = {
         health_path="/",
         # The worker passes the CA bundle to "browser" containers from 3.55.0.
         min_agent_version="3.55.0",
-        # Chromium with a few chat tabs does not fit in less.
-        min_memory_mb=2048,
+        # Chromium does not start reliably in less; 1 GB suits a tab or two,
+        # heavier use wants t1.small (2 GB) or more.
+        min_memory_mb=1024,
     ),
     "vscode-java": WorkspaceTemplate(
         id="vscode-java",

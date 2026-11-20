@@ -179,7 +179,8 @@ image regularly** to pick up browser fixes.
   (non-root, no `sudo`, one per user) is the isolation boundary.
 - **Limits**: no audio or microphone, and local browser shortcuts such as
   Ctrl+T act on the user's own browser unless the client is in full screen
-  (Chromium-based browsers). The template refuses flavors under 2 GB RAM.
+  (Chromium-based browsers). The template refuses flavors under 1 GB RAM
+  (`t1.nano`); `t1.small` (2 GB) or more suits heavier use.
 
 ### Updating Kilo Code
 

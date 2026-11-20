@@ -251,7 +251,8 @@ def test_browser_template_matches_its_image_contract():
     entrypoint = (ROOT / "containers" / "browser-chromium" / "entrypoint.sh").read_text(encoding="utf-8")
     assert '"${AIFACTORY_BROWSER_CLIPBOARD:-out}"' in entrypoint
     # Chromium is refused on flavors it cannot run in.
-    assert "2 GB" in flavor_mismatch(template, FLAVORS["t1.micro"])
+    assert "1 GB" in flavor_mismatch(template, FLAVORS["t1.nano"])
+    assert flavor_mismatch(template, FLAVORS["t1.micro"]) == ""
     assert flavor_mismatch(template, FLAVORS["t1.small"]) == ""
     assert flavor_mismatch(get_template("terminal-rocky"), FLAVORS["t1.nano"]) == ""
 
