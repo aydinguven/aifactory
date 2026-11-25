@@ -2,7 +2,6 @@ from contextlib import asynccontextmanager
 import logging
 from pathlib import Path
 from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, text, update
@@ -36,6 +35,7 @@ from app.routes.health_routes import health_router
 
 from app.logging_setup import apply_config, configure_logging, shutdown_forwarding
 from app.request_logging import RequestLoggingMiddleware
+from app.security.origin import SameOriginMiddleware
 
 # Files under /var/log/aifactory/controller once the installer created it;
 # the stored admin policy is applied during startup.
@@ -258,14 +258,9 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     return PlainTextResponse("Internal Server Error", status_code=500)
 
 
-# CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# The UI is served from the API's own origin, so no CORS headers are sent.
+# Cookie-authenticated writes and WebSocket upgrades must come from that origin.
+app.add_middleware(SameOriginMiddleware)
 # Outermost, so every response (including CORS and errors) is logged.
 app.add_middleware(RequestLoggingMiddleware)
 

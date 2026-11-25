@@ -31,7 +31,8 @@ async def shared_setup(client, db_session, monkeypatch):
     await db_session.commit()
 
     async def upstream(
-        workspace, request, path, custom_port=None, public_share=False
+        workspace, request, path, custom_port=None, public_share=False,
+        cookie_path=None,
     ):
         return JSONResponse({'path': path, 'port': custom_port})
 

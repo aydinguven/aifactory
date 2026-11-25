@@ -325,12 +325,65 @@ def _client_subprotocols(websocket: WebSocket) -> list[str]:
     return [str(item) for item in websocket.scope.get("subprotocols") or []]
 
 
+# Upstream response headers a workspace app must not set on the controller
+# origin: a root-scoped service worker would outlive the workspace, and
+# Clear-Site-Data would wipe the visitor's AI Factory session.
+BLOCKED_UPSTREAM_HEADERS = frozenset(
+    {"transfer-encoding", "content-length", "connection",
+     "service-worker-allowed", "clear-site-data"}
+)
+
+
+def _path_within(cookie_path: str, prefix: str) -> bool:
+    base = prefix.rstrip("/")
+    return cookie_path == base or cookie_path.startswith(base + "/")
+
+
+def contain_set_cookie(value: str, path_prefix: str | None) -> str | None:
+    """Keep an upstream cookie inside its workspace path, or drop it.
+
+    Workspace apps share the controller's origin, so an unfiltered Set-Cookie
+    could overwrite the visitor's session or share cookie (log them into
+    another account) or reach other paths and sibling hosts. Cookies named
+    like AI Factory's are dropped, Domain is removed, and a Path outside the
+    workspace prefix is rewritten to the prefix. Without a prefix (model
+    endpoints) every cookie is dropped.
+    """
+    if path_prefix is None:
+        return None
+    name_value, _, attributes = value.partition(";")
+    name = name_value.split("=", 1)[0].strip()
+    if not name:
+        return None
+    lowered = name.lower()
+    reserved = {cookie.lower() for cookie in session_cookie_names()}
+    if lowered in reserved or lowered.startswith(
+        tuple(prefix.lower() for prefix in COOKIE_PREFIXES)
+    ):
+        return None
+    kept = []
+    for attribute in attributes.split(";"):
+        key, _, attribute_value = attribute.strip().partition("=")
+        key = key.strip().lower()
+        if not key or key == "domain":
+            continue
+        if key == "path":
+            path = attribute_value.strip()
+            if not path.startswith("/") or not _path_within(path, path_prefix):
+                path = path_prefix
+            kept.append(f"Path={path}")
+            continue
+        kept.append(attribute.strip())
+    return "; ".join([name_value.strip(), *kept])
+
+
 async def proxy_remote_http(
     workspace: Workspace,
     request: Request,
     path: str,
     custom_port: int | None = None,
     public_share: bool = False,
+    cookie_path: str | None = None,
 ):
     """Stream an HTTP request through the worker-initiated tunnel."""
     if not workspace.node_id:
@@ -397,8 +450,10 @@ async def proxy_remote_http(
     for key, value in header_pairs:
         lower = key.lower()
         if lower == "set-cookie":
-            set_cookies.append(value)
-        elif lower not in {"transfer-encoding", "content-length", "connection"}:
+            contained = contain_set_cookie(value, cookie_path)
+            if contained:
+                set_cookies.append(contained)
+        elif lower not in BLOCKED_UPSTREAM_HEADERS:
             response_headers[key] = value
 
     async def response_stream():
@@ -628,7 +683,9 @@ async def proxy_http_request(
     if request.method in {"GET", "HEAD"} and (icon := ide_icon_override(path)):
         return icon
     upstream_path = get_upstream_path(workspace.id, workspace.template_id, path)
-    return await proxy_remote_http(workspace, request, upstream_path)
+    return await proxy_remote_http(
+        workspace, request, upstream_path, cookie_path=f"/proxy/{workspace.id}/"
+    )
 
 
 @proxy_router.websocket("/{workspace_id}/{path:path}")
@@ -650,8 +707,8 @@ async def proxy_websocket(
         await websocket.accept()
         await websocket.close(code=code, reason=reason)
 
-    # Extract auth token from query params or cookies
-    token = websocket.query_params.get("token") or next(
+    # Session cookie only: a token in the URL would end up in access logs.
+    token = next(
         (
             websocket.cookies[name]
             for name in session_cookie_names()
@@ -782,6 +839,7 @@ async def proxy_custom_port_http(
         subpath,
         custom_port=port,
         public_share=using_share,
+        cookie_path=f"/proxy/{workspace.id}/port/{port}/",
     )
     response.headers["Cache-Control"] = "no-store"
     response.headers["Referrer-Policy"] = "no-referrer"
