@@ -1,10 +1,10 @@
 {
   "format": 1,
-  "version": "3.57.0",
+  "version": "3.57.2",
   "bundle": {
-    "filename": "aifactory-platform-update-v3.57.0-24f3097b07cd.tar.gz",
-    "url": "https://github.com/aydinguven/aifactory/releases/download/v3.57.0/aifactory-platform-update-v3.57.0-24f3097b07cd.tar.gz",
-    "sha256": "1c0714e3aa1dd6cdd0c35c9b8a8cf05cd2d3b7116d482a9949e80d30fedddf20",
-    "size": 959267964
+    "filename": "aifactory-platform-update-v3.57.2-83c851178701.tar.gz",
+    "url": "https://github.com/aydinguven/aifactory/releases/download/v3.57.2/aifactory-platform-update-v3.57.2-83c851178701.tar.gz",
+    "sha256": "4173c5ea36e154f510c906c885403d314a0dc9cec271805f0def47e69326b383",
+    "size": 959732286
   }
 }
