@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import ClassVar
 
@@ -119,8 +120,14 @@ class Settings(BaseSettings):
     ADMIN_EMAIL: str = "admin@example.com"
     ADMIN_PASSWORD: str = "admin123"
 
+    # bcrypt work factor for new local password hashes. Existing hashes keep
+    # the cost they were created with. The test suite lowers it to 4.
+    BCRYPT_ROUNDS: int = 12
+
     model_config = SettingsConfigDict(
-        env_file=".env",
+        # AIFACTORY_ENV_FILE="" disables the .env file (the test suite does
+        # this so a developer's local .env cannot change test behaviour).
+        env_file=os.environ.get("AIFACTORY_ENV_FILE", ".env") or None,
         env_file_encoding="utf-8",
         extra="ignore",
     )
