@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
+import stat
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,7 +15,8 @@ from app.installer.progress import (
     PROGRESS_FILE_ENV,
     PROGRESS_FILENAME,
     ProgressReporter,
-    read_output_tail,
+    read_tail,
+    write_queue_file,
 )
 from app.installer.update_source import validate_git_source
 
@@ -28,44 +29,83 @@ UPDATER_LOG_DIR = Path("/var/log/aifactory/updater")
 UPDATER_LOGS_KEPT = 30
 
 
+# This updater runs as root, but the queue directory belongs to the
+# controller or worker agent account, which can create, rename and delete
+# entries in it. Every file root touches there is therefore opened without
+# following symlinks, and owner and mode are set on the open descriptor.
+MAX_REQUEST_BYTES = 1024 * 1024
+
+
 def _write_json(path: Path, value: dict) -> None:
-    temporary = path.with_suffix(".tmp")
-    temporary.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
-    # The updater runs as root while the controller and worker agent run as
-    # the owner of this queue directory. Preserve that ownership so they can
+    # Owned like the queue directory, so the controller and worker agent can
     # read the durable result after systemd finishes the update.
-    if hasattr(os, "chown"):
-        owner = path.parent.stat()
-        try:
-            os.chown(temporary, owner.st_uid, owner.st_gid)
-        except PermissionError:
-            # Non-root development/test runs already own the temporary file.
-            pass
-    os.chmod(temporary, 0o600)
-    os.replace(temporary, path)
+    write_queue_file(path, json.dumps(value, indent=2) + "\n")
+
+
+def _read_request(path: Path) -> dict:
+    """The queued request, refusing symlinks and anything but a small file."""
+    descriptor = os.open(
+        path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | getattr(os, "O_CLOEXEC", 0)
+    )
+    with os.fdopen(descriptor, "rb") as handle:
+        info = os.fstat(handle.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_REQUEST_BYTES:
+            raise RuntimeError("Queued update request is not a regular file")
+        request = json.loads(handle.read(MAX_REQUEST_BYTES).decode("utf-8"))
+    if not isinstance(request, dict):
+        raise RuntimeError("Queued update request is malformed")
+    return request
 
 
 def _open_output(path: Path):
-    """A fresh live output log readable by the queue directory's owner."""
-    handle = path.open("w", encoding="utf-8")
-    if hasattr(os, "chown"):
-        owner = path.parent.stat()
-        try:
-            os.chown(path, owner.st_uid, owner.st_gid)
-        except PermissionError:
-            pass
-    os.chmod(path, 0o600)
-    return handle
+    """A fresh live output log readable by the queue directory's owner.
+
+    Any existing entry (including a planted symlink or hard link) is removed
+    and the file is created anew with O_EXCL. The returned handle stays open
+    for reading the tail and archiving, so root never reopens the path.
+    """
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+    descriptor = os.open(
+        path,
+        os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0),
+        0o600,
+    )
+    try:
+        if hasattr(os, "fchown"):
+            owner = os.stat(path.parent)
+            try:
+                os.fchown(descriptor, owner.st_uid, owner.st_gid)
+            except PermissionError:
+                pass
+        os.fchmod(descriptor, 0o600)
+    except BaseException:
+        os.close(descriptor)
+        raise
+    return os.fdopen(descriptor, "w+", encoding="utf-8")
 
 
-def _archive_output(output: Path, started_at: str, log_dir: Path = UPDATER_LOG_DIR) -> None:
+def _output_tail(log) -> str:
+    log.flush()
+    with os.fdopen(os.dup(log.fileno()), "rb") as handle:
+        return read_tail(handle)
+
+
+def _archive_output(log, started_at: str, log_dir: Path | None = None) -> None:
     """Keep the run's output beside the other AI Factory logs (newest 30)."""
-    if not log_dir.is_dir() or not output.is_file():
+    log_dir = log_dir or UPDATER_LOG_DIR
+    if not log_dir.is_dir():
         return
     stamp = "".join(character for character in started_at[:19] if character.isdigit())
     try:
         target = log_dir / f"update-{stamp[:8]}-{stamp[8:]}.log"
-        shutil.copyfile(output, target)
+        log.flush()
+        with os.fdopen(os.dup(log.fileno()), "rb") as source, target.open("wb") as copy:
+            source.seek(0)
+            while chunk := source.read(1024 * 1024):
+                copy.write(chunk)
         os.chmod(target, 0o640)
         archived = sorted(log_dir.glob("update-*.log"))
         for old in archived[:-UPDATER_LOGS_KEPT]:
@@ -92,7 +132,7 @@ def main() -> int:
     else:
         return 0
     try:
-        request = json.loads(running.read_text(encoding="utf-8"))
+        request = _read_request(running)
         setup = Path(__file__).resolve().parents[2] / "deploy" / "aifactory-setup.sh"
         if not setup.is_file():
             raise RuntimeError(f"Active release installer is missing: {setup}")
@@ -155,7 +195,9 @@ def main() -> int:
                 returncode = subprocess.run(
                     command, text=True, stdout=log, stderr=subprocess.STDOUT, env=env
                 ).returncode
-        _archive_output(output, started_at)
+            # Read back through the handle root created, never by path.
+            output_tail = _output_tail(log)
+            _archive_output(log, started_at)
         if returncode is None:
             progress.finish(False)
             _write_json(
@@ -169,7 +211,7 @@ def main() -> int:
                     "source_type": source_type,
                     "target_version": request.get("target_version"),
                     "os_upgrade_result": os_result,
-                    "output": read_output_tail(output),
+                    "output": output_tail,
                 },
             )
             return 1
@@ -205,7 +247,7 @@ def main() -> int:
                 "source_type": source_type,
                 "target_version": request.get("target_version"),
                 "return_code": returncode,
-                "output": read_output_tail(output),
+                "output": output_tail,
             },
         )
         if applied and source_type == "bundle":

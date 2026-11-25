@@ -120,6 +120,11 @@ class Settings(BaseSettings):
     ADMIN_EMAIL: str = "admin@example.com"
     ADMIN_PASSWORD: str = "admin123"
 
+    # Extra origins (comma-separated, e.g. "https://aifactory.example.com")
+    # allowed to send cookie-authenticated state-changing requests. Normally
+    # empty: requests are accepted when Origin matches the Host header.
+    TRUSTED_ORIGINS: str = ""
+
     # bcrypt work factor for new local password hashes. Existing hashes keep
     # the cost they were created with. The test suite lowers it to 4.
     BCRYPT_ROUNDS: int = 12

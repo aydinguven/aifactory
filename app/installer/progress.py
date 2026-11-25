@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -59,19 +60,44 @@ def queue_progress_path(queue_root: str | Path | None = None) -> Path:
     return root / PROGRESS_FILENAME
 
 
-def _write(path: Path, value: dict) -> None:
-    temporary = path.with_name(f".{path.name}.tmp")
-    temporary.write_text(json.dumps(value, ensure_ascii=False) + "\n", encoding="utf-8")
-    # Root writes the file, the controller or worker agent (the queue
-    # directory's owner) reads it.
-    if hasattr(os, "chown"):
-        owner = path.parent.stat()
+def write_queue_file(path: Path, text: str) -> None:
+    """Atomically replace ``path`` with ``text``, owned like its directory.
+
+    Root writes into the update queue, which the controller or worker agent
+    (an unprivileged account) owns and can write to. That account must not be
+    able to steer root's writes: the temporary file gets an unpredictable name
+    and is created with O_EXCL (which never follows a symlink), and owner and
+    mode are set on the open descriptor rather than by path.
+    """
+    descriptor, temporary = tempfile.mkstemp(
+        dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
+    )
+    try:
+        if hasattr(os, "fchown"):
+            owner = os.stat(path.parent)
+            try:
+                os.fchown(descriptor, owner.st_uid, owner.st_gid)
+            except PermissionError:
+                # Non-root development/test runs already own the file.
+                pass
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            descriptor = -1
+            handle.write(text)
+        # rename() replaces a symlink at ``path`` itself, never its target.
+        os.replace(temporary, path)
+    except BaseException:
+        if descriptor >= 0:
+            os.close(descriptor)
         try:
-            os.chown(temporary, owner.st_uid, owner.st_gid)
-        except PermissionError:
+            os.unlink(temporary)
+        except OSError:
             pass
-    os.chmod(temporary, 0o600)
-    os.replace(temporary, path)
+        raise
+
+
+def _write(path: Path, value: dict) -> None:
+    write_queue_file(path, json.dumps(value, ensure_ascii=False) + "\n")
 
 
 class ProgressReporter:
@@ -170,16 +196,21 @@ def read_progress(path: Path, *, newer_than: float | None = None) -> dict | None
     return value if isinstance(value, dict) else None
 
 
+def read_tail(handle, limit: int = 20000) -> str:
+    """Last ``limit`` characters from an open binary file."""
+    handle.seek(0, os.SEEK_END)
+    size = handle.tell()
+    handle.seek(max(0, size - limit * 4))
+    return handle.read().decode("utf-8", errors="replace")[-limit:]
+
+
 def read_output_tail(path: Path, limit: int = 20000) -> str:
     """Last ``limit`` characters of the live updater output."""
     try:
         if not path.is_file() or path.is_symlink():
             return ""
         with path.open("rb") as handle:
-            handle.seek(0, os.SEEK_END)
-            size = handle.tell()
-            handle.seek(max(0, size - limit * 4))
-            return handle.read().decode("utf-8", errors="replace")[-limit:]
+            return read_tail(handle, limit)
     except OSError:
         return ""
 

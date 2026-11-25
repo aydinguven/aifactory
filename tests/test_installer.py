@@ -121,20 +121,18 @@ def test_root_updater_status_keeps_queue_directory_owner(tmp_path, monkeypatch):
     queue.mkdir()
     captured = {}
 
-    def fake_chown(path, uid, gid):
-        captured.update(path=Path(path), uid=uid, gid=gid)
+    def fake_fchown(descriptor, uid, gid):
+        # Ownership is set on the open descriptor, never by path.
+        captured.update(is_fd=isinstance(descriptor, int), uid=uid, gid=gid)
 
-    monkeypatch.setattr(queued_update.os, "chown", fake_chown, raising=False)
+    monkeypatch.setattr(queued_update.os, "fchown", fake_fchown, raising=False)
     target = queue / "status.json"
 
     queued_update._write_json(target, {"state": "succeeded"})
 
     owner = queue.stat()
-    assert captured == {
-        "path": queue / "status.tmp",
-        "uid": owner.st_uid,
-        "gid": owner.st_gid,
-    }
+    assert captured == {"is_fd": True, "uid": owner.st_uid, "gid": owner.st_gid}
+    assert sorted(path.name for path in queue.iterdir()) == ["status.json"]
     assert json.loads(target.read_text(encoding="utf-8"))["state"] == "succeeded"
 
 
