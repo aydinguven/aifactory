@@ -1,3 +1,4 @@
+# shellcheck shell=sh
 # Shown on every login shell. Lives in /etc/profile.d rather than ~/.bashrc so
 # it survives a user rewriting their own dotfiles in the persistent home.
 if [ -n "${PS1-}" ]; then

@@ -13,7 +13,7 @@ from app.schemas.user import UserCreate
 
 def hash_password(password: str) -> str:
     """Hash password using bcrypt."""
-    salt = bcrypt.gensalt(rounds=12)
+    salt = bcrypt.gensalt(rounds=min(max(settings.BCRYPT_ROUNDS, 4), 31))
     return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
 
 

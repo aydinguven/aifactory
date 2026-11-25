@@ -1,7 +1,23 @@
 import asyncio
+import atexit
 import json
+import os
+import shutil
+import tempfile
 from types import SimpleNamespace
 from pathlib import Path
+
+# Keep test runs out of the developer's checkout and independent of local
+# configuration. These must be set before app.config is imported: Settings()
+# is built at import time.
+_TEST_ROOT = Path(tempfile.mkdtemp(prefix="aifactory-tests-"))
+atexit.register(shutil.rmtree, _TEST_ROOT, ignore_errors=True)
+os.environ["AIFACTORY_ENV_FILE"] = ""  # ignore any local .env
+os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{_TEST_ROOT / 'aifactory.db'}"
+os.environ["STORAGE_ROOT"] = str(_TEST_ROOT / "workspaces")
+os.environ["DOWNLOAD_BUILD_ROOT"] = str(_TEST_ROOT / "download-builds")
+os.environ["BCRYPT_ROUNDS"] = "4"  # cost 12 took ~60% of suite time
+
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport

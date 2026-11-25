@@ -9,10 +9,13 @@ machine-managed `stable` branch.
 
 ## Workflows
 
-- There is no CI workflow: pull requests and merges run no tests on GitHub.
-  The release workflow runs the full Python test suite (with a PostgreSQL
-  service) in parallel with the builds, and the release is published only if
-  it passes. Run `python -m pytest -q` locally before opening a pull request.
+- `.github/workflows/tests.yml` runs on every pull request and on pushes to
+  `main` (Markdown-only changes are skipped). It runs the full Python test
+  suite with a PostgreSQL 16 service, `ruff` for syntax errors and undefined
+  names, ShellCheck at error level over `deploy/` and `containers/`, and a
+  syntax check of `app/static/js`. It uses no secrets and publishes nothing.
+  The release workflow also runs the test suite (with a PostgreSQL service)
+  in parallel with the builds, and the release is published only if it passes.
 - `.github/workflows/release-platform.yml` runs only after a manual dispatch
   from `main` or an exact `vMAJOR.MINOR.PATCH` tag. It uses a GitHub-hosted
   Ubuntu runner and performs the build in a privileged, disposable Rocky Linux
@@ -37,9 +40,7 @@ that draft, so no multi-GB artifacts are staged between jobs. A final
 `publish` job waits for both sides, publishes the draft and advances `stable`.
 Inside the platform build, the controller and worker images are built in
 parallel, and the registry pushes run alongside the bundle packaging.
-The release build does not rerun the test suite; that gate is the CI workflow
-on `main` (skipped for Markdown-only changes), so tag a commit only after its
-CI run has passed.
+Tag a commit only after its `Tests` workflow run on `main` has passed.
 
 The standard GitHub-hosted runner has limited temporary storage. The workflow
 requires at least 8 GiB free before starting. If future platform images make

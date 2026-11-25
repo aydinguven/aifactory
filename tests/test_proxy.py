@@ -6,6 +6,7 @@ from httpx import AsyncClient
 
 import app.proxy.router as proxy_module
 import app.worker_agent as worker_module
+import app.orchestrator.runtime_backend as runtime_backend_module
 from app.agents.manager import AgentStream, StreamChunk
 from app.models.workspace import Workspace
 from sqlalchemy import update
@@ -100,6 +101,15 @@ async def test_proxy_waiting_page_exposes_live_authenticated_diagnostics(
     monkeypatch.setattr(proxy_module.httpx, "AsyncClient", UnavailableProxyClient)
     monkeypatch.setattr(proxy_module.asyncio, "sleep", no_sleep)
     monkeypatch.setattr(proxy_module, "port_is_ready", port_not_ready)
+
+    async def worker_port_not_ready(self, _container_name, _host_port):
+        return False
+
+    # The worker probe connects to 127.0.0.1:<host_port>; keep the result
+    # independent of whatever happens to listen there on the test machine.
+    monkeypatch.setattr(
+        runtime_backend_module.AgentRuntimeBackend, "port_ready", worker_port_not_ready
+    )
 
     response = await client.get(
         f"/proxy/{workspace['id']}/",
